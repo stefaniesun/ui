@@ -1,0 +1,18 @@
+{
+  "name": "@ui-rebuild/visual-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@ui-rebuild/contracts": "workspace:*",
+    "pixelmatch": "6.0.0",
+    "sharp": "0.34.3"
+  },
+  "devDependencies": { "@types/pixelmatch": "5.2.6" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src"
+  }
+}
