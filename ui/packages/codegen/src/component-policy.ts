@@ -9,8 +9,8 @@ export function inspectGeneratedFiles(files: Readonly<Record<string, string>>): 
     const absoluteCount = content.match(/position\s*:\s*absolute/giu)?.length ?? 0
     if (absoluteCount > 4) violations.push({ rule: 'absolute-position-limit', file, message: 'Too many absolute-positioned nodes' })
     if (content.split('\n').length > 300) violations.push({ rule: 'file-size-limit', file, message: 'Generated file exceeds 300 lines' })
-    if (file.endsWith('/index.vue') && !content.includes('data-region-id=')) {
-      violations.push({ rule: 'semantic-region-required', file, message: 'Page has no semantic region descendants' })
+    if (file.includes('/components/') && !content.includes('data-region-id=')) {
+      violations.push({ rule: 'semantic-region-required', file, message: 'Semantic component has no region binding' })
     }
     const repeatedNumericValues = [...content.matchAll(/(?:margin|padding|gap|width|height)[^:]*:\s*(\d+(?:\.\d+)?)(?:rpx|px)/giu)]
       .map(match => match[1]).filter(Boolean)

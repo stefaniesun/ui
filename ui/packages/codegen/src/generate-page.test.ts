@@ -15,23 +15,23 @@ const ir = {
 
 describe('generatePage', () => {
   it('generates semantic regions, tokens and data-driven grids', () => {
-    const files = generatePage(ir)
-    expect(files['src/pages/profile/index.vue']).toContain('data-region-id="owner-services"')
-    expect(files['src/components/profile/OwnerServices.vue']).toContain('v-for="item in items"')
+    const files = generatePage(ir, { logicalWidth: 396 })
+    expect(files['src/pages/profile/index.vue']).toContain('<OwnerServices />')
+    expect(files['src/components/profile/OwnerServices.vue']).toContain('data-region-id="owner-services"')
     expect(Object.values(files).join('\n')).not.toContain('reference/default.png')
-    expect(files['src/styles/tokens.scss']).toContain('32rpx')
+    expect(files['src/styles/tokens.scss']).toContain(`${16 * (750 / 396)}rpx`)
   })
 
   it('escapes markup and rejects unsafe component paths', () => {
     const escaped = generatePage({
       ...ir,
       regions: [{ ...ir.regions[0]!, displayName: '<script>alert(1)</script>' }],
-    })
+    }, { logicalWidth: 396 })
     expect(Object.values(escaped).join('\n')).not.toContain('<script>alert(1)</script>')
     expect(() => generatePage({
       ...ir,
       regions: [{ ...ir.regions[0]!, componentPath: '../outside.vue' }],
-    })).toThrow(/componentPath/i)
+    }, { logicalWidth: 396 })).toThrow(/componentPath/i)
   })
 
   it('rejects forbidden generated patterns', () => {
