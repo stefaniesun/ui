@@ -76,11 +76,14 @@ describe('requestStructuredOutput', () => {
   it('uses at most two business retries and one repair request carrying invalid output', async () => {
     const responses = ['broken', '{"ok":false}', '{"ok":true}']
     const repair = vi.fn()
-    const result = await requestStructuredOutput(async () => responses.shift()!, schema, {
+    const result = await requestStructuredOutput(async () => ({
+      output: responses.shift()!,
+      status: 200,
+    }), schema, {
       businessRetries: 2,
       repair: async (invalidOutput, error) => {
         repair(invalidOutput, error)
-        return responses.shift()!
+        return { output: responses.shift()!, status: 200 }
       },
       mode: 'json-mode',
     })

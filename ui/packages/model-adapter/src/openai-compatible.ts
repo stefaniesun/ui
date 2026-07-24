@@ -142,31 +142,44 @@ export class OpenAICompatibleTransport implements ModelTransport {
   }
 }
 
+export interface StructuredResponse {
+  output: string
+  status: number
+}
+
 export interface StructuredRequestOptions {
   businessRetries?: number
-  repair?: (invalidOutput: string, error: StructuredOutputError) => Promise<string>
+  repair?: (
+    invalidOutput: string,
+    error: StructuredOutputError,
+  ) => Promise<StructuredResponse>
   mode: StructuredOutputMode
 }
 
 export async function requestStructuredOutput<T>(
-  request: () => Promise<string>,
+  request: () => Promise<StructuredResponse>,
   schema: ZodType<T, z.ZodTypeDef, unknown>,
   options: StructuredRequestOptions,
 ): Promise<T> {
   const attempts = (options.businessRetries ?? 2) + 1
   let lastError: StructuredOutputError | null = null
+  let lastStatus: number | null = null
   let totalAttempts = 0
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     totalAttempts += 1
     try {
-      return parseStructuredOutput(await request(), schema)
+      const response = await request()
+      lastStatus = response.status
+      return parseStructuredOutput(response.output, schema)
     } catch (error) {
       if (!(error instanceof StructuredOutputError) || error.kind !== 'format') throw error
       lastError = error
       if (attempt === 0 && options.repair && error.rawOutput !== undefined) {
         totalAttempts += 1
         try {
-          return parseStructuredOutput(await options.repair(error.rawOutput, error), schema)
+          const repaired = await options.repair(error.rawOutput, error)
+          lastStatus = repaired.status
+          return parseStructuredOutput(repaired.output, schema)
         } catch (repairError) {
           if (!(repairError instanceof StructuredOutputError) || repairError.kind !== 'format') {
             throw repairError
@@ -178,6 +191,7 @@ export async function requestStructuredOutput<T>(
   }
   throw new StructuredOutputError(`Structured output failed after ${totalAttempts} attempts`, {
     mode: options.mode,
+    status: lastStatus,
     kind: lastError?.kind,
     issues: lastError?.schemaPaths.map(path => ({ code: 'custom', path: [path], message: '' })),
     attempts: totalAttempts,

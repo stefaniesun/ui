@@ -17,7 +17,7 @@ const COLOR_SCHEMA = {
 // A known 1×1 red PNG makes the probe depend on actual image inspection.
 const RED_PIXEL: ModelImage = {
   mediaType: 'image/png',
-  base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zx8sAAAAASUVORK5CYII=',
+  base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAC0lEQVR42mP8/x8AAusB9Wl2F/0AAAAASUVORK5CYII=',
   width: 1,
   height: 1,
 }
