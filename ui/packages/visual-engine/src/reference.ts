@@ -8,7 +8,6 @@ export interface FrozenReferenceRegion {
   regionId: string
   bounds: Bounds
   crop: Buffer
-  meanColor: [number, number, number]
   ocrBaseline: unknown | null
 }
 
@@ -16,11 +15,6 @@ export interface FrozenReference {
   image: NormalizedImage
   normalization: ImageNormalization
   regions: ReadonlyMap<string, FrozenReferenceRegion>
-}
-
-async function meanColor(crop: Buffer): Promise<[number, number, number]> {
-  const { dominant } = await import('sharp').then(({ default: sharp }) => sharp(crop).stats())
-  return [dominant.r, dominant.g, dominant.b]
 }
 
 export async function freezeReference(
@@ -41,12 +35,7 @@ export async function freezeReference(
         ocrBaseline = null
       }
     }
-    frozen.set(region.regionId, {
-      ...region,
-      crop,
-      meanColor: await meanColor(crop),
-      ocrBaseline,
-    })
+    frozen.set(region.regionId, { ...region, crop, ocrBaseline })
   }
   return { image, normalization, regions: frozen }
 }

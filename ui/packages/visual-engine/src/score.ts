@@ -92,6 +92,23 @@ function validateShared(options: SharedScoreOptions) {
     state: options.stateScore == null ? null : finiteScore(options.stateScore, 'state score'),
   }
 }
+function masksForRegion(
+  canvasMasks: readonly Bounds[],
+  bounds: Bounds,
+): Bounds[] {
+  const output: Bounds[] = []
+  for (const mask of canvasMasks) {
+    const left = Math.max(bounds.x, mask.x)
+    const top = Math.max(bounds.y, mask.y)
+    const right = Math.min(bounds.x + bounds.width, mask.x + mask.width)
+    const bottom = Math.min(bounds.y + bounds.height, mask.y + mask.height)
+    if (right > left && bottom > top) {
+      output.push({ x: left - bounds.x, y: top - bounds.y, width: right - left, height: bottom - top })
+    }
+  }
+  return output
+}
+
 function weighted(values: Array<{ value: number | null; weight: number }>): number {
   const available = values.filter(item => item.value !== null) as Array<{ value: number; weight: number }>
   const totalWeight = available.reduce((sum, item) => sum + item.weight, 0)
@@ -126,7 +143,8 @@ export async function scoreAgainstFrozenReference(
     const width = Math.max(1, Math.round(baseline.bounds.width))
     const height = Math.max(1, Math.round(baseline.bounds.height))
     const aligned = await alignCrops(baseline.crop, actualCrop, width, height)
-    const mask = createMask(width, height, region.masks ?? [])
+    const systemMasks = masksForRegion(actual.defaultMasks, region.actualBounds)
+    const mask = createMask(width, height, [...systemMasks, ...(region.masks ?? [])])
     const maskedActual = Buffer.from(aligned.actual)
     let validPixels = 0
     let deltaTotal = 0

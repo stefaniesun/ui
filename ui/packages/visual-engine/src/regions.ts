@@ -9,12 +9,12 @@ export function validateBounds(bounds: Bounds, width: number, height: number, na
   if (!values.every(Number.isFinite) || bounds.width < 0.5 || bounds.height < 0.5) {
     throw new Error(`${name} bounds must be finite and round to positive logical pixels`)
   }
-  const left = Math.round(bounds.x)
-  const top = Math.round(bounds.y)
-  const roundedWidth = Math.round(bounds.width)
-  const roundedHeight = Math.round(bounds.height)
-  if (left < 0 || top < 0 || roundedWidth <= 0 || roundedHeight <= 0
-    || left + roundedWidth > width || top + roundedHeight > height) {
+  const left = Math.floor(bounds.x)
+  const top = Math.floor(bounds.y)
+  const right = Math.ceil(bounds.x + bounds.width)
+  const bottom = Math.ceil(bounds.y + bounds.height)
+  if (left < 0 || top < 0 || right <= left || bottom <= top
+    || right > width || bottom > height) {
     throw new Error(`${name} bounds are outside the logical canvas`)
   }
 }
@@ -34,7 +34,11 @@ export async function cropRegions(
   const metadata = await sharp(image).metadata()
   if (!metadata.width || !metadata.height) throw new Error('Image dimensions are unavailable')
   const normalized: NormalizedImage = {
-    png: image, data: Buffer.alloc(0), width: metadata.width, height: metadata.height,
+    png: image,
+    data: Buffer.alloc(0),
+    width: metadata.width,
+    height: metadata.height,
+    defaultMasks: [],
   }
   const output = new Map<string, Buffer>()
   for (const region of regions) output.set(region.regionId, await cropRegion(normalized, region.bounds))

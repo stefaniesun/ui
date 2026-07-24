@@ -18,6 +18,7 @@ export interface NormalizedImage {
   width: number
   height: number
   png: Buffer
+  defaultMasks: Array<{ x: number; y: number; width: number; height: number }>
 }
 
 function positiveInteger(value: number, name: string): void {
@@ -65,5 +66,8 @@ export async function normalizeImage(
     .png()
     .toBuffer()
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-  return { data, width: info.width, height: info.height, png }
+  const defaultMasks = options.systemBarPolicy.mode === 'mask' && policyTop > 0
+    ? [{ x: 0, y: 0, width: options.logicalWidth, height: policyTop }]
+    : []
+  return { data, width: info.width, height: info.height, png, defaultMasks }
 }

@@ -7,6 +7,11 @@ export interface LocalOcrCommandOptions {
   timeoutMs?: number
 }
 
+export const LOCAL_OCR_PRESETS = {
+  paddleocr: { command: 'paddleocr' },
+  rapidocr: { command: 'rapidocr_onnxruntime' },
+} as const satisfies Record<string, LocalOcrCommandOptions>
+
 export class OcrUnavailableError extends Error {
   constructor(message: string) {
     super(message)
