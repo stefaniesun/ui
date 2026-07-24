@@ -49,7 +49,7 @@ export class LocalOcrCommandProvider implements OcrProvider {
           const result = JSON.parse(Buffer.concat(stdout).toString('utf8')) as { match: number }
           resolve(result.match)
         } catch {
-          reject(new Error('Local OCR command returned invalid JSON'))
+          reject(new OcrUnavailableError('Local OCR command returned invalid JSON'))
         }
       })
       child.stdin.end(payload)

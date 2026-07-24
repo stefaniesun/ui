@@ -1,10 +1,15 @@
 import sharp from 'sharp'
 
+export type SystemBarPolicy =
+  | { mode: 'none' }
+  | { mode: 'crop'; top: number }
+  | { mode: 'mask'; top: number }
+
 export interface ImageNormalization {
   logicalWidth: number
   logicalHeight: number
   sourceScale: number
-  systemBarTop?: number
+  systemBarPolicy: SystemBarPolicy
   flattenBackground?: string
 }
 
@@ -30,11 +35,12 @@ export async function normalizeImage(
   }
   const metadata = await sharp(input, { failOn: 'error' }).metadata()
   const sourceWidth = options.logicalWidth * options.sourceScale
-  const systemBarTop = options.systemBarTop ?? 0
-  if (!Number.isFinite(systemBarTop) || systemBarTop < 0) {
-    throw new Error('systemBarTop must be finite and nonnegative')
+  const policyTop = options.systemBarPolicy.mode === 'none' ? 0 : options.systemBarPolicy.top
+  if (!Number.isFinite(policyTop) || policyTop < 0) {
+    throw new Error('system bar top must be finite and nonnegative')
   }
-  const sourceHeight = (options.logicalHeight + systemBarTop) * options.sourceScale
+  const croppedTop = options.systemBarPolicy.mode === 'crop' ? policyTop : 0
+  const sourceHeight = (options.logicalHeight + croppedTop) * options.sourceScale
   if (metadata.width !== sourceWidth || metadata.height !== sourceHeight) {
     throw new Error(
       `Image dimensions ${metadata.width}x${metadata.height} do not match expected `
@@ -44,7 +50,7 @@ export async function normalizeImage(
   let pipeline = sharp(input, { failOn: 'error' })
     .extract({
       left: 0,
-      top: Math.round(systemBarTop * options.sourceScale),
+      top: Math.round(croppedTop * options.sourceScale),
       width: Math.round(sourceWidth),
       height: Math.round(options.logicalHeight * options.sourceScale),
     })

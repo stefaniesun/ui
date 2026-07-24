@@ -10,7 +10,12 @@ export async function createHeatmap(
   height: number,
   masks: readonly Bounds[],
 ): Promise<Buffer> {
-  const normalization = { logicalWidth: width, logicalHeight: height, sourceScale: 1 }
+  const normalization = {
+    logicalWidth: width,
+    logicalHeight: height,
+    sourceScale: 1,
+    systemBarPolicy: { mode: 'none' as const },
+  }
   const [first, second] = await Promise.all([
     normalizeImage(reference, normalization), normalizeImage(actual, normalization),
   ])

@@ -6,12 +6,15 @@ export interface NamedRegion { regionId: string; bounds: Bounds }
 
 export function validateBounds(bounds: Bounds, width: number, height: number, name: string): void {
   const values = [bounds.x, bounds.y, bounds.width, bounds.height]
-  if (!values.every(Number.isFinite) || !values.every(Number.isInteger)
-    || bounds.width <= 0 || bounds.height <= 0) {
-    throw new Error(`${name} bounds must be finite positive integer logical pixels`)
+  if (!values.every(Number.isFinite) || bounds.width < 0.5 || bounds.height < 0.5) {
+    throw new Error(`${name} bounds must be finite and round to positive logical pixels`)
   }
-  if (bounds.x < 0 || bounds.y < 0
-    || bounds.x + bounds.width > width || bounds.y + bounds.height > height) {
+  const left = Math.round(bounds.x)
+  const top = Math.round(bounds.y)
+  const roundedWidth = Math.round(bounds.width)
+  const roundedHeight = Math.round(bounds.height)
+  if (left < 0 || top < 0 || roundedWidth <= 0 || roundedHeight <= 0
+    || left + roundedWidth > width || top + roundedHeight > height) {
     throw new Error(`${name} bounds are outside the logical canvas`)
   }
 }

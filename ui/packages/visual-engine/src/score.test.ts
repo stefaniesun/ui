@@ -8,7 +8,12 @@ async function card(left: number, color = '#ffcc00', scale = 1) {
     .png().toBuffer()
 }
 
-const normalization = { logicalWidth: 64, logicalHeight: 64, sourceScale: 1 }
+const normalization = {
+  logicalWidth: 64,
+  logicalHeight: 64,
+  sourceScale: 1,
+  systemBarPolicy: { mode: 'none' as const },
+}
 const weights = {
   geometry: 0.25,
   visual: 0.25,
