@@ -171,7 +171,19 @@ export async function requestStructuredOutput<T>(
       lastStatus = response.status
       return parseStructuredOutput(response.output, schema)
     } catch (error) {
-      if (!(error instanceof StructuredOutputError) || error.kind !== 'format') throw error
+      if (!(error instanceof StructuredOutputError)) throw error
+      const httpStatus = error.status ?? null
+      const retryableTransport = ['timeout', 'network'].includes(error.kind)
+        || (error.kind === 'http' && httpStatus !== null
+          && (httpStatus === 408 || httpStatus === 429 || httpStatus >= 500))
+      if (error.kind !== 'format') {
+        if (retryableTransport && attempt + 1 < attempts) {
+          lastError = error
+          lastStatus = error.status ?? lastStatus
+          continue
+        }
+        throw error
+      }
       lastError = error
       if (attempt === 0 && options.repair && error.rawOutput !== undefined) {
         totalAttempts += 1

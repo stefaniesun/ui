@@ -5,11 +5,15 @@ import { parseStructuredOutput, StructuredOutputError } from './structured-outpu
 const schema = z.object({ name: z.string(), confidence: z.number().min(0).max(1) }).strict()
 
 describe('parseStructuredOutput', () => {
-  it('parses direct and fenced JSON', () => {
+  it('extracts direct, fenced, and explanatory JSON output', () => {
     expect(parseStructuredOutput('{"name":"header","confidence":0.9}', schema).name)
       .toBe('header')
     expect(parseStructuredOutput('```json\n{"name":"header","confidence":0.9}\n```', schema).name)
       .toBe('header')
+    expect(parseStructuredOutput(
+      'Here is the result: {"name":"header","confidence":0.9} done.',
+      schema,
+    ).name).toBe('header')
   })
 
   it('rejects invalid JSON and schema mismatches without partial values', () => {

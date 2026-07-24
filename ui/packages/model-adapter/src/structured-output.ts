@@ -28,10 +28,38 @@ export class StructuredOutputError extends Error {
   }
 }
 
-function stripFence(value: string): string {
+function extractJson(value: string): string {
   const trimmed = value.trim()
-  const match = /^```(?:json)?\s*([\s\S]*?)\s*```$/iu.exec(trimmed)
-  return match?.[1] ?? trimmed
+  const fence = /```(?:json)?\s*([\s\S]*?)\s*```/iu.exec(trimmed)
+  if (fence?.[1]) return fence[1]
+
+  let start = -1
+  let depth = 0
+  let quoted = false
+  let escaped = false
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const character = trimmed[index]!
+    if (start < 0) {
+      if (character === '{' || character === '[') {
+        start = index
+        depth = 1
+      }
+      continue
+    }
+    if (escaped) {
+      escaped = false
+    } else if (character === '\\' && quoted) {
+      escaped = true
+    } else if (character === '"') {
+      quoted = !quoted
+    } else if (!quoted && (character === '{' || character === '[')) {
+      depth += 1
+    } else if (!quoted && (character === '}' || character === ']')) {
+      depth -= 1
+      if (depth === 0) return trimmed.slice(start, index + 1)
+    }
+  }
+  return trimmed
 }
 
 export function parseStructuredOutput<T>(
@@ -40,7 +68,7 @@ export function parseStructuredOutput<T>(
 ): T {
   let parsed: unknown
   try {
-    parsed = JSON.parse(stripFence(value))
+    parsed = JSON.parse(extractJson(value))
   } catch {
     throw new StructuredOutputError('Model returned invalid JSON', { rawOutput: value })
   }

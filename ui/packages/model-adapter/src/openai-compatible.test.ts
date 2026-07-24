@@ -86,6 +86,32 @@ describe('OpenAICompatibleTransport', () => {
 })
 
 describe('requestStructuredOutput', () => {
+  it('retries transient transport failures but not cancellation or fatal client errors', async () => {
+    const transient = new StructuredOutputError('temporary', {
+      kind: 'http', status: 429, mode: 'json-mode',
+    })
+    const request = vi.fn()
+      .mockRejectedValueOnce(transient)
+      .mockResolvedValueOnce({ output: '{"ok":true}', status: 200 })
+    await expect(requestStructuredOutput(request, schema, {
+      businessRetries: 2,
+      mode: 'json-mode',
+    })).resolves.toEqual({ ok: true })
+    expect(request).toHaveBeenCalledTimes(2)
+
+    for (const fatal of [
+      new StructuredOutputError('cancelled', { kind: 'cancelled', mode: 'json-mode' }),
+      new StructuredOutputError('unauthorized', { kind: 'http', status: 401, mode: 'json-mode' }),
+    ]) {
+      const fatalRequest = vi.fn().mockRejectedValue(fatal)
+      await expect(requestStructuredOutput(fatalRequest, schema, {
+        businessRetries: 2,
+        mode: 'json-mode',
+      })).rejects.toBe(fatal)
+      expect(fatalRequest).toHaveBeenCalledTimes(1)
+    }
+  })
+
   it('uses at most two business retries and one repair request carrying invalid output', async () => {
     const responses = ['broken', '{"ok":false}', '{"ok":true}']
     const repair = vi.fn()
