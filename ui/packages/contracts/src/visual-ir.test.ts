@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { VisualIRSchema } from './visual-ir.js'
+import { applyRegionSuggestion, VisualIRSchema } from './visual-ir.js'
 
 function createVisualIR() {
   return {
     version: '1.0.0',
     projectId: 'uinotes-demo',
     pageId: 'profile',
+    coordinateSpace: 'logical-px',
     tokens: { colors: {}, typography: {}, spacing: {}, radii: {} },
     states: [{ id: 'default', screenshot: 'reference/default.png' }],
     regions: [{
@@ -49,5 +50,42 @@ describe('VisualIRSchema', () => {
       { ...input.regions[0]!, regionId: 'second', parentId: 'first' },
     ]
     expect(() => VisualIRSchema.parse(input)).toThrow(/cycle/i)
+  })
+
+  it('requires logical pixel coordinates', () => {
+    expect(() => VisualIRSchema.parse({ ...createVisualIR(), coordinateSpace: 'physical-px' }))
+      .toThrow()
+    const withoutCoordinateSpace = { ...createVisualIR() }
+    Reflect.deleteProperty(withoutCoordinateSpace, 'coordinateSpace')
+    expect(() => VisualIRSchema.parse(withoutCoordinateSpace)).toThrow()
+  })
+
+  it('rejects a model-owned human lock', () => {
+    const input = createVisualIR()
+    input.regions[0]!.source = 'model'
+    Object.assign(input.regions[0]!, { lockedByHuman: true })
+    expect(() => VisualIRSchema.parse(input)).toThrow(/lockedByHuman/i)
+  })
+
+  it('preserves human-locked names and aliases during model updates', () => {
+    const current = VisualIRSchema.parse({
+      ...createVisualIR(),
+      regions: [{
+        ...createVisualIR().regions[0]!,
+        source: 'human',
+        lockedByHuman: true,
+      }],
+    }).regions[0]!
+    const incoming = {
+      ...current,
+      source: 'model' as const,
+      lockedByHuman: false,
+      displayName: '模型新名称',
+      aliases: ['模型别名'],
+    }
+    const merged = applyRegionSuggestion(current, incoming)
+    expect(merged.displayName).toBe('车主服务区')
+    expect(merged.aliases).toEqual(['爱车服务模块'])
+    expect(merged.lockedByHuman).toBe(true)
   })
 })

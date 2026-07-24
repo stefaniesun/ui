@@ -35,9 +35,25 @@ describe('ManifestSchema', () => {
     expect(() => ManifestSchema.parse(input)).toThrow(/duplicate state id/i)
   })
 
-  it('reports missing screenshots with their manifest path', async () => {
+  it('reports missing screenshots with their state and manifest path', async () => {
     const result = ManifestSchema.parse(createManifest())
     await expect(validateManifestFiles(result, 'C:/fixture', async () => false))
-      .rejects.toThrow(/reference\/default\.png/i)
+      .rejects.toThrow(/default.*reference\/default\.png/i)
+  })
+
+  it.each([
+    '../outside.png',
+    'reference/../../outside.png',
+    'C:\\outside\\image.png',
+    '\\\\server\\share\\image.png',
+    '/outside/image.png',
+  ])('rejects screenshots outside the manifest directory: %s', screenshot => {
+    const input = createManifest()
+    input.states[0]!.screenshot = screenshot
+    expect(() => ManifestSchema.parse(input)).toThrow()
+  })
+
+  it('rejects unknown manifest fields', () => {
+    expect(() => ManifestSchema.parse({ ...createManifest(), pixelRato: 3 })).toThrow()
   })
 })
