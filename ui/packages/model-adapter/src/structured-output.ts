@@ -1,19 +1,30 @@
 import type { ZodIssue, z } from 'zod'
+import type { StructuredOutputMode, TransportErrorKind } from './types.js'
 
 export class StructuredOutputError extends Error {
   readonly schemaPaths: string[]
-  readonly mode?: string
+  readonly mode?: StructuredOutputMode
   readonly status?: number | null
+  readonly kind: 'format' | TransportErrorKind
+  readonly attempts: number
+  readonly rawOutput?: string
 
-  constructor(
-    message: string,
-    options: { issues?: ZodIssue[]; mode?: string; status?: number | null } = {},
-  ) {
+  constructor(message: string, options: {
+    issues?: ZodIssue[]
+    mode?: StructuredOutputMode
+    status?: number | null
+    kind?: 'format' | TransportErrorKind
+    attempts?: number
+    rawOutput?: string
+  } = {}) {
     super(message)
     this.name = 'StructuredOutputError'
     this.schemaPaths = options.issues?.map(issue => issue.path.join('.') || '<root>') ?? []
     this.mode = options.mode
     this.status = options.status
+    this.kind = options.kind ?? 'format'
+    this.attempts = options.attempts ?? 1
+    this.rawOutput = options.rawOutput
   }
 }
 
@@ -31,7 +42,7 @@ export function parseStructuredOutput<T>(
   try {
     parsed = JSON.parse(stripFence(value))
   } catch {
-    throw new StructuredOutputError('Model returned invalid JSON')
+    throw new StructuredOutputError('Model returned invalid JSON', { rawOutput: value })
   }
   const result = schema.safeParse(parsed)
   if (!result.success) {
@@ -40,6 +51,7 @@ export function parseStructuredOutput<T>(
     )).join('; ')
     throw new StructuredOutputError(`Model output does not match schema: ${details}`, {
       issues: result.error.issues,
+      rawOutput: value,
     })
   }
   return result.data

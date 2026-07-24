@@ -1,6 +1,7 @@
 import type { PatchPlan, VisualIR } from '@ui-rebuild/contracts'
 
 export type StructuredOutputMode = 'json-schema' | 'tools' | 'json-mode' | 'prompt-json'
+export type TransportErrorKind = 'http' | 'timeout' | 'cancelled' | 'network' | 'protocol'
 
 export interface ModelImage {
   mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
@@ -20,7 +21,7 @@ export interface TransportRequest {
 
 export type TransportResponse =
   | { ok: true; status: number; output: string }
-  | { ok: false; status: number | null; kind: 'http' | 'timeout' | 'cancelled' | 'network' | 'protocol'; message: string }
+  | { ok: false; status: number | null; kind: TransportErrorKind; message: string }
 
 export interface ModelTransport {
   calls?: TransportRequest[]
@@ -33,13 +34,17 @@ export interface ModelCapabilityProfile {
   maxVerifiedImage: { width: number; height: number }
 }
 
-export interface AnalyzeScreensInput { screenshots: ModelImage[]; prompt: string }
-export interface DiagnoseDiffInput { images: ModelImage[]; prompt: string }
-export interface ReviewResultInput { images: ModelImage[]; prompt: string }
+export interface AnalyzeScreensInput {
+  screenshots: ModelImage[]
+  prompt: string
+  signal?: AbortSignal
+}
+export interface DiagnoseDiffInput { images: ModelImage[]; prompt: string; signal?: AbortSignal }
+export interface ReviewResultInput { images: ModelImage[]; prompt: string; signal?: AbortSignal }
 export interface ModelReview { summary: string; unresolved: string[] }
 
 export interface ModelAdapter {
-  probe(referenceImage: ModelImage): Promise<ModelCapabilityProfile>
+  probe(referenceImage: ModelImage, signal?: AbortSignal): Promise<ModelCapabilityProfile>
   analyzeScreens(input: AnalyzeScreensInput): Promise<VisualIR>
   diagnoseDiff(input: DiagnoseDiffInput): Promise<PatchPlan>
   reviewResult(input: ReviewResultInput): Promise<ModelReview>

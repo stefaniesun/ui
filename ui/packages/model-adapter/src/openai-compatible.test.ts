@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { OpenAICompatibleTransport, requestStructuredOutput } from './openai-compatible.js'
+import { StructuredOutputError } from './structured-output.js'
 import type { TransportRequest } from './types.js'
 
 const schema = z.object({ ok: z.literal(true) }).strict()
@@ -44,7 +45,9 @@ describe('OpenAICompatibleTransport', () => {
       baseUrl: 'http://127.0.0.1:1234/v1',
       model: 'vision',
       fetch: vi.fn().mockResolvedValue(Response.json({
-        choices: [{ message: { tool_calls: [{ function: { arguments: '{"ok":true}' } }] } }],
+        choices: [{ message: { tool_calls: [{
+          function: { name: 'return_result', arguments: '{"ok":true}' },
+        }] } }],
       })),
     })
     await expect(toolTransport.send({ ...request, structuredOutput: 'tools' })).resolves
@@ -70,15 +73,19 @@ describe('OpenAICompatibleTransport', () => {
 })
 
 describe('requestStructuredOutput', () => {
-  it('uses at most two business retries and one repair instruction', async () => {
+  it('uses at most two business retries and one repair request carrying invalid output', async () => {
     const responses = ['broken', '{"ok":false}', '{"ok":true}']
     const repair = vi.fn()
     const result = await requestStructuredOutput(async () => responses.shift()!, schema, {
       businessRetries: 2,
-      repair,
+      repair: async (invalidOutput, error) => {
+        repair(invalidOutput, error)
+        return responses.shift()!
+      },
       mode: 'json-mode',
     })
     expect(result).toEqual({ ok: true })
     expect(repair).toHaveBeenCalledTimes(1)
+    expect(repair).toHaveBeenCalledWith('broken', expect.any(StructuredOutputError))
   })
 })

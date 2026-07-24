@@ -25,48 +25,50 @@ function endpointUrl(baseUrl: string, trustedRemoteOrigins: readonly string[]): 
   return new URL('chat/completions', `${url.toString().replace(/\/?$/, '/')}`)
 }
 
+function schemaInstruction(request: TransportRequest): string {
+  if (!['json-mode', 'prompt-json'].includes(request.structuredOutput)) return ''
+  return `\nReturn only JSON matching this schema:\n${JSON.stringify(request.jsonSchema)}`
+}
+
 function structureFields(request: TransportRequest): Record<string, unknown> {
   if (request.structuredOutput === 'json-schema') {
-    return {
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: request.schemaName, strict: true, schema: request.jsonSchema },
-      },
-    }
+    return { response_format: { type: 'json_schema', json_schema: {
+      name: request.schemaName, strict: true, schema: request.jsonSchema,
+    } } }
   }
   if (request.structuredOutput === 'tools') {
     return {
-      tools: [{
-        type: 'function',
-        function: {
-          name: 'return_result',
-          description: 'Return the requested structured result.',
-          strict: true,
-          parameters: request.jsonSchema,
-        },
-      }],
+      tools: [{ type: 'function', function: {
+        name: 'return_result', description: 'Return the requested result.',
+        strict: true, parameters: request.jsonSchema,
+      } }],
       tool_choice: { type: 'function', function: { name: 'return_result' } },
     }
   }
-  if (request.structuredOutput === 'json-mode') {
-    return { response_format: { type: 'json_object' } }
-  }
-  return {}
+  return request.structuredOutput === 'json-mode'
+    ? { response_format: { type: 'json_object' } }
+    : {}
 }
 
-function extractOutput(body: unknown): string | null {
+function extractOutput(body: unknown, mode: StructuredOutputMode): string | null {
   if (typeof body !== 'object' || body === null) return null
   const choices = Reflect.get(body, 'choices')
-  if (!Array.isArray(choices) || typeof choices[0] !== 'object' || choices[0] === null) return null
+  if (!Array.isArray(choices) || choices.length !== 1
+    || typeof choices[0] !== 'object' || choices[0] === null) return null
   const message = Reflect.get(choices[0], 'message')
   if (typeof message !== 'object' || message === null) return null
-  const toolCalls = Reflect.get(message, 'tool_calls')
-  if (Array.isArray(toolCalls) && typeof toolCalls[0] === 'object' && toolCalls[0] !== null) {
-    const fn = Reflect.get(toolCalls[0], 'function')
-    if (typeof fn === 'object' && fn !== null) {
-      const args = Reflect.get(fn, 'arguments')
-      if (typeof args === 'string') return args
-    }
+  if (mode === 'tools') {
+    const toolCalls = Reflect.get(message, 'tool_calls')
+    if (!Array.isArray(toolCalls)) return null
+    const expected = toolCalls.filter(call => {
+      if (typeof call !== 'object' || call === null) return false
+      const fn = Reflect.get(call, 'function')
+      return typeof fn === 'object' && fn !== null && Reflect.get(fn, 'name') === 'return_result'
+    })
+    if (expected.length !== 1) return null
+    const fn = Reflect.get(expected[0]!, 'function') as object
+    const args = Reflect.get(fn, 'arguments')
+    return typeof args === 'string' ? args : null
   }
   const content = Reflect.get(message, 'content')
   return typeof content === 'string' ? content : null
@@ -97,24 +99,19 @@ export class OpenAICompatibleTransport implements ModelTransport {
     const timeout = setTimeout(() => controller.abort('timeout'), this.timeoutMs)
     try {
       const response = await this.fetchImplementation(this.endpoint, {
-        method: 'POST',
-        redirect: 'error',
+        method: 'POST', redirect: 'error',
         headers: {
           'content-type': 'application/json',
           ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
         },
         body: JSON.stringify({
           model: this.model,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: request.prompt },
-              ...request.images.map(image => ({
-                type: 'image_url',
-                image_url: { url: `data:${image.mediaType};base64,${image.base64}` },
-              })),
-            ],
-          }],
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: request.prompt + schemaInstruction(request) },
+            ...request.images.map(image => ({ type: 'image_url', image_url: {
+              url: `data:${image.mediaType};base64,${image.base64}`,
+            } })),
+          ] }],
           ...structureFields(request),
         }),
         signal: controller.signal,
@@ -123,22 +120,18 @@ export class OpenAICompatibleTransport implements ModelTransport {
         return { ok: false, status: response.status, kind: 'http', message: 'model request failed' }
       }
       let body: unknown
-      try {
-        body = await response.json()
-      } catch {
+      try { body = await response.json() } catch {
         return { ok: false, status: response.status, kind: 'protocol', message: 'invalid JSON response' }
       }
-      const output = extractOutput(body)
-      if (output === null) {
-        return { ok: false, status: response.status, kind: 'protocol', message: 'missing model output' }
-      }
-      return { ok: true, status: response.status, output }
+      const output = extractOutput(body, request.structuredOutput)
+      return output === null
+        ? { ok: false, status: response.status, kind: 'protocol', message: 'missing model output' }
+        : { ok: true, status: response.status, output }
     } catch {
       const cancelled = request.signal?.aborted === true
       const timedOut = controller.signal.reason === 'timeout'
       return {
-        ok: false,
-        status: null,
+        ok: false, status: null,
         kind: cancelled ? 'cancelled' : timedOut ? 'timeout' : 'network',
         message: cancelled ? 'request cancelled' : timedOut ? 'request timed out' : 'network error',
       }
@@ -151,35 +144,42 @@ export class OpenAICompatibleTransport implements ModelTransport {
 
 export interface StructuredRequestOptions {
   businessRetries?: number
-  repair?: (error: StructuredOutputError, attempt: number) => Promise<void>
-  mode?: StructuredOutputMode
-  status?: number | null
+  repair?: (invalidOutput: string, error: StructuredOutputError) => Promise<string>
+  mode: StructuredOutputMode
 }
 
 export async function requestStructuredOutput<T>(
   request: () => Promise<string>,
   schema: ZodType<T, z.ZodTypeDef, unknown>,
-  options: StructuredRequestOptions = {},
+  options: StructuredRequestOptions,
 ): Promise<T> {
   const attempts = (options.businessRetries ?? 2) + 1
   let lastError: StructuredOutputError | null = null
-  let repairUsed = false
+  let totalAttempts = 0
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    totalAttempts += 1
     try {
       return parseStructuredOutput(await request(), schema)
     } catch (error) {
-      lastError = error instanceof StructuredOutputError
-        ? error
-        : new StructuredOutputError('Structured request failed')
-      if (!repairUsed && options.repair) {
-        repairUsed = true
-        await options.repair(lastError, attempt)
+      if (!(error instanceof StructuredOutputError) || error.kind !== 'format') throw error
+      lastError = error
+      if (attempt === 0 && options.repair && error.rawOutput !== undefined) {
+        totalAttempts += 1
+        try {
+          return parseStructuredOutput(await options.repair(error.rawOutput, error), schema)
+        } catch (repairError) {
+          if (!(repairError instanceof StructuredOutputError) || repairError.kind !== 'format') {
+            throw repairError
+          }
+          lastError = repairError
+        }
       }
     }
   }
-  throw new StructuredOutputError(`Structured output failed after ${attempts} attempts`, {
+  throw new StructuredOutputError(`Structured output failed after ${totalAttempts} attempts`, {
     mode: options.mode,
-    status: options.status,
+    kind: lastError?.kind,
     issues: lastError?.schemaPaths.map(path => ({ code: 'custom', path: [path], message: '' })),
+    attempts: totalAttempts,
   })
 }
