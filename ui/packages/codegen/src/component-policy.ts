@@ -9,6 +9,10 @@ export function inspectGeneratedFiles(files: Readonly<Record<string, string>>): 
     const absoluteCount = content.match(/position\s*:\s*absolute/giu)?.length ?? 0
     if (absoluteCount > 4) violations.push({ rule: 'absolute-position-limit', file, message: 'Too many absolute-positioned nodes' })
     if (content.split('\n').length > 300) violations.push({ rule: 'file-size-limit', file, message: 'Generated file exceeds 300 lines' })
+    const repeatedGridItems = content.match(/<view\s+class="[^"]*(?:item|cell)[^"]*"/giu)?.length ?? 0
+    if (repeatedGridItems >= 4 && !content.includes('v-for=')) {
+      violations.push({ rule: 'data-driven-grid', file, message: 'Repeated grid items must use v-for data rendering' })
+    }
     if (file.includes('/components/') && !content.includes('data-region-id=')) {
       violations.push({ rule: 'semantic-region-required', file, message: 'Semantic component has no region binding' })
     }

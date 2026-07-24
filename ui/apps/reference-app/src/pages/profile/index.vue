@@ -1,5 +1,1 @@
-<script setup lang="ts">
-import OwnerServices from '../../components/profile/OwnerServices.vue'
-</script>
-<template><view class="page-profile"><OwnerServices /></view></template>
-<style scoped lang="scss">.page-profile{min-height:100vh;padding:var(--ui-space-page);background:var(--ui-color-page)}</style>
+<script setup lang="ts">import AccountSummary from '../../components/profile/AccountSummary.vue';import OwnerServices from '../../components/profile/OwnerServices.vue';import PrimaryTabBar from '../../components/navigation/PrimaryTabBar.vue'</script><template><view class="page-profile"><AccountSummary/><OwnerServices/><PrimaryTabBar/></view></template><style scoped lang="scss">.page-profile{display:flex;flex-direction:column;gap:var(--ui-space-page);min-height:100vh;padding:var(--ui-space-page);padding-bottom:120rpx;background:var(--ui-color-page)}</style>

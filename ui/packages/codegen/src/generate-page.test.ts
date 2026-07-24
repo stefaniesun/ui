@@ -38,5 +38,8 @@ describe('generatePage', () => {
     expect(inspectGeneratedFiles({
       'src/pages/profile/index.vue': '<style>.x{background:url(reference/default.png)}</style>',
     })).not.toHaveLength(0)
+    expect(inspectGeneratedFiles({
+      'src/components/Grid.vue': '<view class="grid-item"/><view class="grid-item"/><view class="grid-item"/><view class="grid-item"/>',
+    }).map(item => item.rule)).toContain('data-driven-grid')
   })
 })
