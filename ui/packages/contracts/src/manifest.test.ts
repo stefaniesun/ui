@@ -37,13 +37,32 @@ describe('ManifestSchema', () => {
 
   it('reports missing screenshots with their state and manifest path', async () => {
     const result = ManifestSchema.parse(createManifest())
-    await expect(validateManifestFiles(result, 'C:/fixture', async () => false))
-      .rejects.toThrow(/default.*reference\/default\.png/i)
+    await expect(validateManifestFiles(result, 'C:/fixture', async () => ({
+      exists: false,
+      isFile: false,
+      realPath: null,
+    }))).rejects.toThrow(/default.*reference\/default\.png/i)
+  })
+
+  it('rejects directories and real paths outside the manifest root', async () => {
+    const result = ManifestSchema.parse(createManifest())
+    await expect(validateManifestFiles(result, 'C:/fixture', async () => ({
+      exists: true,
+      isFile: false,
+      realPath: 'C:/fixture/reference',
+    }))).rejects.toThrow(/not a regular file/i)
+
+    await expect(validateManifestFiles(result, 'C:/fixture', async () => ({
+      exists: true,
+      isFile: true,
+      realPath: 'C:/outside/default.png',
+    }), async value => value)).rejects.toThrow(/outside manifest directory/i)
   })
 
   it.each([
     '../outside.png',
     'reference/../../outside.png',
+    'C:outside.png',
     'C:\\outside\\image.png',
     '\\\\server\\share\\image.png',
     '/outside/image.png',

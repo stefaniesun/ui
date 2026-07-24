@@ -20,13 +20,26 @@ describe('PatchPlanSchema', () => {
     targetRegionIds: ['owner-services'],
     rootCause: 'grid gap differs from reference',
     allowedFiles: ['src/components/profile/OwnerServices.vue'],
+    allowedComponents: ['OwnerServices'],
+    allowedTokens: ['spacing.serviceGrid.rowGap'],
     expectedMetricChanges: { visual: 0.02 },
+    affectedStateIds: ['default'],
+    affectedTargets: ['h5', 'wechat'],
     rollbackConditions: ['page score decreases'],
   }
 
   it('accepts a complete project-relative patch plan', () => {
     expect(PatchPlanSchema.parse(valid).targetRegionIds).toEqual(['owner-services'])
   })
+
+  it.each(['allowedComponents', 'allowedTokens', 'affectedStateIds', 'affectedTargets'] as const)(
+    'requires an explicit %s whitelist',
+    field => {
+      const incomplete: Record<string, unknown> = { ...valid }
+      Reflect.deleteProperty(incomplete, field)
+      expect(() => PatchPlanSchema.parse(incomplete)).toThrow()
+    },
+  )
 
   it.each([
     'C:\\outside\\file.ts',

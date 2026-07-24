@@ -45,13 +45,26 @@ export const ManifestSchema = ManifestBaseSchema.superRefine((value, context) =>
 
 export type ManifestInput = z.input<typeof ManifestSchema>
 export type Manifest = z.output<typeof ManifestSchema>
-export type FileExists = (absolutePath: string) => Promise<boolean>
+export interface FileInspection {
+  exists: boolean
+  isFile: boolean
+  realPath: string | null
+}
+export type InspectFile = (absolutePath: string) => Promise<FileInspection>
+export type ResolveRealPath = (absolutePath: string) => Promise<string>
+
+function isPathInside(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
 
 export async function validateManifestFiles(
   manifest: Manifest,
   manifestDirectory: string,
-  fileExists: FileExists,
+  inspectFile: InspectFile,
+  resolveRealPath: ResolveRealPath = async value => path.resolve(value),
 ): Promise<void> {
+  const realRoot = await resolveRealPath(manifestDirectory)
   const checks = new Map<string, { absolutePath: string; states: string[] }>()
   for (const state of manifest.states) {
     const normalized = toPlatformRelativePath(state.screenshot)
@@ -66,14 +79,23 @@ export async function validateManifestFiles(
     }
   }
 
-  const missing = (await Promise.all([...checks.entries()].map(async ([screenshot, check]) => ({
-    screenshot,
-    states: check.states,
-    exists: await fileExists(check.absolutePath),
-  })))).filter(result => !result.exists)
+  const failures = (await Promise.all([...checks.entries()].map(async ([screenshot, check]) => {
+    const inspection = await inspectFile(check.absolutePath)
+    let reason: string | null = null
+    if (!inspection.exists) {
+      reason = 'missing'
+    } else if (!inspection.isFile) {
+      reason = 'not a regular file'
+    } else if (inspection.realPath === null || !isPathInside(realRoot, inspection.realPath)) {
+      reason = 'real path is outside manifest directory'
+    }
+    return { screenshot, states: check.states, reason }
+  }))).filter(result => result.reason !== null)
 
-  if (missing.length > 0) {
-    const details = missing.map(item => `${item.states.join(',')}: ${item.screenshot}`)
-    throw new Error(`Missing manifest screenshots: ${details.join('; ')}`)
+  if (failures.length > 0) {
+    const details = failures.map(item => (
+      `${item.states.join(',')}: ${item.screenshot} (${item.reason})`
+    ))
+    throw new Error(`Invalid manifest screenshots: ${details.join('; ')}`)
   }
 }
