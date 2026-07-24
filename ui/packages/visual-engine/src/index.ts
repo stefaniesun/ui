@@ -1,3 +1,4 @@
+export * from './artifacts.js'
 export * from './color.js'
 export * from './geometry.js'
 export * from './heatmap.js'

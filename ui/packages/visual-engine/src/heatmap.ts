@@ -1,7 +1,7 @@
 import sharp from 'sharp'
+import type { Bounds } from '@ui-rebuild/contracts'
 import { normalizeImage } from './image.js'
 import { createMask } from './regions.js'
-import type { Bounds } from '@ui-rebuild/contracts'
 
 export async function createHeatmap(
   reference: Buffer,
@@ -10,8 +10,9 @@ export async function createHeatmap(
   height: number,
   masks: readonly Bounds[],
 ): Promise<Buffer> {
+  const normalization = { logicalWidth: width, logicalHeight: height, sourceScale: 1 }
   const [first, second] = await Promise.all([
-    normalizeImage(reference, width, height), normalizeImage(actual, width, height),
+    normalizeImage(reference, normalization), normalizeImage(actual, normalization),
   ])
   const mask = createMask(width, height, masks)
   const output = Buffer.alloc(width * height * 4)
