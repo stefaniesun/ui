@@ -215,6 +215,8 @@ export type RegionNode = z.infer<typeof RegionNodeSchema>
 
 校验所有非空 `parentId` 必须引用现有区域、`regionId` 唯一、区域不能形成环、人工锁定名称不能被模型覆盖；manifest 校验截图存在、设备尺寸为正、状态 ID 唯一。
 
+manifest 每张截图必须携带 `screenshotType: 'viewport' | 'fullpage'` 和 `scale`（物理/逻辑像素倍率，如 2、3）字段；Visual IR 中所有 bounds 统一为归一化后的**逻辑像素**。
+
 Run: `pnpm vitest run packages/contracts`
 Expected: 合法样本 PASS，重复 ID、悬空父节点和环形关系样本 FAIL。
 
@@ -323,7 +325,9 @@ export interface ModelAdapter {
 export type StructuredOutputMode = 'json-schema' | 'tools' | 'json-mode' | 'prompt-json'
 ```
 
-探测请求使用一张 1×1 本地测试图和最小 Schema，按 `json-schema → tools → json-mode → prompt-json` 降级。只允许 `http://127.0.0.1`、`http://localhost` 或 manifest 明确许可的地址，日志不得输出 API Key 和原始图片 Base64。
+探测请求使用一张 1×1 本地测试图和最小 Schema，按 `json-schema → tools → json-mode → prompt-json` 降级。只允许 `http://127.0.0.1`、`http://localhost` 或 manifest 明确许可的地址（远程中转站必须显式列入白名单，该声明同时作为"截图将离开本地"的知情确认），日志不得输出 API Key 和原始图片 Base64。
+
+探测还需检查模型最大图片输入分辨率是否覆盖参考截图尺寸；超限时返回明确诊断（建议分块或降低预期），不允许静默降采样后继续。
 
 - [ ] **Step 4: 实现 Zod 校验、JSON 提取、一次格式修复和有限重试**
 
@@ -388,7 +392,11 @@ export interface RegionScore {
 }
 ```
 
-所有输入先归一到 manifest 指定尺寸和 sRGB；动态遮罩区域不计分。OCR 首版通过接口注入，测试使用确定性 fake provider，避免测试依赖外部程序。
+所有输入先归一到 manifest 指定尺寸和 sRGB；参考图按 `scale` 归一到逻辑像素并按系统栏策略处理状态栏；动态遮罩区域不计分。
+
+OCR 通过 provider 接口注入，测试使用确定性 fake provider，避免测试依赖外部程序。**生产 provider 接入本地 PaddleOCR**（或 RapidOCR 等 ONNX 发行版），承担文字内容与像素级边界框测量；多模态模型不得作为文案匹配的测量来源（同源测量偏差：同一模型读两侧图，识别错误相互抵消不可见）。OCR 引擎不可用时 content 维度置 null 并按剩余权重归一化，不记 0 分。
+
+参考图侧的全部测量（OCR、颜色、几何）在 analyze 阶段执行一次并冻结进 Visual IR，迭代各轮只测量实现截图，对照冻结目标比较。
 
 - [ ] **Step 4: 生成透明差异热力图和区域 JSON**
 
@@ -440,7 +448,7 @@ Expected: FAIL，生成器未实现。
 
 - [ ] **Step 3: 实现页面编排、业务区块、通用组件和资产注册表生成**
 
-生成的页面只负责区域顺序、状态和事件装配；重复宫格使用类型化数组驱动。每个根区域带稳定 `data-region-id` 和 `aria-label`。样式值优先引用 `tokens.scss`，图标通过语义键读取：
+生成的页面只负责区域顺序、状态和事件装配；重复宫格使用类型化数组驱动。每个根区域带稳定 `data-region-id` 和 `aria-label`。样式尺寸按 `750 / 设备逻辑宽度` 将 Visual IR 逻辑像素换算为 rpx 写入（token-writer 统一负责换算，组件内不出现手工换算）。样式值优先引用 `tokens.scss`，图标通过语义键读取：
 
 ```ts
 export const assetRegistry = {
@@ -498,9 +506,11 @@ Expected: FAIL，H5 renderer 未实现。
 
 固定 viewport、语言、时区、颜色模式、动画、日期和 fixture 数据；等待字体和图片加载完成；禁用 CSS 动画后截图。通过 `[data-region-id]` 采集运行时边界并与 Visual IR 对齐。
 
+渲染器按 manifest `screenshotType` 支持 viewport 和 fullPage 两种截图模式，与参考图形态一致才可比。reference-app 内置一款开源中文字体（MiSans / HarmonyOS Sans / Noto Sans SC 之一）并通过 `@font-face` 强制加载作为测量基线，不依赖 Windows 系统默认中文字体（微软雅黑与参考图的 PingFang SC 度量差异会造成系统性偏差）。
+
 - [ ] **Step 4: 验证稳定性**
 
-连续截图三次并比较哈希；相同环境必须一致。若字体或异步图片未就绪，渲染器应失败并指出资源，而不是提交波动截图。
+连续截图三次并比较哈希；相同环境必须一致。若字体或异步图片未就绪，渲染器应失败并指出资源，而不是提交波动截图。确定性承诺范围为**同机器可复现**，不承诺跨机器逐像素一致。
 
 Run: `pnpm vitest run packages/visual-engine/src/renderers/h5.test.ts`
 Expected: PASS，三次截图哈希一致。
@@ -546,6 +556,8 @@ Expected: FAIL，状态机未实现。
 - [ ] **Step 3: 实现状态机和 PatchPlan 文件白名单**
 
 状态严格流经 `INGEST → ANALYZE → GENERATE → RENDER → MEASURE → DIAGNOSE → PATCH → REGRESSION`。PatchRunner 在隔离快照中应用补丁，只允许修改 `PatchPlan.allowedFiles`，并验证目标 `regionIds` 的组件映射。
+
+补丁载荷格式为**文件路径 → 完整新内容**（白名单内整文件重写），不采用 unified diff——LLM 生成 diff 的行号对齐不可靠，整文件重写由白名单限制影响范围，再由 component-policy、类型检查和视觉回归兜底。
 
 - [ ] **Step 4: 实现综合门禁**
 
@@ -656,11 +668,13 @@ Expected: FAIL，CLI 尚未实现。
 ui-rebuild doctor
 ui-rebuild init profile
 ui-rebuild analyze fixtures/profile
-ui-rebuild run fixtures/profile --target h5,wechat --max-rounds 8
+ui-rebuild run fixtures/profile --target h5 --max-rounds 8
 ui-rebuild review fixtures/profile
 ```
 
-`doctor` 返回模型、Node、Chromium、微信开发者工具和字体状态；`run` 将每轮状态写入 `.ui-rebuild/runs/<runId>`，中断后可用 `--resume <runId>` 恢复。日志以 `runId/round/regionId` 作为上下文字段。
+`doctor` 返回模型（含结构化模式、视觉输入、最大图片分辨率）、本地 OCR 引擎（PaddleOCR）、Node、Chromium、微信开发者工具（安装状态 + 服务端口是否开启 + 登录态）和内置测量字体状态；`run` 将每轮状态写入 `.ui-rebuild/runs/<runId>`，中断后可用 `--resume <runId>` 恢复。日志以 `runId/round/regionId` 作为上下文字段。
+
+MVP 阶段质量门禁仅以 H5 为准：`--target wechat` 返回明确的"尚未支持"错误，不静默回退到 H5 执行。微信端自动化在后续独立计划中落地。
 
 - [ ] **Step 4: 用用户提供的个人中心截图建立验收 fixture**
 
@@ -701,3 +715,7 @@ git commit -m "feat: complete semantic UI reconstruction MVP"
 - [ ] 最佳轮次达到 0.88 时进入人工评审；未达到时输出瓶颈而非伪报成功。
 - [ ] 人工可通过中文区域名、稳定 ID 或别名提交限定范围反馈。
 - [ ] 替换图标/图片后无需修改页面结构即可重跑回归。
+- [ ] 文案匹配率由本地 OCR（PaddleOCR）测量，多模态模型不作为文案门禁的测量来源。
+- [ ] 参考图测量在 analyze 阶段冻结一次，迭代过程中不重复测量参考图。
+- [ ] 所有 bounds 为逻辑像素，生成样式为 rpx，换算集中在 token-writer。
+- [ ] `--target wechat` 在 MVP 阶段返回明确的"尚未支持"，不静默回退。
