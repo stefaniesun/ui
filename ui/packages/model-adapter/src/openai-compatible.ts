@@ -59,14 +59,13 @@ function extractOutput(body: unknown, mode: StructuredOutputMode): string | null
   if (typeof message !== 'object' || message === null) return null
   if (mode === 'tools') {
     const toolCalls = Reflect.get(message, 'tool_calls')
-    if (!Array.isArray(toolCalls)) return null
-    const expected = toolCalls.filter(call => {
-      if (typeof call !== 'object' || call === null) return false
-      const fn = Reflect.get(call, 'function')
-      return typeof fn === 'object' && fn !== null && Reflect.get(fn, 'name') === 'return_result'
-    })
-    if (expected.length !== 1) return null
-    const fn = Reflect.get(expected[0]!, 'function') as object
+    if (!Array.isArray(toolCalls) || toolCalls.length !== 1) return null
+    const onlyCall = toolCalls[0]
+    if (typeof onlyCall !== 'object' || onlyCall === null) return null
+    const fn = Reflect.get(onlyCall, 'function')
+    if (typeof fn !== 'object' || fn === null || Reflect.get(fn, 'name') !== 'return_result') {
+      return null
+    }
     const args = Reflect.get(fn, 'arguments')
     return typeof args === 'string' ? args : null
   }

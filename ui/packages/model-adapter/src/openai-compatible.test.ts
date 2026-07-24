@@ -52,6 +52,19 @@ describe('OpenAICompatibleTransport', () => {
     })
     await expect(toolTransport.send({ ...request, structuredOutput: 'tools' })).resolves
       .toMatchObject({ ok: true, output: '{"ok":true}' })
+
+    const extraToolTransport = new OpenAICompatibleTransport({
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'vision',
+      fetch: vi.fn().mockResolvedValue(Response.json({
+        choices: [{ message: { tool_calls: [
+          { function: { name: 'return_result', arguments: '{"ok":true}' } },
+          { function: { name: 'other', arguments: '{}' } },
+        ] } }],
+      })),
+    })
+    await expect(extraToolTransport.send({ ...request, structuredOutput: 'tools' })).resolves
+      .toMatchObject({ ok: false, kind: 'protocol' })
   })
 
   it('returns redacted protocol errors and distinguishes cancellation', async () => {
