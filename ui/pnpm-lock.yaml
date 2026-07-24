@@ -91,6 +91,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/report: {}
+
   packages/visual-engine:
     dependencies:
       '@ui-rebuild/contracts':
