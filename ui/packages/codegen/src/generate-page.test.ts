@@ -34,6 +34,10 @@ describe('generatePage', () => {
     }, { logicalWidth: 396 })).toThrow(/componentPath/i)
   })
 
+  it('rejects duplicate component paths without hanging', () => {
+    expect(() => generatePage({ ...ir, regions: [ir.regions[0]!, { ...ir.regions[0]!, regionId: 'second-region' }] }, { logicalWidth: 396 })).toThrow(/componentPath/i)
+  })
+
   it('rejects forbidden generated patterns', () => {
     expect(inspectGeneratedFiles({
       'src/pages/profile/index.vue': '<style>.x{background:url(reference/default.png)}</style>',

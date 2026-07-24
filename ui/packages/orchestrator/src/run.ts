@@ -49,9 +49,10 @@ export function decideIteration(before: QualitySnapshot, after: QualitySnapshot,
     const next = after.regions.find(region => region.regionId === id)
     return Boolean(prior && next && next.total > prior.total + EPSILON)
   })
-  const newSevereDefect = after.regions.some(region => (
-    region.severeDefects.length > (previous.get(region.regionId)?.severeDefects.length ?? 0)
-  ))
+  const newSevereDefect = after.regions.some((region) => {
+    const prior = new Set(previous.get(region.regionId)?.severeDefects ?? [])
+    return region.severeDefects.some(defect => !prior.has(defect))
+  })
   if (after.total + EPSILON < before.total || !targetImproved || newSevereDefect
     || !after.code.types || !after.code.lint || !after.code.componentContract) return 'revert'
   return evaluateGates(after).passed ? 'accept-and-stop' : 'accept-and-continue'
@@ -72,6 +73,7 @@ export async function runRefinement(deps: RefinementDependencies, maxRounds = 8)
     validateQuality(quality)
     const baseSnapshotId = await deps.workspace.createSnapshot('round-0')
     store.add({ id: 'round-0', round: 0, quality, workspaceSnapshotId: baseSnapshotId })
+    if (evaluateGates(quality).passed) return finish('passed', store, deps, history, journal)
     const acceptedScores = [quality.total]
 
     for (let round = 1; round <= maxRounds; round += 1) {

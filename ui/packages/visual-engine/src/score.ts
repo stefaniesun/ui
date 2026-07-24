@@ -49,6 +49,7 @@ export interface SharedScoreOptions {
   consistencyScore?: number | null
   stateScore?: number | null
   ocr?: OcrProvider
+  requireOcr?: boolean
 }
 export interface ScoreOptions extends SharedScoreOptions {
   reference: ImageNormalization
@@ -109,7 +110,8 @@ function masksForRegion(
   return output
 }
 
-function weighted(values: Array<{ value: number | null; weight: number }>): number {
+function weighted(values: Array<{ value: number | null; weight: number; required?: boolean }>): number {
+  if (values.some(item => item.required && item.weight > 0 && item.value === null)) return 0
   const available = values.filter(item => item.value !== null) as Array<{ value: number; weight: number }>
   const totalWeight = available.reduce((sum, item) => sum + item.weight, 0)
   if (totalWeight <= 0) throw new Error('No measurable score dimensions remain')
@@ -189,7 +191,7 @@ export async function scoreAgainstFrozenReference(
       { value: geometry.score, weight: options.weights.geometry },
       { value: visualScore, weight: options.weights.visual },
       { value: colorScore, weight: options.weights.color },
-      { value: ocrMatch, weight: options.weights.content },
+      { value: ocrMatch, weight: options.weights.content, required: options.requireOcr === true },
       { value: shared.consistency, weight: options.weights.consistency },
       { value: shared.state, weight: options.weights.state },
     ])

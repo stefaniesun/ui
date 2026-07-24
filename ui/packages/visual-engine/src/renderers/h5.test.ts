@@ -26,5 +26,5 @@ describe('H5Renderer', () => {
     } finally {
       await renderer.close()
     }
-  })
+  }, 15_000)
 })

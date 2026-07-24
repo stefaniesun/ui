@@ -63,15 +63,30 @@ importers:
 
   packages/cli:
     dependencies:
+      '@ui-rebuild/codegen':
+        specifier: workspace:*
+        version: link:../codegen
       '@ui-rebuild/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@ui-rebuild/model-adapter':
+        specifier: workspace:*
+        version: link:../model-adapter
+      '@ui-rebuild/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@ui-rebuild/report':
         specifier: workspace:*
         version: link:../report
+      '@ui-rebuild/visual-engine':
+        specifier: workspace:*
+        version: link:../visual-engine
       commander:
         specifier: 14.0.0
         version: 14.0.0
+      sharp:
+        specifier: 0.34.3
+        version: 0.34.3
       yaml:
         specifier: 2.8.0
         version: 2.8.0

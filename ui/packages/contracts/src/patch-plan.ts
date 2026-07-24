@@ -15,6 +15,7 @@ export const PatchPlanSchema = z.object({
   affectedStateIds: z.array(z.string().min(1)),
   affectedTargets: z.array(z.enum(['h5', 'wechat', 'android', 'ios'])),
   rollbackConditions: z.array(z.string().min(1)).min(1),
+  replacementFiles: z.record(safeProjectFile, z.string()).optional(),
 }).strict()
 
 export type PatchPlanInput = z.input<typeof PatchPlanSchema>
