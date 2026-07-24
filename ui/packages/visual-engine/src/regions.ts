@@ -6,8 +6,9 @@ export interface NamedRegion { regionId: string; bounds: Bounds }
 
 export function validateBounds(bounds: Bounds, width: number, height: number, name: string): void {
   const values = [bounds.x, bounds.y, bounds.width, bounds.height]
-  if (!values.every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) {
-    throw new Error(`${name} bounds must be finite with positive dimensions`)
+  if (!values.every(Number.isFinite) || !values.every(Number.isInteger)
+    || bounds.width <= 0 || bounds.height <= 0) {
+    throw new Error(`${name} bounds must be finite positive integer logical pixels`)
   }
   if (bounds.x < 0 || bounds.y < 0
     || bounds.x + bounds.width > width || bounds.y + bounds.height > height) {

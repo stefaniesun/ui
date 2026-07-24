@@ -5,6 +5,7 @@ import { deltaE76 } from './color.js'
 import { scoreGeometry } from './geometry.js'
 import { normalizeImage } from './image.js'
 import type { ImageNormalization, NormalizedImage } from './image.js'
+import { OcrUnavailableError } from './ocr.js'
 import { createMask, cropRegion, validateBounds } from './regions.js'
 
 export interface OcrProvider {
@@ -23,7 +24,14 @@ export interface ScoredRegion {
   critical: boolean
   masks?: Bounds[]
 }
-export interface ScoreWeights { geometry: number; visual: number; color: number; content: number }
+export interface ScoreWeights {
+  geometry: number
+  visual: number
+  color: number
+  content: number
+  consistency: number
+  state: number
+}
 export interface ScoreOptions {
   reference: ImageNormalization
   actual: ImageNormalization
@@ -31,6 +39,8 @@ export interface ScoreOptions {
   weights: ScoreWeights
   criticalMultiplier?: number
   pixelmatchThreshold?: number
+  consistencyScore?: number | null
+  stateScore?: number | null
   ocr?: OcrProvider
 }
 export interface RegionScore {
@@ -71,9 +81,14 @@ async function alignedRegion(
   const actualCrop = await cropRegion(actual, region.actualBounds)
   const width = Math.max(1, Math.round(region.referenceBounds.width))
   const height = Math.max(1, Math.round(region.referenceBounds.height))
+  const align = (input: Buffer) => sharp(input)
+    .resize(width, height, { fit: 'contain', background: '#00000000', withoutEnlargement: false })
+    .ensureAlpha()
+    .raw()
+    .toBuffer()
   return {
-    reference: await sharp(referenceCrop).resize(width, height, { fit: 'fill' }).ensureAlpha().raw().toBuffer(),
-    actual: await sharp(actualCrop).resize(width, height, { fit: 'fill' }).ensureAlpha().raw().toBuffer(),
+    reference: await align(referenceCrop),
+    actual: await align(actualCrop),
     width,
     height,
   }
@@ -85,6 +100,16 @@ export async function scorePage(
   options: ScoreOptions,
 ): Promise<PageScore> {
   validateWeights(options.weights)
+  const threshold = options.pixelmatchThreshold ?? 0.1
+  if (!Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+    throw new Error('pixelmatchThreshold must be in [0, 1]')
+  }
+  const multiplier = options.criticalMultiplier ?? 2
+  if (!Number.isFinite(multiplier) || multiplier < 1) throw new Error('criticalMultiplier must be >= 1')
+  const consistencyScore = options.consistencyScore === null || options.consistencyScore === undefined
+    ? null : finiteScore(options.consistencyScore, 'consistency score')
+  const stateScore = options.stateScore === null || options.stateScore === undefined
+    ? null : finiteScore(options.stateScore, 'state score')
   if (options.regions.length === 0) throw new Error('At least one scored region is required')
   if (options.reference.logicalWidth !== options.actual.logicalWidth
     || options.reference.logicalHeight !== options.actual.logicalHeight) {
@@ -121,19 +146,24 @@ export async function scorePage(
       null,
       aligned.width,
       aligned.height,
-      { threshold: options.pixelmatchThreshold ?? 0.1, includeAA: false },
+      { threshold, includeAA: false },
     )
     const pixelDiffRatio = noVisualData ? null : Math.min(1, differentPixels / validPixels)
     const meanDeltaE = noVisualData ? null : deltaTotal / validPixels
-    const ocrMatch = options.ocr && !noVisualData
-      ? finiteScore(await options.ocr.compare({
-        reference: aligned.reference,
-        actual: aligned.actual,
-        referenceBounds: region.referenceBounds,
-        actualBounds: region.actualBounds,
-        mask,
-      }), `${region.regionId} OCR score`)
-      : null
+    let ocrMatch: number | null = null
+    if (options.ocr && !noVisualData) {
+      try {
+        ocrMatch = finiteScore(await options.ocr.compare({
+          reference: aligned.reference,
+          actual: aligned.actual,
+          referenceBounds: region.referenceBounds,
+          actualBounds: region.actualBounds,
+          mask,
+        }), `${region.regionId} OCR score`)
+      } catch (error) {
+        if (!(error instanceof OcrUnavailableError)) throw error
+      }
+    }
     const visualScore = pixelDiffRatio === null ? null : 1 - pixelDiffRatio
     const colorScore = meanDeltaE === null ? null : Math.max(0, 1 - (meanDeltaE / 100))
     const total = weighted([
@@ -141,6 +171,8 @@ export async function scorePage(
       { value: visualScore, weight: options.weights.visual },
       { value: colorScore, weight: options.weights.color },
       { value: ocrMatch, weight: options.weights.content },
+      { value: consistencyScore, weight: options.weights.consistency },
+      { value: stateScore, weight: options.weights.state },
     ])
     const severeDefects = geometry.meanAbsoluteErrorPx > 16 ? ['geometry'] : []
     regions.push({
@@ -153,8 +185,6 @@ export async function scorePage(
       severeDefects,
     })
   }
-  const multiplier = options.criticalMultiplier ?? 2
-  if (!Number.isFinite(multiplier) || multiplier < 1) throw new Error('criticalMultiplier must be >= 1')
   const totalWeight = regions.reduce((sum, _, index) => sum + (options.regions[index]!.critical ? multiplier : 1), 0)
   const total = regions.reduce((sum, region, index) => (
     sum + (region.total * (options.regions[index]!.critical ? multiplier : 1))

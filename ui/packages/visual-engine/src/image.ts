@@ -31,6 +31,9 @@ export async function normalizeImage(
   const metadata = await sharp(input, { failOn: 'error' }).metadata()
   const sourceWidth = options.logicalWidth * options.sourceScale
   const systemBarTop = options.systemBarTop ?? 0
+  if (!Number.isFinite(systemBarTop) || systemBarTop < 0) {
+    throw new Error('systemBarTop must be finite and nonnegative')
+  }
   const sourceHeight = (options.logicalHeight + systemBarTop) * options.sourceScale
   if (metadata.width !== sourceWidth || metadata.height !== sourceHeight) {
     throw new Error(
