@@ -33,6 +33,15 @@ importers:
         specifier: 3.25.76
         version: 3.25.76
 
+  packages/model-adapter:
+    dependencies:
+      '@ui-rebuild/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
+
 packages:
 
   '@esbuild/aix-ppc64@0.21.5':
