@@ -3,14 +3,23 @@ export interface PolicyViolation { rule: string; file: string; message: string }
 export function inspectGeneratedFiles(files: Readonly<Record<string, string>>): PolicyViolation[] {
   const violations: PolicyViolation[] = []
   for (const [file, content] of Object.entries(files)) {
-    if (/background(?:-image)?\s*:[^;]*reference\//iu.test(content)) {
-      violations.push({ rule: 'no-reference-background', file, message: 'Reference screenshots cannot be page backgrounds' })
+    if (/background(?:-image)?\s*:[^;}]*url\([^)]*(?:reference\/|\.png|\.jpe?g|\.webp)/iu.test(content)) {
+      violations.push({ rule: 'no-page-image-background', file, message: 'Page screenshots/images cannot be layout backgrounds' })
     }
     const absoluteCount = content.match(/position\s*:\s*absolute/giu)?.length ?? 0
     if (absoluteCount > 4) violations.push({ rule: 'absolute-position-limit', file, message: 'Too many absolute-positioned nodes' })
     if (content.split('\n').length > 300) violations.push({ rule: 'file-size-limit', file, message: 'Generated file exceeds 300 lines' })
-    if (file.endsWith('index.vue') && !content.includes('data-region-id=')) {
-      violations.push({ rule: 'semantic-region-required', file, message: 'Page has no semantic region bindings' })
+    if (file.endsWith('/index.vue') && !content.includes('data-region-id=')) {
+      violations.push({ rule: 'semantic-region-required', file, message: 'Page has no semantic region descendants' })
+    }
+    const repeatedNumericValues = [...content.matchAll(/(?:margin|padding|gap|width|height)[^:]*:\s*(\d+(?:\.\d+)?)(?:rpx|px)/giu)]
+      .map(match => match[1]).filter(Boolean)
+    const counts = new Map<string, number>()
+    for (const value of repeatedNumericValues) {
+      if (value !== undefined) counts.set(value, (counts.get(value) ?? 0) + 1)
+    }
+    if ([...counts.values()].some(count => count > 8)) {
+      violations.push({ rule: 'repeated-magic-number', file, message: 'Repeated layout values must become Design Tokens' })
     }
   }
   return violations
