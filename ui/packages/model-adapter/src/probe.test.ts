@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { probeCapabilities } from './probe.js'
-import type { ModelTransport, TransportRequest } from './types.js'
+import type { ModelImage, ModelTransport, TransportRequest } from './types.js'
+
+const referenceImage: ModelImage = {
+  mediaType: 'image/png',
+  base64: 'probe-image',
+  width: 396,
+  height: 842,
+}
 
 function createFakeTransport(
   statuses: Partial<Record<string, number>>,
@@ -11,10 +18,9 @@ function createFakeTransport(
     async send(request) {
       calls.push(request)
       const status = statuses[request.structuredOutput] ?? 400
-      return {
-        status,
-        body: status < 300 ? { choices: [{ message: { content: '{"ok":true}' } }] } : {},
-      }
+      return status < 300
+        ? { ok: true, status, output: '{"ok":true}' }
+        : { ok: false, status, kind: 'http', message: 'unsupported' }
     },
   }
 }
@@ -22,19 +28,27 @@ function createFakeTransport(
 describe('probeCapabilities', () => {
   it('falls back from json schema to tool calls and records the mode', async () => {
     const transport = createFakeTransport({ 'json-schema': 400, tools: 200 })
-    const profile = await probeCapabilities(transport)
-    expect(profile.structuredOutput).toBe('tools')
-    expect(profile.vision).toBe(true)
+    const profile = await probeCapabilities(transport, referenceImage)
+    expect(profile).toEqual({
+      vision: true,
+      structuredOutput: 'tools',
+      maxVerifiedImage: { width: 396, height: 842 },
+    })
     expect(transport.calls.map(call => call.structuredOutput)).toEqual(['json-schema', 'tools'])
+    expect(transport.calls[0]?.images[0]).toEqual(referenceImage)
   })
 
-  it('returns prompt JSON as the final supported mode', async () => {
-    const transport = createFakeTransport({ 'prompt-json': 200 })
-    expect((await probeCapabilities(transport)).structuredOutput).toBe('prompt-json')
+  it('rejects HTTP success without valid structured content', async () => {
+    const transport = createFakeTransport({ 'json-schema': 200 })
+    transport.send = async request => {
+      transport.calls.push(request)
+      return { ok: true, status: 200, output: 'not-json' }
+    }
+    await expect(probeCapabilities(transport, referenceImage)).rejects.toThrow(/396x842/i)
   })
 
-  it('fails when image input is unsupported in every mode', async () => {
+  it('fails when the reference image is unsupported in every mode', async () => {
     const transport = createFakeTransport({})
-    await expect(probeCapabilities(transport)).rejects.toThrow(/vision.*structured output/i)
+    await expect(probeCapabilities(transport, referenceImage)).rejects.toThrow(/tiling/i)
   })
 })

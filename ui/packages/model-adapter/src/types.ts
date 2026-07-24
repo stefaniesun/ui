@@ -2,16 +2,25 @@ import type { PatchPlan, VisualIR } from '@ui-rebuild/contracts'
 
 export type StructuredOutputMode = 'json-schema' | 'tools' | 'json-mode' | 'prompt-json'
 
+export interface ModelImage {
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+  base64: string
+  width: number
+  height: number
+}
+
 export interface TransportRequest {
   structuredOutput: StructuredOutputMode
-  image: { mediaType: 'image/png'; base64: string }
+  prompt: string
+  images: ModelImage[]
+  schemaName: string
+  jsonSchema: Record<string, unknown>
   signal?: AbortSignal
 }
 
-export interface TransportResponse {
-  status: number
-  body: unknown
-}
+export type TransportResponse =
+  | { ok: true; status: number; output: string }
+  | { ok: false; status: number | null; kind: 'http' | 'timeout' | 'cancelled' | 'network' | 'protocol'; message: string }
 
 export interface ModelTransport {
   calls?: TransportRequest[]
@@ -21,15 +30,16 @@ export interface ModelTransport {
 export interface ModelCapabilityProfile {
   vision: true
   structuredOutput: StructuredOutputMode
+  maxVerifiedImage: { width: number; height: number }
 }
 
-export interface AnalyzeScreensInput { screenshots: string[]; prompt: string }
-export interface DiagnoseDiffInput { reportPath: string; heatmapPaths: string[] }
-export interface ReviewResultInput { reportPath: string }
+export interface AnalyzeScreensInput { screenshots: ModelImage[]; prompt: string }
+export interface DiagnoseDiffInput { images: ModelImage[]; prompt: string }
+export interface ReviewResultInput { images: ModelImage[]; prompt: string }
 export interface ModelReview { summary: string; unresolved: string[] }
 
 export interface ModelAdapter {
-  probe(): Promise<ModelCapabilityProfile>
+  probe(referenceImage: ModelImage): Promise<ModelCapabilityProfile>
   analyzeScreens(input: AnalyzeScreensInput): Promise<VisualIR>
   diagnoseDiff(input: DiagnoseDiffInput): Promise<PatchPlan>
   reviewResult(input: ReviewResultInput): Promise<ModelReview>
