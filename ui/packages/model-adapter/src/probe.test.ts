@@ -60,6 +60,19 @@ describe('probeCapabilities', () => {
     })).rejects.toThrow(/tiling/i)
   })
 
+  it('turns HTTP 413 during size verification into tiling guidance', async () => {
+    const transport = createFakeTransport({ tools: 200 })
+    transport.send = async request => {
+      transport.calls.push(request)
+      return request.schemaName === 'vision_probe'
+        ? { ok: true, status: 200, output: '{"color":"blue"}' }
+        : { ok: false, status: 413, kind: 'http', message: 'payload too large' }
+    }
+    await expect(probeCapabilities(transport, referenceImage, undefined, {
+      challengeColor: 'blue',
+    })).rejects.toThrow(/tiling/i)
+  })
+
   it.each([401, 403, 404, 408, 429, 500])(
     'does not misreport HTTP %s as an unsupported structured mode',
     async status => {

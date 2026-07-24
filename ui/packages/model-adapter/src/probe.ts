@@ -17,7 +17,7 @@ const COLOR_SCHEMA = {
 const COLOR_IMAGES = {
   red: {
     mediaType: 'image/png',
-    base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAC0lEQVR42mP8/x8AAusB9Wl2F/0AAAAASUVORK5CYII=',
+    base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
     width: 1, height: 1,
   },
   blue: {
@@ -91,7 +91,8 @@ export async function probeCapabilities(
     signal,
   })
   if (!sizeResponse.ok) {
-    if (modeUnsupported(sizeResponse)) {
+    if (modeUnsupported(sizeResponse)
+      || (sizeResponse.kind === 'http' && sizeResponse.status === 413)) {
       throw new Error(
         `Model rejected ${referenceImage.width}x${referenceImage.height}; use tiling or lower fidelity.`,
       )
