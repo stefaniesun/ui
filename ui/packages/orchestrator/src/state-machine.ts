@@ -1,6 +1,4 @@
-export const ITERATION_STATES = ['INGEST','ANALYZE','GENERATE','RENDER','MEASURE','DIAGNOSE','PATCH','REGRESSION'] as const
-export type IterationState = typeof ITERATION_STATES[number]
-export function nextState(current: IterationState): IterationState | null {
-  const index = ITERATION_STATES.indexOf(current)
-  return index === ITERATION_STATES.length - 1 ? null : ITERATION_STATES[index + 1]!
-}
+export const ITERATION_STATES=['INGEST','ANALYZE','GENERATE','RENDER','MEASURE','DIAGNOSE','PATCH','REGRESSION'] as const
+export type IterationState=typeof ITERATION_STATES[number]
+export function assertTransition(from:IterationState|null,to:IterationState):void{const expected=from===null?'INGEST':ITERATION_STATES[ITERATION_STATES.indexOf(from)+1];if(to!==expected)throw new Error(`Invalid state transition: ${from??'START'} -> ${to}`)}
+export class StateJournal{private current:IterationState|null=null;readonly entries:Array<{round:number;state:IterationState;status:'started'|'completed'|'failed';error?:string}>=[];start(round:number,state:IterationState){assertTransition(this.current,state);this.current=state;this.entries.push({round,state,status:'started'})}complete(){const entry=this.entries.at(-1);if(!entry)throw new Error('No active state');entry.status='completed'}fail(error:unknown){const entry=this.entries.at(-1);if(!entry)throw new Error('No active state');entry.status='failed';entry.error=error instanceof Error?error.message:String(error)}reset(next:IterationState='INGEST'){this.current=ITERATION_STATES[ITERATION_STATES.indexOf(next)-1]??null}}

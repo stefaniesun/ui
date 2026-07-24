@@ -1,21 +1,7 @@
-export interface QualityRegion {
-  regionId: string
-  total: number
-  critical: boolean
-  geometryErrorPx: number
-  ocrMatch: number | null
-  severeDefects: string[]
-}
-export interface QualitySnapshot { total: number; regions: QualityRegion[]; codeHealthy: boolean }
-export interface GateResult { passed: boolean; failures: string[] }
-
-export function evaluateGates(snapshot: QualitySnapshot): GateResult {
-  const failures: string[] = []
-  if (snapshot.total < 0.88) failures.push('total')
-  if (snapshot.regions.some(region => region.critical && region.total < 0.85)) failures.push('critical-region')
-  if (snapshot.regions.some(region => region.geometryErrorPx > 4)) failures.push('geometry')
-  if (snapshot.regions.some(region => region.ocrMatch !== null && region.ocrMatch < 0.98)) failures.push('ocr')
-  if (snapshot.regions.some(region => region.severeDefects.length > 0)) failures.push('severe-defect')
-  if (!snapshot.codeHealthy) failures.push('code-health')
-  return { passed: failures.length === 0, failures }
-}
+export interface QualityRegion { regionId:string; total:number; critical:boolean; geometryErrorPx:number; ocrMatch:number|null; severeDefects:string[] }
+export interface CodeGateResult { types:boolean; lint:boolean; componentContract:boolean }
+export interface QualitySnapshot { total:number; regions:QualityRegion[]; code:CodeGateResult }
+export interface GateResult { passed:boolean; failures:string[] }
+const score=(value:number,name:string)=>{if(!Number.isFinite(value)||value<0||value>1)throw new Error(`${name} must be finite in [0, 1]`)}
+export function validateQuality(s:QualitySnapshot):void{score(s.total,'total');if(!s.regions.length)throw new Error('quality requires regions');for(const r of s.regions){score(r.total,`${r.regionId}.total`);if(!Number.isFinite(r.geometryErrorPx)||r.geometryErrorPx<0)throw new Error(`${r.regionId}.geometryErrorPx must be finite and nonnegative`);if(r.ocrMatch!==null)score(r.ocrMatch,`${r.regionId}.ocrMatch`)}}
+export function evaluateGates(s:QualitySnapshot):GateResult{validateQuality(s);const failures:string[]=[];if(s.total<.88)failures.push('total');if(s.regions.some(r=>r.critical&&r.total<.85))failures.push('critical-region');const mean=s.regions.reduce((n,r)=>n+r.geometryErrorPx,0)/s.regions.length;if(mean>4)failures.push('geometry');if(s.regions.some(r=>r.ocrMatch!==null&&r.ocrMatch<.98))failures.push('ocr');if(s.regions.some(r=>r.severeDefects.length))failures.push('severe-defect');if(!s.code.types)failures.push('typecheck');if(!s.code.lint)failures.push('lint');if(!s.code.componentContract)failures.push('component-contract');return{passed:!failures.length,failures}}

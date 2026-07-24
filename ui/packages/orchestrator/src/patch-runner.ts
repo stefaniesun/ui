@@ -1,31 +1,8 @@
 import { PatchPlanSchema } from '@ui-rebuild/contracts'
 import type { PatchPlanInput } from '@ui-rebuild/contracts'
-
-export type PatchPayload = Readonly<Record<string, string>>
-export function validatePatchPayload(planInput: PatchPlanInput, payload: PatchPayload): string[] {
-  const plan = PatchPlanSchema.parse(planInput)
-  const files = Object.keys(payload)
-  if (files.length === 0) throw new Error('Patch payload is empty')
-  for (const file of files) {
-    if (!plan.allowedFiles.includes(file)) throw new Error(`File is not allowed by PatchPlan: ${file}`)
-    if (typeof payload[file] !== 'string') throw new Error(`Patch must contain complete text content: ${file}`)
-  }
-  return files
-}
-
-export interface PatchWorkspace {
-  read(file: string): Promise<string>
-  write(file: string, content: string): Promise<void>
-}
-export async function applyPatchAtomically(workspace: PatchWorkspace, plan: PatchPlanInput, payload: PatchPayload): Promise<() => Promise<void>> {
-  const files = validatePatchPayload(plan, payload)
-  const originals = new Map<string, string>()
-  for (const file of files) originals.set(file, await workspace.read(file))
-  try {
-    for (const file of files) await workspace.write(file, payload[file]!)
-  } catch (error) {
-    for (const [file, content] of originals) await workspace.write(file, content)
-    throw error
-  }
-  return async () => { for (const [file, content] of originals) await workspace.write(file, content) }
-}
+export type PatchPayload=Readonly<Record<string,string>>
+export interface RegionBinding{regionId:string;componentPath:string;componentName:string}
+export interface PatchBoundary{bindings:readonly RegionBinding[];stateIds:readonly string[];targets:readonly string[]}
+export function validatePatchPayload(planInput:PatchPlanInput,payload:PatchPayload,boundary?:PatchBoundary):string[]{const plan=PatchPlanSchema.parse(planInput),files=Object.keys(payload);if(!files.length)throw new Error('Patch payload is empty');for(const file of files){if(!plan.allowedFiles.includes(file))throw new Error(`File is not allowed by PatchPlan: ${file}`);if(typeof payload[file]!=='string')throw new Error(`Patch must contain complete text content: ${file}`)}if(boundary){for(const id of plan.targetRegionIds){const binding=boundary.bindings.find(b=>b.regionId===id);if(!binding)throw new Error(`Unknown target region: ${id}`);if(!plan.allowedFiles.includes(binding.componentPath)||!plan.allowedComponents.includes(binding.componentName))throw new Error(`Region component is outside PatchPlan: ${id}`)}for(const id of plan.affectedStateIds)if(!boundary.stateIds.includes(id))throw new Error(`Unknown affected state: ${id}`);for(const target of plan.affectedTargets)if(!boundary.targets.includes(target))throw new Error(`Unknown affected target: ${target}`)}return files}
+export interface SnapshotWorkspace{createSnapshot(label:string):Promise<string>;restoreSnapshot(id:string):Promise<void>;write(file:string,content:string):Promise<void>}
+export async function applyInSnapshot(workspace:SnapshotWorkspace,plan:PatchPlanInput,payload:PatchPayload,boundary:PatchBoundary){const files=validatePatchPayload(plan,payload,boundary),snapshotId=await workspace.createSnapshot('before-patch');try{for(const file of files)await workspace.write(file,payload[file]!)}catch(error){try{await workspace.restoreSnapshot(snapshotId)}catch(restoreError){throw new AggregateError([error,restoreError],'Patch and restore both failed')}throw error}return{snapshotId,rollback:()=>workspace.restoreSnapshot(snapshotId)}}

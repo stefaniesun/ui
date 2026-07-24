@@ -1,5 +1,5 @@
 import { describe,expect,it } from 'vitest'
 import { validatePatchPayload } from './patch-runner.js'
-
 const plan={targetRegionIds:['hero'],rootCause:'spacing',allowedFiles:['src/Hero.vue'],allowedComponents:['Hero'],allowedTokens:[],expectedMetricChanges:{total:.01},affectedStateIds:['default'],affectedTargets:['h5' as const],rollbackConditions:['regression']}
-describe('patch whitelist',()=>{it('rejects files outside the PatchPlan',()=>{expect(()=>validatePatchPayload(plan,{'src/Other.vue':'x'})).toThrow(/not allowed/i)});it('accepts complete replacement for an allowed file',()=>{expect(validatePatchPayload(plan,{'src/Hero.vue':'<template />'})).toEqual(['src/Hero.vue'])})})
+const boundary={bindings:[{regionId:'hero',componentPath:'src/Hero.vue',componentName:'Hero'}],stateIds:['default'],targets:['h5']}
+describe('patch whitelist',()=>{it('rejects files outside PatchPlan',()=>expect(()=>validatePatchPayload(plan,{'src/Other.vue':'x'},boundary)).toThrow(/not allowed/i));it('accepts complete replacement and matching region component',()=>expect(validatePatchPayload(plan,{'src/Hero.vue':'<template />'},boundary)).toEqual(['src/Hero.vue']));it('rejects mismatched region component mapping',()=>expect(()=>validatePatchPayload({...plan,allowedComponents:['Other']},{'src/Hero.vue':'x'},boundary)).toThrow(/outside PatchPlan/i))})
