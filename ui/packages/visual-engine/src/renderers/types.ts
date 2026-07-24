@@ -7,6 +7,8 @@ export interface H5CaptureOptions {
   regionIds: string[]
   browsersPath?: string
   timeoutMs?: number
+  screenshotType: 'viewport' | 'fullpage'
+  frozenTime?: string
 }
 
 export interface CapturedRegion {

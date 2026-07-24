@@ -1,76 +1,13 @@
-import path from 'node:path'
 import sharp from 'sharp'
 import type { Browser } from 'playwright'
-import type { H5CaptureOptions, H5CaptureResult } from './types.js'
+import { collectRegions } from '../browser/collect-regions.js'
+import type { H5CaptureOptions,H5CaptureResult } from './types.js'
 
-export class H5Renderer {
-  private browser: Browser | null = null
-
-  async capture(options: H5CaptureOptions): Promise<H5CaptureResult> {
-    this.validate(options)
-    const browser = await this.getBrowser(options.browsersPath)
-    const context = await browser.newContext({
-      viewport: { width: options.viewport.width, height: options.viewport.height },
-      deviceScaleFactor: options.viewport.deviceScaleFactor,
-      locale: 'zh-CN',
-      timezoneId: 'Asia/Shanghai',
-      colorScheme: 'light',
-      reducedMotion: 'reduce',
-    })
-    try {
-      const page = await context.newPage()
-      const timeout = options.timeoutMs ?? 30_000
-      await page.goto(options.url, { waitUntil: 'networkidle', timeout })
-      await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}' })
-      await page.evaluate(async () => {
-        await document.fonts.ready
-        const images = [...document.images]
-        await Promise.all(images.map(image => image.complete
-          ? Promise.resolve()
-          : new Promise<void>((resolve, reject) => {
-              image.addEventListener('load', () => resolve(), { once: true })
-              image.addEventListener('error', () => reject(new Error(`Image failed: ${image.currentSrc || image.src}`)), { once: true })
-            })))
-        const broken = images.find(image => image.naturalWidth === 0)
-        if (broken) throw new Error(`Image failed: ${broken.currentSrc || broken.src}`)
-      })
-      const regions = []
-      for (const regionId of options.regionIds) {
-        if (!/^[a-z][a-z0-9-]*$/u.test(regionId)) throw new Error(`Unsafe regionId: ${regionId}`)
-        const locator = page.locator(`[data-region-id="${regionId}"]`)
-        const count = await locator.count()
-        if (count !== 1) throw new Error(`Expected one region ${regionId}, found ${count}`)
-        const box = await locator.boundingBox()
-        if (!box) throw new Error(`Region is not visible: ${regionId}`)
-        regions.push({ regionId, bounds: { x: box.x, y: box.y, width: box.width, height: box.height } })
-      }
-      const png = await page.screenshot({ type: 'png', animations: 'disabled', caret: 'hide' })
-      const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-      return { image: { data, png, width: info.width, height: info.height, defaultMasks: [] }, regions }
-    } finally {
-      await context.close()
-    }
-  }
-
-  async close(): Promise<void> {
-    await this.browser?.close()
-    this.browser = null
-  }
-
-  private async getBrowser(browsersPath?: string): Promise<Browser> {
-    if (this.browser) return this.browser
-    process.env.PLAYWRIGHT_BROWSERS_PATH = browsersPath ?? process.env.PLAYWRIGHT_BROWSERS_PATH
-      ?? path.resolve(process.cwd(), '.cache/ms-playwright')
-    const { chromium } = await import('playwright')
-    this.browser = await chromium.launch({ headless: true })
-    return this.browser
-  }
-
-  private validate(options: H5CaptureOptions): void {
-    const { width, height, deviceScaleFactor } = options.viewport
-    if (![width, height, deviceScaleFactor].every(Number.isFinite) || width <= 0 || height <= 0 || deviceScaleFactor <= 0) {
-      throw new Error('Viewport dimensions and deviceScaleFactor must be positive')
-    }
-    if (new Set(options.regionIds).size !== options.regionIds.length) throw new Error('regionIds must be unique')
-  }
+export class H5Renderer{
+ private browser:Browser|null=null
+ private launching:Promise<Browser>|null=null
+ async capture(o:H5CaptureOptions):Promise<H5CaptureResult>{this.validate(o);const browser=await this.getBrowser();const context=await browser.newContext({viewport:{width:o.viewport.width,height:o.viewport.height},deviceScaleFactor:1,locale:'zh-CN',timezoneId:'Asia/Shanghai',colorScheme:'light',reducedMotion:'reduce'});try{const page=await context.newPage(),failures:string[]=[];page.on('requestfailed',r=>failures.push(r.url()));page.on('response',r=>{if(r.status()>=400)failures.push(`${r.status()} ${r.url()}`)});await page.addInitScript(time=>{const fixed=Date.parse(time);const NativeDate=Date;class FixedDate extends NativeDate{constructor(value?:string|number|Date){super(value===undefined?fixed:value)}static override now(){return fixed}};Object.defineProperty(window,'Date',{value:FixedDate})},o.frozenTime??'2026-01-01T00:00:00.000Z');await page.goto(o.url,{waitUntil:'networkidle',timeout:o.timeoutMs??30000});await page.addStyleTag({content:'*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}'});await page.evaluate(async()=>{await document.fonts.ready;const images=[...document.images];await Promise.all(images.map(image=>image.complete?Promise.resolve():new Promise<void>((resolve,reject)=>{image.addEventListener('load',()=>resolve(),{once:true});image.addEventListener('error',()=>reject(new Error(`Image failed: ${image.currentSrc||image.src}`)),{once:true})})));const broken=images.find(i=>i.naturalWidth===0);if(broken)throw new Error(`Image failed: ${broken.currentSrc||broken.src}`)});if(failures.length)throw new Error(`Resource failures: ${[...new Set(failures)].join(', ')}`);const regions=await collectRegions(page,o.regionIds),png=await page.screenshot({type:'png',fullPage:o.screenshotType==='fullpage',animations:'disabled',caret:'hide',scale:'css'}),{data,info}=await sharp(png).ensureAlpha().raw().toBuffer({resolveWithObject:true});return{image:{data,png,width:info.width,height:info.height,defaultMasks:[]},regions}}finally{await context.close()}}
+ async close(){const b=await this.launching?.catch(()=>null)??this.browser;await b?.close();this.browser=null;this.launching=null}
+ private async getBrowser(){if(this.browser)return this.browser;if(!this.launching)this.launching=import('playwright').then(({chromium})=>chromium.launch({headless:true}));try{this.browser=await this.launching;return this.browser}finally{this.launching=null}}
+ private validate(o:H5CaptureOptions){const{width,height,deviceScaleFactor}=o.viewport;if(![width,height,deviceScaleFactor].every(Number.isFinite)||width<=0||height<=0||deviceScaleFactor<=0)throw new Error('Viewport dimensions and deviceScaleFactor must be positive');if(new Set(o.regionIds).size!==o.regionIds.length)throw new Error('regionIds must be unique');if(o.browsersPath&&o.browsersPath!==process.env.PLAYWRIGHT_BROWSERS_PATH)throw new Error('Set PLAYWRIGHT_BROWSERS_PATH before importing the renderer')}
 }

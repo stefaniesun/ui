@@ -2,4 +2,29 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { H5Renderer } from './h5.js'
 
-describe('H5Renderer',()=>{it('captures deterministic pixels and named bounds',async()=>{const renderer=new H5Renderer();const html='data:text/html,<style>*{animation:none!important}body{margin:0}</style><section data-region-id="account-summary" style="width:100px;height:50px">A</section><section data-region-id="owner-services" style="width:200px;height:80px">B</section><footer data-region-id="primary-tabbar" style="width:396px;height:60px">C</footer>';const captures=[];for(let i=0;i<3;i++)captures.push(await renderer.capture({url:html,viewport:{width:396,height:842,deviceScaleFactor:1},regionIds:['account-summary','owner-services','primary-tabbar']}));expect(captures[0]!.image.width).toBe(396);expect(captures[0]!.regions.map(r=>r.regionId)).toEqual(['account-summary','owner-services','primary-tabbar']);const hashes=captures.map(c=>createHash('sha256').update(c.image.data).digest('hex'));expect(new Set(hashes).size).toBe(1);await renderer.close()})})
+describe('H5Renderer', () => {
+  it('captures deterministic pixels and named bounds', async () => {
+    const renderer = new H5Renderer()
+    try {
+      const html = 'data:text/html,<style>*{animation:none!important}body{margin:0}</style><section data-region-id="account-summary" style="width:100px;height:50px">A</section><section data-region-id="owner-services" style="width:200px;height:80px">B</section><footer data-region-id="primary-tabbar" style="width:396px;height:60px">C</footer>'
+      const captures = []
+      for (let index = 0; index < 3; index += 1) {
+        captures.push(await renderer.capture({
+          url: html,
+          viewport: { width: 396, height: 842, deviceScaleFactor: 1 },
+          screenshotType: 'viewport',
+          frozenTime: '2026-07-24T08:00:00.000Z',
+          regionIds: ['account-summary', 'owner-services', 'primary-tabbar'],
+        }))
+      }
+      expect(captures[0]!.image.width).toBe(396)
+      expect(captures[0]!.regions.map(region => region.regionId)).toEqual([
+        'account-summary', 'owner-services', 'primary-tabbar',
+      ])
+      const hashes = captures.map(capture => createHash('sha256').update(capture.image.data).digest('hex'))
+      expect(new Set(hashes).size).toBe(1)
+    } finally {
+      await renderer.close()
+    }
+  })
+})
