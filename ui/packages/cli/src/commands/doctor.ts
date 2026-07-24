@@ -1,0 +1,4 @@
+import { access } from 'node:fs/promises'
+import path from 'node:path'
+export async function doctor(cwd=process.cwd()){const checks=[];checks.push({name:'node',ok:Number(process.versions.node.split('.')[0])>=22,detail:process.versions.node});const browsers=process.env.PLAYWRIGHT_BROWSERS_PATH??path.join(cwd,'.cache','ms-playwright');checks.push({name:'chromium',ok:await exists(browsers),detail:browsers});checks.push({name:'model',ok:Boolean(process.env.UI_REBUILD_MODEL_BASE_URL),detail:process.env.UI_REBUILD_MODEL_BASE_URL??'UI_REBUILD_MODEL_BASE_URL 未配置'});const wechat=process.env.WECHAT_DEVTOOLS_CLI;checks.push({name:'wechat-devtools',ok:Boolean(wechat&&await exists(wechat)),detail:wechat??'WECHAT_DEVTOOLS_CLI 未配置'});return checks}
+async function exists(value:string){try{await access(value);return true}catch{return false}}
