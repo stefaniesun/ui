@@ -50,14 +50,14 @@ function levenshtein(left: string, right: string): number {
   return previous[right.length]!
 }
 
-function textDistance(reference: TextItem, actual: TextItem): number {
+export function textDistance(reference: TextItem, actual: TextItem): number {
   const left = normalizeText(reference.text)
   const right = normalizeText(actual.text)
   if ((isCriticalText(left) || isCriticalText(right)) && left !== right) return 1
   return levenshtein(left, right) / Math.max(left.length, right.length, 1)
 }
 
-function positionDistance(reference: TextItem, actual: TextItem): number {
+export function textPositionDistance(reference: TextItem, actual: TextItem): number {
   const center = Math.hypot(
     reference.bounds.x + reference.bounds.width / 2 - actual.bounds.x - actual.bounds.width / 2,
     reference.bounds.y + reference.bounds.height / 2 - actual.bounds.y - actual.bounds.height / 2,
@@ -67,7 +67,7 @@ function positionDistance(reference: TextItem, actual: TextItem): number {
   return clamp((center + size) / 2)
 }
 
-function fontDistance(reference: number, actual: number): number {
+export function textFontDistance(reference: number, actual: number): number {
   return clamp(Math.abs(reference - actual) / Math.max(reference, actual))
 }
 
@@ -102,13 +102,19 @@ function colorDistance(left: Rgb, right: Rgb): number {
   return clamp(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) / 100)
 }
 
+export function textColorDistance(reference: string, actual: string): number | null {
+  const left = parseColor(reference)
+  const right = parseColor(actual)
+  return left === null || right === null ? null : colorDistance(left, right)
+}
+
 export function textPairCost(reference: TextItem, actual: TextItem): number {
   const dimensions: Array<[number, number]> = [
     [PAIR_WEIGHTS.text, textDistance(reference, actual)],
-    [PAIR_WEIGHTS.position, positionDistance(reference, actual)],
+    [PAIR_WEIGHTS.position, textPositionDistance(reference, actual)],
   ]
   if (reference.fontSize !== null && actual.fontSize !== null) {
-    dimensions.push([PAIR_WEIGHTS.fontSize, fontDistance(reference.fontSize, actual.fontSize)])
+    dimensions.push([PAIR_WEIGHTS.fontSize, textFontDistance(reference.fontSize, actual.fontSize)])
   }
   const referenceColor = reference.color === null ? null : parseColor(reference.color)
   const actualColor = actual.color === null ? null : parseColor(actual.color)
