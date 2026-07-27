@@ -8,8 +8,11 @@ describe('preview bootstrap lifecycle', () => {
   });
 
   it('returns the createPreviewScene disposer from mountCivicPreview', async () => {
-    const createPreviewScene = vi.fn((viewport: HTMLElement) => () => {
+    const innerDisposer = vi.fn((viewport: HTMLElement) => {
       viewport.replaceChildren();
+    });
+    const createPreviewScene = vi.fn((viewport: HTMLElement) => () => {
+      innerDisposer(viewport);
     });
 
     vi.doMock('../../src/preview/createPreviewScene', () => ({
@@ -25,9 +28,12 @@ describe('preview bootstrap lifecycle', () => {
     expect(viewport).not.toBeNull();
     expect(createPreviewScene).toHaveBeenCalledWith(viewport);
     expect(dispose).toBeTypeOf('function');
+    expect(innerDisposer).not.toHaveBeenCalled();
 
     dispose();
 
+    expect(innerDisposer).toHaveBeenCalledTimes(1);
+    expect(innerDisposer).toHaveBeenCalledWith(viewport);
     expect(host.childElementCount).toBe(0);
     expect(host.querySelector('.viewport')).toBeNull();
   });
