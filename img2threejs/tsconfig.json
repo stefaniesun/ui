@@ -11,8 +11,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vitest/globals"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+    "types": ["vitest/globals", "node"]
   },
   "include": ["src", "tests", "vite.config.ts"]
 }
