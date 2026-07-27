@@ -21,6 +21,7 @@ function endpointUrl(baseUrl: string, trustedRemoteOrigins: readonly string[]): 
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Model endpoint must use HTTP(S)')
   const local = ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)
   const trusted = trustedRemoteOrigins.some(origin => new URL(origin).origin === url.origin)
+  if (!local && url.protocol !== 'https:') throw new Error(`Remote model endpoint must use HTTPS: ${url.origin}`)
   if (!local && !trusted) throw new Error(`Model endpoint is not trusted: ${url.origin}`)
   return new URL('chat/completions', `${url.toString().replace(/\/?$/, '/')}`)
 }

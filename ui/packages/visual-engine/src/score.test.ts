@@ -75,7 +75,7 @@ describe('scorePage', () => {
     await expect(scorePage(await card(8), await card(8), {
       reference: { ...normalization, logicalWidth: 63 }, actual: normalization,
       regions: [region], weights, textExtractor: emptyExtractor,
-    })).rejects.toThrow(/canvas|dimensions/i)
+    })).rejects.toThrow(/canvas|dimensions|normalize the reference image/i)
     await expect(scorePage(await card(8), await card(8), {
       reference: normalization, actual: normalization,
       regions: [], weights, textExtractor: emptyExtractor,

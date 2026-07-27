@@ -1,6 +1,6 @@
 import pixelmatch from 'pixelmatch'
 import sharp from 'sharp'
-import type { Bounds, TextExtractionFailure } from '@ui-rebuild/contracts'
+import type { Bounds } from '@ui-rebuild/contracts'
 import { deltaE76 } from './color.js'
 import { scoreGeometry } from './geometry.js'
 import { normalizeImage } from './image.js'
@@ -11,13 +11,8 @@ import { createMask, cropRegion, validateBounds } from './regions.js'
 import { hashImage } from './text-cache.js'
 import type { TextExtractionCache } from './text-cache.js'
 import { scoreRegionText } from './text-score.js'
-
-export class TextExtractionGateError extends Error {
-  constructor(readonly failure: TextExtractionFailure, options?: ErrorOptions) {
-    super(`${failure.regionId}: ${failure.message}`, options)
-    this.name = 'TextExtractionGateError'
-  }
-}
+import { extractionReason, TextExtractionGateError, textExtractionFailure } from './text-errors.js'
+export { TextExtractionGateError } from './text-errors.js'
 
 export interface ScoredRegion {
   regionId: string
@@ -118,18 +113,6 @@ function weighted(values: Array<{ value: number | null; weight: number; required
   if (totalWeight <= 0) throw new Error('No measurable score dimensions remain')
   return available.reduce((sum, item) => sum + item.value * item.weight, 0) / totalWeight
 }
-function extractionReason(error: unknown): TextExtractionFailure['reason'] {
-  if (typeof error === 'object' && error !== null && 'kind' in error) {
-    const kind = String(error.kind)
-    if (kind === 'timeout') return 'timeout'
-    if (kind === 'network') return 'network'
-    if (kind === 'http') return 'http'
-    if (kind === 'protocol') return 'protocol'
-    if (kind === 'format') return 'schema-invalid'
-  }
-  return 'protocol'
-}
-
 async function alignCrops(reference: Buffer, actual: Buffer, width: number, height: number) {
   const align = (input: Buffer) => sharp(input)
     .resize(width, height, { fit: 'contain', background: '#00000000' })
@@ -152,9 +135,25 @@ export async function scoreAgainstFrozenReference(
   const scores: RegionScore[] = []
   for (const region of options.regions) {
     const baseline = frozen.regions.get(region.regionId)
-    if (!baseline) throw new Error(`Frozen reference region not found: ${region.regionId}`)
-    validateBounds(region.actualBounds, actual.width, actual.height, `${region.regionId}.actual`)
-    const actualCrop = await cropRegion(actual, region.actualBounds)
+    if (!baseline) throw textExtractionFailure(
+      region.regionId,
+      'reference',
+      'region-missing',
+      'Frozen reference region is missing',
+    )
+    let actualCrop: Buffer
+    try {
+      validateBounds(region.actualBounds, actual.width, actual.height, `${region.regionId}.actual`)
+      actualCrop = await cropRegion(actual, region.actualBounds)
+    } catch (error) {
+      throw textExtractionFailure(
+        region.regionId,
+        'actual',
+        'crop-failed',
+        'Unable to crop the rendered region for text extraction',
+        error,
+      )
+    }
     const width = Math.max(1, Math.round(baseline.bounds.width))
     const height = Math.max(1, Math.round(baseline.bounds.height))
     const aligned = await alignCrops(baseline.crop, actualCrop, width, height)
@@ -182,6 +181,18 @@ export async function scoreAgainstFrozenReference(
     )
     const pixelDiffRatio = noVisualData ? null : differentPixels / validPixels
     const meanDeltaE = noVisualData ? null : deltaTotal / validPixels
+    if (
+      baseline.textBaseline.model !== options.textExtractor.identity.model
+      || baseline.textBaseline.schemaVersion !== options.textExtractor.identity.schemaVersion
+      || baseline.textBaseline.promptVersion !== options.textExtractor.identity.promptVersion
+    ) {
+      throw textExtractionFailure(
+        region.regionId,
+        'reference',
+        'baseline-incompatible',
+        'Frozen text baseline is incompatible with the configured extractor',
+      )
+    }
     const imageHash = hashImage(actualCrop)
     const cacheKey = { imageHash, regionId: region.regionId, ...options.textExtractor.identity }
     let cacheHit = false
@@ -198,13 +209,13 @@ export async function scoreAgainstFrozenReference(
         })
         await options.textCache?.set(cacheKey, actualItems)
       } catch (error) {
-        throw new TextExtractionGateError({
-          code: 'text-extraction-failed',
-          reason: extractionReason(error),
-          regionId: region.regionId,
-          stage: 'actual',
-          message: 'Unable to extract structured text from the rendered region',
-        }, { cause: error })
+        throw textExtractionFailure(
+          region.regionId,
+          'actual',
+          extractionReason(error),
+          'Unable to extract structured text from the rendered region',
+          error,
+        )
       }
     }
     const text = scoreRegionText(baseline.textBaseline.items, actualItems)

@@ -26,6 +26,12 @@ describe('OpenAICompatibleTransport', () => {
       model: 'vision',
       fetch: vi.fn(),
     })).not.toThrow()
+    expect(() => new OpenAICompatibleTransport({
+      baseUrl: 'http://example.com/v1',
+      trustedRemoteOrigins: ['http://example.com'],
+      model: 'vision',
+      fetch: vi.fn(),
+    })).toThrow(/HTTPS/u)
   })
 
   it('extracts message content and tool arguments', async () => {

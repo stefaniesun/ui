@@ -1,6 +1,7 @@
 import type { TextItem } from '@ui-rebuild/contracts'
 import {
   matchTextItems,
+  normalizeText,
   textColorDistance,
   textDistance,
   textFontDistance,
@@ -28,7 +29,7 @@ function average(values: readonly number[]): number {
 
 export function scoreRegionText(reference: readonly TextItem[], actual: readonly TextItem[]): RegionTextScore {
   const result = matchTextItems(reference, actual)
-  const matchedContent = result.matches.map(match => match.critical && match.reference.text !== match.actual.text
+  const matchedContent = result.matches.map(match => match.critical && normalizeText(match.reference.text) !== normalizeText(match.actual.text)
     ? 0
     : 1 - textDistance(match.reference, match.actual))
   const denominator = result.matches.length + result.missing.length + result.added.length
