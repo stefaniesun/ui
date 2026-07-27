@@ -8,11 +8,20 @@ describe('preview bootstrap lifecycle', () => {
   });
 
   it('returns the createPreviewScene disposer from mountCivicPreview', async () => {
+    let createdViewport: HTMLElement | null = null;
     const innerDisposer = vi.fn((viewport: HTMLElement) => {
       viewport.replaceChildren();
     });
-    const createPreviewScene = vi.fn((viewport: HTMLElement) => () => {
-      innerDisposer(viewport);
+    const sceneDisposer = vi.fn(() => {
+      if (!createdViewport) {
+        throw new Error('Missing created viewport');
+      }
+
+      innerDisposer(createdViewport);
+    });
+    const createPreviewScene = vi.fn((viewport: HTMLElement) => {
+      createdViewport = viewport;
+      return sceneDisposer;
     });
 
     vi.doMock('../../src/preview/createPreviewScene', () => ({
@@ -26,12 +35,15 @@ describe('preview bootstrap lifecycle', () => {
     const viewport = host.querySelector<HTMLElement>('.viewport');
 
     expect(viewport).not.toBeNull();
+    expect(createPreviewScene).toHaveBeenCalledTimes(1);
     expect(createPreviewScene).toHaveBeenCalledWith(viewport);
     expect(dispose).toBeTypeOf('function');
+    expect(sceneDisposer).not.toHaveBeenCalled();
     expect(innerDisposer).not.toHaveBeenCalled();
 
     dispose();
 
+    expect(sceneDisposer).toHaveBeenCalledTimes(1);
     expect(innerDisposer).toHaveBeenCalledTimes(1);
     expect(innerDisposer).toHaveBeenCalledWith(viewport);
     expect(host.childElementCount).toBe(0);
