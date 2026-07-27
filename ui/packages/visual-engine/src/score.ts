@@ -1,15 +1,18 @@
 import pixelmatch from 'pixelmatch'
 import sharp from 'sharp'
-import type { Bounds } from '@ui-rebuild/contracts'
+import type { Bounds, TextExtractionFailure } from '@ui-rebuild/contracts'
 import { deltaE76 } from './color.js'
 import { scoreGeometry } from './geometry.js'
 import { normalizeImage } from './image.js'
 import type { ImageNormalization } from './image.js'
-import { OcrUnavailableError } from './ocr.js'
-import type { FrozenReference } from './reference.js'
+import type { FrozenReference, RegionTextExtractor } from './reference.js'
 import { freezeReference } from './reference.js'
 import { createMask, cropRegion, validateBounds } from './regions.js'
+import { hashImage } from './text-cache.js'
+import type { TextExtractionCache } from './text-cache.js'
+import { scoreRegionText } from './text-score.js'
 
+/** @deprecated Use RegionTextExtractor. */
 export interface OcrProvider {
   analyzeReference?(reference: Buffer, bounds: Bounds): Promise<unknown>
   compare(input: {
@@ -21,6 +24,14 @@ export interface OcrProvider {
     referenceBaseline?: unknown
   }): Promise<number>
 }
+
+export class TextExtractionGateError extends Error {
+  constructor(readonly failure: TextExtractionFailure, options?: ErrorOptions) {
+    super(`${failure.regionId}: ${failure.message}`, options)
+    this.name = 'TextExtractionGateError'
+  }
+}
+
 export interface ScoredRegion {
   regionId: string
   referenceBounds: Bounds
@@ -48,8 +59,9 @@ export interface SharedScoreOptions {
   pixelmatchThreshold?: number
   consistencyScore?: number | null
   stateScore?: number | null
-  ocr?: OcrProvider
-  requireOcr?: boolean
+  textExtractor: RegionTextExtractor
+  textCache?: TextExtractionCache
+  signal?: AbortSignal
 }
 export interface ScoreOptions extends SharedScoreOptions {
   reference: ImageNormalization
@@ -65,7 +77,9 @@ export interface RegionScore {
   geometry: { meanAbsoluteErrorPx: number; score: number }
   visual: { pixelDiffRatio: number | null; score: number | null }
   color: { meanDeltaE: number | null; score: number | null }
-  content: { ocrMatch: number | null; score: number | null }
+  content: ReturnType<typeof scoreRegionText> & {
+    extraction: { provider: 'model' | 'command'; model: string; cacheHit: boolean }
+  }
   total: number
   severeDefects: string[]
 }
@@ -117,6 +131,18 @@ function weighted(values: Array<{ value: number | null; weight: number; required
   if (totalWeight <= 0) throw new Error('No measurable score dimensions remain')
   return available.reduce((sum, item) => sum + item.value * item.weight, 0) / totalWeight
 }
+function extractionReason(error: unknown): TextExtractionFailure['reason'] {
+  if (typeof error === 'object' && error !== null && 'kind' in error) {
+    const kind = String(error.kind)
+    if (kind === 'timeout') return 'timeout'
+    if (kind === 'network') return 'network'
+    if (kind === 'http') return 'http'
+    if (kind === 'protocol') return 'protocol'
+    if (kind === 'format') return 'schema-invalid'
+  }
+  return 'protocol'
+}
+
 async function alignCrops(reference: Buffer, actual: Buffer, width: number, height: number) {
   const align = (input: Buffer) => sharp(input)
     .resize(width, height, { fit: 'contain', background: '#00000000' })
@@ -169,20 +195,39 @@ export async function scoreAgainstFrozenReference(
     )
     const pixelDiffRatio = noVisualData ? null : differentPixels / validPixels
     const meanDeltaE = noVisualData ? null : deltaTotal / validPixels
-    let ocrMatch: number | null = null
-    if (options.ocr && !noVisualData) {
+    const imageHash = hashImage(actualCrop)
+    const cacheKey = { imageHash, regionId: region.regionId, ...options.textExtractor.identity }
+    let cacheHit = false
+    let actualItems = await options.textCache?.get(cacheKey)
+    if (actualItems !== null && actualItems !== undefined) cacheHit = true
+    if (actualItems === null || actualItems === undefined) {
       try {
-        ocrMatch = finiteScore(await options.ocr.compare({
-          reference: aligned.reference,
-          actual: aligned.actual,
-          referenceBounds: baseline.bounds,
-          actualBounds: region.actualBounds,
-          mask,
-          referenceBaseline: baseline.ocrBaseline,
-        }), `${region.regionId} OCR score`)
+        actualItems = await options.textExtractor.extract({
+          regionId: region.regionId,
+          image: actualCrop,
+          width: Math.max(1, Math.round(region.actualBounds.width)),
+          height: Math.max(1, Math.round(region.actualBounds.height)),
+          signal: options.signal,
+        })
+        await options.textCache?.set(cacheKey, actualItems)
       } catch (error) {
-        if (!(error instanceof OcrUnavailableError)) throw error
+        throw new TextExtractionGateError({
+          code: 'text-extraction-failed',
+          reason: extractionReason(error),
+          regionId: region.regionId,
+          stage: 'actual',
+          message: 'Unable to extract structured text from the rendered region',
+        }, { cause: error })
       }
+    }
+    const text = scoreRegionText(baseline.textBaseline.items, actualItems)
+    const content = {
+      ...text,
+      extraction: {
+        provider: options.textExtractor.identity.provider,
+        model: options.textExtractor.identity.model,
+        cacheHit,
+      },
     }
     const geometry = scoreGeometry(baseline.bounds, region.actualBounds)
     const visualScore = pixelDiffRatio === null ? null : 1 - pixelDiffRatio
@@ -191,7 +236,7 @@ export async function scoreAgainstFrozenReference(
       { value: geometry.score, weight: options.weights.geometry },
       { value: visualScore, weight: options.weights.visual },
       { value: colorScore, weight: options.weights.color },
-      { value: ocrMatch, weight: options.weights.content, required: options.requireOcr === true },
+      { value: content.total, weight: options.weights.content, required: true },
       { value: shared.consistency, weight: options.weights.consistency },
       { value: shared.state, weight: options.weights.state },
     ])
@@ -200,7 +245,7 @@ export async function scoreAgainstFrozenReference(
       geometry,
       visual: { pixelDiffRatio, score: visualScore },
       color: { meanDeltaE, score: colorScore },
-      content: { ocrMatch, score: ocrMatch },
+      content,
       total,
       severeDefects: geometry.meanAbsoluteErrorPx > 16 ? ['geometry'] : [],
     })
@@ -221,7 +266,7 @@ export async function scorePage(
     referenceInput,
     options.reference,
     options.regions.map(region => ({ regionId: region.regionId, bounds: region.referenceBounds })),
-    options.ocr,
+    { textExtractor: options.textExtractor, textCache: options.textCache, signal: options.signal },
   )
   return scoreAgainstFrozenReference(frozen, actualInput, {
     ...options,

@@ -1,6 +1,8 @@
 import sharp from 'sharp'
 import { describe, expect, it, vi } from 'vitest'
-import { scorePage } from './score.js'
+import { freezeReference } from './reference.js'
+import { scoreAgainstFrozenReference, scorePage, TextExtractionGateError } from './score.js'
+import type { TextExtractionCache } from './text-cache.js'
 
 async function card(left: number, color = '#ffcc00', scale = 1) {
   return sharp({ create: { width: 64 * scale, height: 64 * scale, channels: 4, background: '#ffffff' } })
@@ -14,6 +16,11 @@ const normalization = {
   sourceScale: 1,
   systemBarPolicy: { mode: 'none' as const },
 }
+const emptyExtractor = {
+  identity: { provider: 'model' as const, model: 'test-model', schemaVersion: '1.0.0', promptVersion: '1.0.0' },
+  extract: vi.fn().mockResolvedValue([]),
+}
+
 const weights = {
   geometry: 0.25,
   visual: 0.25,
@@ -35,6 +42,7 @@ describe('scorePage', () => {
         critical: true,
       }],
       weights,
+      textExtractor: emptyExtractor,
     })
     expect(result.regions[0]?.geometry.meanAbsoluteErrorPx).toBe(1)
     expect(result.regions[0]?.visual.score).toBe(1)
@@ -52,6 +60,7 @@ describe('scorePage', () => {
         critical: false,
       }],
       weights,
+      textExtractor: emptyExtractor,
     })
     expect(result.total).toBeGreaterThan(0.99)
   })
@@ -65,20 +74,19 @@ describe('scorePage', () => {
     }
     await expect(scorePage(await card(8), await card(8), {
       reference: { ...normalization, logicalWidth: 63 }, actual: normalization,
-      regions: [region], weights,
+      regions: [region], weights, textExtractor: emptyExtractor,
     })).rejects.toThrow(/canvas|dimensions/i)
     await expect(scorePage(await card(8), await card(8), {
       reference: normalization, actual: normalization,
-      regions: [], weights,
+      regions: [], weights, textExtractor: emptyExtractor,
     })).rejects.toThrow(/region/i)
     await expect(scorePage(await card(8), await card(8), {
       reference: normalization, actual: normalization,
-      regions: [region], weights: { ...weights, geometry: Number.NaN },
+      regions: [region], weights: { ...weights, geometry: Number.NaN }, textExtractor: emptyExtractor,
     })).rejects.toThrow(/weights/i)
   })
 
-  it('excludes a fully masked visual region and validates OCR output', async () => {
-    const ocr = { compare: vi.fn().mockResolvedValue(0.98) }
+  it('excludes a fully masked visual region while retaining text scoring', async () => {
     const result = await scorePage(await card(8), await card(8, '#000000'), {
       reference: normalization, actual: normalization,
       regions: [{
@@ -89,12 +97,65 @@ describe('scorePage', () => {
         critical: false,
       }],
       weights,
-      ocr,
+      textExtractor: emptyExtractor,
     })
     expect(result.regions[0]?.visual.score).toBeNull()
     expect(result.regions[0]?.color.score).toBeNull()
-    expect(ocr.compare).not.toHaveBeenCalled()
+    expect(result.regions[0]?.content.total).toBe(1)
     expect(result.total).toBe(1)
+  })
+
+  it('freezes reference text, reuses the baseline, and caches actual extraction', async () => {
+    const extracted = [{
+      text: 'Total', bounds: { x: 0.1, y: 0.1, width: 0.3, height: 0.1 },
+      fontSize: null, color: null, confidence: 0.9,
+    }]
+    const extractor = {
+      ...emptyExtractor,
+      extract: vi.fn().mockResolvedValue(extracted),
+    }
+    const entries = new Map<string, typeof extracted>()
+    const cache: TextExtractionCache = {
+      get: vi.fn(async key => entries.get(JSON.stringify(key)) ?? null),
+      set: vi.fn(async (key, items) => { entries.set(JSON.stringify(key), [...items] as typeof extracted) }),
+    }
+    const region = { regionId: 'card', bounds: { x: 8, y: 20, width: 24, height: 20 } }
+    const frozen = await freezeReference(await card(8), normalization, [region], { textExtractor: extractor, textCache: cache })
+    const baseline = frozen.regions.get('card')!.textBaseline.items
+    const options = {
+      actual: normalization,
+      regions: [{ regionId: 'card', actualBounds: region.bounds, critical: false }],
+      weights,
+      textExtractor: extractor,
+      textCache: cache,
+    }
+    await scoreAgainstFrozenReference(frozen, await card(8), options)
+    await scoreAgainstFrozenReference(frozen, await card(8), options)
+    expect(frozen.regions.get('card')!.textBaseline.items).toBe(baseline)
+    expect(baseline).toEqual(extracted)
+    expect(extractor.extract).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed when an actual region cannot be extracted', async () => {
+    const frozen = await freezeReference(await card(8), normalization, [{
+      regionId: 'card', bounds: { x: 8, y: 20, width: 24, height: 20 },
+    }], { textExtractor: emptyExtractor })
+    const failing = { ...emptyExtractor, extract: vi.fn().mockRejectedValue(Object.assign(new Error('secret'), { kind: 'timeout' })) }
+    await expect(scoreAgainstFrozenReference(frozen, await card(8), {
+      actual: normalization,
+      regions: [{ regionId: 'card', actualBounds: { x: 8, y: 20, width: 24, height: 20 }, critical: false }],
+      weights,
+      textExtractor: failing,
+    })).rejects.toMatchObject({
+      name: 'TextExtractionGateError',
+      failure: {
+        code: 'text-extraction-failed',
+        reason: 'timeout',
+        regionId: 'card',
+        stage: 'actual',
+        message: 'Unable to extract structured text from the rendered region',
+      },
+    } satisfies Partial<TextExtractionGateError>)
   })
 
   it('weights critical regions in the page total', async () => {
@@ -111,6 +172,7 @@ describe('scorePage', () => {
         },
       ],
       weights,
+      textExtractor: emptyExtractor,
       criticalMultiplier: 2,
     })
     expect(result.total).toBeLessThan((result.regions[0]!.total + result.regions[1]!.total) / 2)
