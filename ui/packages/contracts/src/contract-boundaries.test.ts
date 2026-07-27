@@ -3,6 +3,8 @@ import {
   ManifestSchema,
   PatchPlanSchema,
   ReviewReportSchema,
+  TextExtractionFailureSchema,
+  TextItemSchema,
   VisualIRSchema,
 } from './index.js'
 
@@ -63,6 +65,55 @@ describe('PatchPlanSchema', () => {
   })
 })
 
+describe('TextItemSchema', () => {
+  const valid = {
+    text: '¥99.00',
+    bounds: { x: 0.1, y: 0.2, width: 0.3, height: 0.04 },
+    fontSize: 16,
+    color: '#112233',
+    confidence: 0.95,
+  }
+
+  it('accepts normalized extracted text', () => {
+    expect(TextItemSchema.parse(valid)).toMatchObject({ text: '¥99.00', confidence: 0.95 })
+  })
+
+  it.each([
+    { ...valid, text: '' },
+    { ...valid, bounds: { x: -0.1, y: 0, width: 1, height: 1 } },
+    { ...valid, bounds: { x: 0.8, y: 0, width: 0.3, height: 1 } },
+    { ...valid, bounds: { x: 0, y: 0.9, width: 1, height: 0.2 } },
+    { ...valid, bounds: { x: 0, y: 0, width: 0, height: 1 } },
+    { ...valid, confidence: 1.1 },
+    { ...valid, fontSize: 0 },
+    { ...valid, color: '' },
+  ])('rejects invalid text item %#', item => {
+    expect(() => TextItemSchema.parse(item)).toThrow()
+  })
+
+  it.each(['fontSize', 'color'] as const)('requires nullable field %s to be present', field => {
+    const incomplete: Record<string, unknown> = { ...valid }
+    Reflect.deleteProperty(incomplete, field)
+    expect(() => TextItemSchema.parse(incomplete)).toThrow()
+  })
+
+  it('accepts null font size and color', () => {
+    expect(TextItemSchema.parse({ ...valid, fontSize: null, color: null })).toBeDefined()
+  })
+})
+
+describe('TextExtractionFailureSchema', () => {
+  it('requires stable extraction failure context', () => {
+    expect(TextExtractionFailureSchema.parse({
+      code: 'text-extraction-failed',
+      reason: 'schema-invalid',
+      regionId: 'hero',
+      stage: 'actual',
+      message: 'invalid model output',
+    })).toBeDefined()
+  })
+})
+
 describe('ReviewReportSchema', () => {
   const valid = {
     version: '1.0.0',
@@ -74,21 +125,33 @@ describe('ReviewReportSchema', () => {
       regionId: 'owner-services',
       total: 0.9,
       geometryErrorPx: 2,
-      ocrMatch: null,
+      text: {
+        score: 0.9,
+        content: 1,
+        position: 0.8,
+        fontSize: null,
+        color: null,
+        missing: [],
+        added: [],
+        lowConfidence: [],
+        matches: [],
+        extraction: { provider: 'model', model: 'test-model', cacheHit: false },
+      },
       severeDefects: [],
     }],
     bestRound: 3,
   }
 
-  it('accepts nullable OCR scores', () => {
-    expect(ReviewReportSchema.parse(valid).regions[0]?.ocrMatch).toBeNull()
+  it('accepts structured text diagnostics', () => {
+    expect(ReviewReportSchema.parse(valid).regions[0]?.text.fontSize).toBeNull()
   })
 
   it.each([
     { total: 1.1 },
     { regions: [{ ...valid.regions[0], total: -0.1 }] },
     { regions: [{ ...valid.regions[0], geometryErrorPx: -1 }] },
-    { regions: [{ ...valid.regions[0], ocrMatch: 2 }] },
+    { regions: [{ ...valid.regions[0], text: { ...valid.regions[0].text, score: 2 } }] },
+    { regions: [{ ...valid.regions[0], text: { ...valid.regions[0].text, extraction: { provider: 'unknown', model: 'x', cacheHit: false } } }] },
   ])('rejects invalid report metrics', override => {
     expect(() => ReviewReportSchema.parse({ ...valid, ...override })).toThrow()
   })

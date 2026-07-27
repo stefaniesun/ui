@@ -2,11 +2,37 @@ import { z } from 'zod'
 
 const score = z.number().finite().min(0).max(1)
 
+export const TextMatchMetricSchema = z.object({
+  reference: z.string(),
+  actual: z.string(),
+  cost: score,
+  critical: z.boolean(),
+}).strict()
+
+export const TextExtractionMetricSchema = z.object({
+  provider: z.enum(['model', 'command']),
+  model: z.string().min(1),
+  cacheHit: z.boolean(),
+}).strict()
+
+export const RegionTextMetricSchema = z.object({
+  score,
+  content: score,
+  position: score,
+  fontSize: score.nullable(),
+  color: score.nullable(),
+  missing: z.array(z.string()),
+  added: z.array(z.string()),
+  lowConfidence: z.array(z.string()),
+  matches: z.array(TextMatchMetricSchema),
+  extraction: TextExtractionMetricSchema,
+}).strict()
+
 export const RegionMetricSchema = z.object({
   regionId: z.string().min(1),
   total: score,
   geometryErrorPx: z.number().finite().nonnegative(),
-  ocrMatch: score.nullable(),
+  text: RegionTextMetricSchema,
   severeDefects: z.array(z.string()),
 }).strict()
 
