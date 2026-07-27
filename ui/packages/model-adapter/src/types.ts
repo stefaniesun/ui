@@ -1,4 +1,4 @@
-import type { PatchPlan, VisualIR } from '@ui-rebuild/contracts'
+import type { PatchPlan, TextItem, VisualIR } from '@ui-rebuild/contracts'
 
 export type StructuredOutputMode = 'json-schema' | 'tools' | 'json-mode' | 'prompt-json'
 export type TransportErrorKind = 'http' | 'timeout' | 'cancelled' | 'network' | 'protocol'
@@ -39,6 +39,11 @@ export interface AnalyzeScreensInput {
   prompt: string
   signal?: AbortSignal
 }
+export interface ExtractTextInput {
+  regionId: string
+  image: ModelImage
+  signal?: AbortSignal
+}
 export interface DiagnoseDiffInput { images: ModelImage[]; prompt: string; signal?: AbortSignal }
 export interface ReviewResultInput { images: ModelImage[]; prompt: string; signal?: AbortSignal }
 export interface ModelReview { summary: string; unresolved: string[] }
@@ -46,6 +51,7 @@ export interface ModelReview { summary: string; unresolved: string[] }
 export interface ModelAdapter {
   probe(referenceImage: ModelImage, signal?: AbortSignal): Promise<ModelCapabilityProfile>
   analyzeScreens(input: AnalyzeScreensInput): Promise<VisualIR>
+  extractText(input: ExtractTextInput): Promise<TextItem[]>
   diagnoseDiff(input: DiagnoseDiffInput): Promise<PatchPlan>
   reviewResult(input: ReviewResultInput): Promise<ModelReview>
 }

@@ -1,16 +1,34 @@
-import { PatchPlanSchema, VisualIRSchema } from '@ui-rebuild/contracts'
-import type { PatchPlan, VisualIR } from '@ui-rebuild/contracts'
+import {
+  PatchPlanSchema,
+  TEXT_EXTRACTION_PROMPT_VERSION,
+  TextItemListSchema,
+  VisualIRSchema,
+} from '@ui-rebuild/contracts'
+import type { PatchPlan, TextItem, VisualIR } from '@ui-rebuild/contracts'
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { requestStructuredOutput } from './openai-compatible.js'
 import { probeCapabilities } from './probe.js'
 import { StructuredOutputError } from './structured-output.js'
 import type {
-  AnalyzeScreensInput, DiagnoseDiffInput, ModelAdapter, ModelCapabilityProfile,
+  AnalyzeScreensInput, DiagnoseDiffInput, ExtractTextInput, ModelAdapter, ModelCapabilityProfile,
   ModelImage, ModelReview, ModelTransport, ReviewResultInput, TransportResponse,
 } from './types.js'
 
 const ModelReviewSchema = z.object({ summary: z.string(), unresolved: z.array(z.string()) }).strict()
+
+function buildTextExtractionPrompt(regionId: string): string {
+  return [
+    `Text extraction prompt version: ${TEXT_EXTRACTION_PROMPT_VERSION}`,
+    `Region ID: ${regionId}`,
+    'Return only text that is visibly present in this region image.',
+    'Do not infer, autocomplete, translate, or reconstruct hidden text.',
+    'Return bounds normalized to this cropped image, with x, y, width, and height in [0, 1].',
+    'Preserve punctuation, whitespace meaning, currency symbols, dates, percentages, and numeric formatting.',
+    'Return fontSize and color as null when they cannot be determined reliably.',
+    'Return confidence in [0, 1].',
+  ].join('\n')
+}
 
 function jsonSchema(schema: z.ZodTypeAny, name: string): Record<string, unknown> {
   return zodToJsonSchema(schema, { name, $refStrategy: 'none' }) as Record<string, unknown>
@@ -38,6 +56,17 @@ export class OpenAICompatibleModelAdapter implements ModelAdapter {
 
   async analyzeScreens(input: AnalyzeScreensInput): Promise<VisualIR> {
     return this.request('visual_ir', input.prompt, input.screenshots, VisualIRSchema, input.signal)
+  }
+
+  async extractText(input: ExtractTextInput): Promise<TextItem[]> {
+    const result = await this.request(
+      'text_items',
+      buildTextExtractionPrompt(input.regionId),
+      [input.image],
+      TextItemListSchema,
+      input.signal,
+    )
+    return result.items
   }
 
   async diagnoseDiff(input: DiagnoseDiffInput): Promise<PatchPlan> {
