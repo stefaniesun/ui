@@ -12,19 +12,6 @@ import { hashImage } from './text-cache.js'
 import type { TextExtractionCache } from './text-cache.js'
 import { scoreRegionText } from './text-score.js'
 
-/** @deprecated Use RegionTextExtractor. */
-export interface OcrProvider {
-  analyzeReference?(reference: Buffer, bounds: Bounds): Promise<unknown>
-  compare(input: {
-    reference: Buffer
-    actual: Buffer
-    referenceBounds: Bounds
-    actualBounds: Bounds
-    mask: Uint8Array
-    referenceBaseline?: unknown
-  }): Promise<number>
-}
-
 export class TextExtractionGateError extends Error {
   constructor(readonly failure: TextExtractionFailure, options?: ErrorOptions) {
     super(`${failure.regionId}: ${failure.message}`, options)

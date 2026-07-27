@@ -1,5 +1,12 @@
 import { spawn } from 'node:child_process'
-import type { OcrProvider } from './score.js'
+import path from 'node:path'
+import {
+  TEXT_EXTRACTION_PROMPT_VERSION,
+  TEXT_EXTRACTION_SCHEMA_VERSION,
+  TextItemListSchema,
+} from '@ui-rebuild/contracts'
+import type { TextItem } from '@ui-rebuild/contracts'
+import type { RegionTextExtractor } from './reference.js'
 
 export interface LocalOcrCommandOptions {
   command: string
@@ -19,50 +26,65 @@ export class OcrUnavailableError extends Error {
   }
 }
 
-export class LocalOcrCommandProvider implements OcrProvider {
-  constructor(private readonly options: LocalOcrCommandOptions) {}
+export class LocalOcrCommandProvider implements RegionTextExtractor {
+  readonly identity
 
-  async analyzeReference(reference: Buffer): Promise<unknown> {
-    return this.run({ operation: 'analyze-reference', reference: reference.toString('base64') })
-  }
-
-  async compare(input: Parameters<OcrProvider['compare']>[0]): Promise<number> {
-    const result = await this.run({
-      operation: 'compare',
-      reference: input.reference.toString('base64'),
-      actual: input.actual.toString('base64'),
-      referenceBaseline: input.referenceBaseline,
-      referenceBounds: input.referenceBounds,
-      actualBounds: input.actualBounds,
-      mask: Buffer.from(input.mask).toString('base64'),
-    }) as { match?: unknown }
-    if (typeof result.match !== 'number') {
-      throw new OcrUnavailableError('Local OCR command did not return a numeric match')
+  constructor(private readonly options: LocalOcrCommandOptions) {
+    this.identity = {
+      provider: 'command' as const,
+      model: path.basename(options.command),
+      schemaVersion: TEXT_EXTRACTION_SCHEMA_VERSION,
+      promptVersion: TEXT_EXTRACTION_PROMPT_VERSION,
     }
-    return result.match
   }
 
-  private run(payload: Record<string, unknown>): Promise<unknown> {
+  extract(input: {
+    regionId: string
+    image: Buffer
+    width: number
+    height: number
+    signal?: AbortSignal
+  }): Promise<TextItem[]> {
+    if (input.signal?.aborted) return Promise.reject(new OcrUnavailableError('Local OCR command cancelled'))
+    return this.run({
+      operation: 'extract-text',
+      regionId: input.regionId,
+      image: input.image.toString('base64'),
+      width: input.width,
+      height: input.height,
+      schemaVersion: TEXT_EXTRACTION_SCHEMA_VERSION,
+    }, input.signal).then(output => {
+      const result = TextItemListSchema.safeParse(output)
+      if (!result.success) throw new OcrUnavailableError('Local OCR command returned invalid text items')
+      return result.data.items
+    })
+  }
+
+  private run(payload: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.options.command, this.options.args ?? [], {
         stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
       })
       const stdout: Buffer[] = []
       let settled = false
-      function settle(callback: () => void): void {
+      const settle = (callback: () => void): void => {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        signal?.removeEventListener('abort', abort)
         callback()
+      }
+      const abort = () => {
+        child.kill()
+        settle(() => reject(new OcrUnavailableError('Local OCR command cancelled')))
       }
       const timer = setTimeout(() => {
         child.kill()
         settle(() => reject(new OcrUnavailableError('Local OCR command timed out')))
       }, this.options.timeoutMs ?? 30_000)
+      signal?.addEventListener('abort', abort, { once: true })
       child.stdout.on('data', chunk => stdout.push(Buffer.from(chunk)))
-      child.on('error', error => settle(() => reject(
-        new OcrUnavailableError(`Local OCR command unavailable: ${error.message}`),
-      )))
+      child.on('error', () => settle(() => reject(new OcrUnavailableError('Local OCR command unavailable'))))
       child.on('close', code => settle(() => {
         if (code !== 0) {
           reject(new OcrUnavailableError(`Local OCR command exited with code ${code}`))
