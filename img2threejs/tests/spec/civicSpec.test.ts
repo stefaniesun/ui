@@ -2,13 +2,23 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+type LocalFeature = { id: string } | string;
+
+type SculptComponent = {
+  id: string;
+  level?: string;
+  localFeatures?: LocalFeature[];
+};
+
 const specPath = resolve(process.cwd(), 'civvi/analysis/stage2-object-sculpt-spec.json');
 const spec = JSON.parse(readFileSync(specPath, 'utf8'));
 const validatorPath = resolve(process.cwd(), 'scripts/validate-civic-spec.ps1');
 const validatorScript = readFileSync(validatorPath, 'utf8');
 
 describe('Civic sculpt spec', () => {
-  const componentById = new Map(spec.componentTree.map((component: { id: string }) => [component.id, component]));
+  const componentById = new Map<string, SculptComponent>(
+    spec.componentTree.map((component: SculptComponent) => [component.id, component]),
+  );
 
   it('classifies the object and defines the macro car parts', () => {
     expect(spec.preSpecAssessment.objectClass.primaryType).toBe('sedan-car');
@@ -69,8 +79,11 @@ describe('Civic sculpt spec', () => {
       const [componentId, featureId] = String(detail.mapsTo.ref).split('/');
       const component = componentById.get(componentId);
       expect(component).toBeTruthy();
+      if (!component) {
+        throw new Error(`Missing component ${componentId} for detail mapping assertion.`);
+      }
 
-      const featureIds = new Set((component.localFeatures ?? []).map((feature: { id: string } | string) =>
+      const featureIds = new Set((component.localFeatures ?? []).map((feature: LocalFeature) =>
         typeof feature === 'string' ? feature : feature.id,
       ));
       expect(featureIds.has(featureId)).toBe(true);
