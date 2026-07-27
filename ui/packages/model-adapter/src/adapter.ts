@@ -35,7 +35,8 @@ function jsonSchema(schema: z.ZodTypeAny, name: string): Record<string, unknown>
 }
 
 function transportFailure(response: Extract<TransportResponse, { ok: false }>, mode: ModelCapabilityProfile['structuredOutput']) {
-  return new StructuredOutputError(response.message, {
+  const status = response.status === null ? '' : ` (HTTP ${response.status})`
+  return new StructuredOutputError(`Model transport ${response.kind} failure${status}`, {
     mode, status: response.status, kind: response.kind,
   })
 }

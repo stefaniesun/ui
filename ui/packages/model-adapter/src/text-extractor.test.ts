@@ -73,7 +73,14 @@ describe('ModelTextExtractor', () => {
     })
     expect(request.prompt).toContain('summary')
     expect(request.prompt).toContain(TEXT_EXTRACTION_PROMPT_VERSION)
+    expect(request.prompt).toContain('visibly present')
+    expect(request.prompt).toContain('Do not infer')
+    expect(request.prompt).toContain('normalized to this cropped image')
+    expect(request.prompt).toContain('punctuation')
+    expect(request.prompt).toContain('currency symbols')
+    expect(request.prompt).toContain('numeric formatting')
     expect(request.prompt).toContain('null')
+    expect(request.prompt).toContain('confidence in [0, 1]')
     expect(extractor.identity).toEqual({
       provider: 'model', model: 'gpt-test', schemaVersion: '1.0.0', promptVersion: '1.0.0',
     })
@@ -82,7 +89,9 @@ describe('ModelTextExtractor', () => {
   it.each([
     { ...item, fontSize: undefined },
     { ...item, color: undefined },
+    { ...item, confidence: 1.1 },
     { ...item, bounds: { x: 0.9, y: 0, width: 0.2, height: 1 } },
+    { ...item, bounds: { x: 0, y: 0, width: -0.2, height: 1 } },
   ])('rejects invalid structured text %#', async invalidItem => {
     const transport = transportFor({
       ok: true,
@@ -94,13 +103,20 @@ describe('ModelTextExtractor', () => {
     })).rejects.toMatchObject({ kind: 'format' })
   })
 
+  it('rejects non-JSON structured output', async () => {
+    const transport = transportFor({ ok: true, status: 200, output: 'not-json' })
+    await expect(extractorFor(transport).extract({
+      regionId: 'summary', image: Buffer.from('png'), width: 30, height: 20,
+    })).rejects.toMatchObject({ kind: 'format' })
+  })
+
   it.each(['protocol', 'timeout'] as const)('preserves %s transport errors without leaking secrets', async kind => {
     const secret = 'api-key-secret'
     const transport = transportFor({
       ok: false,
       status: null,
       kind,
-      message: `${kind} request failed`,
+      message: `${kind} request failed; Authorization: Bearer ${secret}`,
     })
     let failure: unknown
     try {
