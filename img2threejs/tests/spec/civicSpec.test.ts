@@ -8,6 +8,8 @@ const validatorPath = resolve(process.cwd(), 'scripts/validate-civic-spec.ps1');
 const validatorScript = readFileSync(validatorPath, 'utf8');
 
 describe('Civic sculpt spec', () => {
+  const componentById = new Map(spec.componentTree.map((component: { id: string }) => [component.id, component]));
+
   it('classifies the object and defines the macro car parts', () => {
     expect(spec.preSpecAssessment.objectClass.primaryType).toBe('sedan-car');
 
@@ -33,11 +35,55 @@ describe('Civic sculpt spec', () => {
     expect(materialIds.has('lampLens')).toBe(true);
   });
 
+  it('includes implementation-meaningful meso structure', () => {
+    const ids = new Set(
+      spec.componentTree
+        .filter((component: { level: string }) => component.level === 'meso')
+        .map((component: { id: string }) => component.id),
+    );
+
+    expect(ids.has('frontGrille')).toBe(true);
+    expect(ids.has('lowerIntake')).toBe(true);
+    expect(ids.has('rockerLeft')).toBe(true);
+    expect(ids.has('rockerRight')).toBe(true);
+    expect(ids.has('rearLowerInsert')).toBe(true);
+    expect(ids.has('licenseRecess')).toBe(true);
+    expect(ids.has('windowBeltlineLeft')).toBe(true);
+    expect(ids.has('fuelDoor')).toBe(true);
+  });
+
   it('does not pre-record tier 1 blockout review evidence', () => {
     expect(spec.tier1Results ?? []).toEqual([]);
   });
 
+  it('maps detail inventory items to real local features with valid kinds', () => {
+    const validKinds = new Set([
+      'gloss', 'bevel', 'fastener', 'linework', 'contour', 'seam', 'stitch',
+      'stain', 'scratch', 'chip', 'decal', 'emissive', 'hole', 'groove', 'ridge',
+    ]);
+
+    for (const detail of spec.preSpecAssessment.detailInventory.details) {
+      expect(validKinds.has(detail.kind)).toBe(true);
+      expect(typeof detail.mapsTo?.ref).toBe('string');
+
+      const [componentId, featureId] = String(detail.mapsTo.ref).split('/');
+      const component = componentById.get(componentId);
+      expect(component).toBeTruthy();
+
+      const featureIds = new Set((component.localFeatures ?? []).map((feature: { id: string } | string) =>
+        typeof feature === 'string' ? feature : feature.id,
+      ));
+      expect(featureIds.has(featureId)).toBe(true);
+    }
+  });
+
   it('stops immediately when sculpt spec validation exits nonzero', () => {
     expect(validatorScript).toContain("if ($LASTEXITCODE -ne 0) {\n  throw 'Sculpt spec validation failed.'\n}");
+  });
+
+  it('resolves forge tools from environment-aware paths instead of a hard-coded user path', () => {
+    expect(validatorScript).toContain('IMG2THREEJS_FORGE_ROOT');
+    expect(validatorScript).toContain('CODEX_HOME');
+    expect(validatorScript).not.toContain('C:\\Users\\stefanie\\.codex\\skills\\img2threejs\\forge');
   });
 });

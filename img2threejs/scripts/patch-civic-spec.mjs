@@ -3,6 +3,39 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const specFile = new URL('../civvi/analysis/stage2-object-sculpt-spec.json', import.meta.url);
 const spec = JSON.parse(readFileSync(specFile, 'utf8'));
 
+const localFeaturesByComponent = {
+  headlightLeft: [
+    { id: 'headlightBoomerang', kind: 'contour', note: 'Boomerang projector outline visible from front three-quarter.' }
+  ],
+  headlightRight: [
+    { id: 'headlightInnerSplit', kind: 'linework', note: 'Inner projector break on the opposite side.' }
+  ],
+  taillightLeft: [
+    { id: 'taillightCClamp', kind: 'emissive', note: 'C-shaped taillight identity wrapping the quarter panel.' }
+  ],
+  taillightRight: [
+    { id: 'taillightInnerTrunkSeam', kind: 'seam', note: 'Inner taillight segment meets the trunk edge.' }
+  ],
+  hood: [
+    { id: 'hoodLeadingEdge', kind: 'seam', note: 'Front hood shut line above the grille zone.' }
+  ],
+  trunkLid: [
+    { id: 'trunkCutLine', kind: 'seam', note: 'Sedan trunk separation from the rear quarter panels.' }
+  ],
+  greenhouse: [
+    { id: 'beltlineTrimFeature', kind: 'linework', note: 'Side glass lower beltline accent wrapping the windows.' }
+  ],
+  mirrorLeft: [
+    { id: 'mirrorCapFeature', kind: 'contour', note: 'Small black mirror cap volume and break line.' }
+  ],
+  wheelFrontLeft: [
+    { id: 'wheelFiveSpokeFeature', kind: 'ridge', note: 'Five-spoke alloy read visible from the detail views.' }
+  ],
+  rearBumper: [
+    { id: 'rearLowerInsertFeature', kind: 'groove', note: 'Dark lower rear bumper insert recessed into the fascia.' }
+  ]
+};
+
 const macroComponents = [
   { id: 'root', name: 'civicRoot', parent: null, level: 'macro', role: 'body', primitive: 'box', material: 'bodyPaint', transform: { position: [0, 0.85, 0], scale: [4.6, 1.45, 1.9] }, dimensions: { width: 4.6, height: 1.45, depth: 1.9 } },
   { id: 'bodyShell', name: 'bodyShell', parent: 'root', level: 'macro', role: 'body', primitive: 'box', material: 'bodyPaint', transform: { position: [0, 0.92, 0], scale: [4.45, 1.18, 1.82] }, dimensions: { width: 4.45, height: 1.18, depth: 1.82 } },
@@ -21,6 +54,20 @@ const macroComponents = [
   { id: 'wheelFrontRight', name: 'wheelFrontRight', parent: 'root', level: 'macro', role: 'wheel', primitive: 'cylinder', material: 'tireRubber', transform: { position: [1.16, 0.47, -0.84], rotation: [1.5708, 0, 0], scale: [0.64, 0.64, 0.22] }, dimensions: { radius: 0.32, height: 0.22, depth: 0.22 } },
   { id: 'wheelRearLeft', name: 'wheelRearLeft', parent: 'root', level: 'macro', role: 'wheel', primitive: 'cylinder', material: 'tireRubber', transform: { position: [-1.18, 0.47, 0.84], rotation: [1.5708, 0, 0], scale: [0.64, 0.64, 0.22] }, dimensions: { radius: 0.32, height: 0.22, depth: 0.22 } },
   { id: 'wheelRearRight', name: 'wheelRearRight', parent: 'root', level: 'macro', role: 'wheel', primitive: 'cylinder', material: 'tireRubber', transform: { position: [-1.18, 0.47, -0.84], rotation: [1.5708, 0, 0], scale: [0.64, 0.64, 0.22] }, dimensions: { radius: 0.32, height: 0.22, depth: 0.22 } }
+].map((component) => ({
+  ...component,
+  localFeatures: localFeaturesByComponent[component.id] ?? []
+}));
+
+const mesoComponents = [
+  { id: 'frontGrille', name: 'frontGrille', parent: 'frontBumper', level: 'meso', role: 'grille', primitive: 'box', material: 'blackTrim', transform: { position: [1.86, 0.78, 0], scale: [0.18, 0.2, 0.94] }, dimensions: { width: 0.18, height: 0.2, depth: 0.94 } },
+  { id: 'lowerIntake', name: 'lowerIntake', parent: 'frontBumper', level: 'meso', role: 'intake', primitive: 'box', material: 'blackTrim', transform: { position: [1.94, 0.5, 0], scale: [0.12, 0.14, 1.02] }, dimensions: { width: 0.12, height: 0.14, depth: 1.02 } },
+  { id: 'rockerLeft', name: 'rockerLeft', parent: 'bodyShell', level: 'meso', role: 'trim', primitive: 'box', material: 'blackTrim', transform: { position: [0, 0.43, 0.83], scale: [2.94, 0.12, 0.08] }, dimensions: { width: 2.94, height: 0.12, depth: 0.08 } },
+  { id: 'rockerRight', name: 'rockerRight', parent: 'bodyShell', level: 'meso', role: 'trim', primitive: 'box', material: 'blackTrim', transform: { position: [0, 0.43, -0.83], scale: [2.94, 0.12, 0.08] }, dimensions: { width: 2.94, height: 0.12, depth: 0.08 } },
+  { id: 'rearLowerInsert', name: 'rearLowerInsert', parent: 'rearBumper', level: 'meso', role: 'trim', primitive: 'box', material: 'blackTrim', transform: { position: [-1.98, 0.46, 0], scale: [0.16, 0.16, 1.04] }, dimensions: { width: 0.16, height: 0.16, depth: 1.04 } },
+  { id: 'licenseRecess', name: 'licenseRecess', parent: 'rearBumper', level: 'meso', role: 'recess', primitive: 'box', material: 'bodyPaint', transform: { position: [-1.9, 0.8, 0], scale: [0.12, 0.22, 0.52] }, dimensions: { width: 0.12, height: 0.22, depth: 0.52 } },
+  { id: 'windowBeltlineLeft', name: 'windowBeltlineLeft', parent: 'greenhouse', level: 'meso', role: 'trim', primitive: 'box', material: 'blackTrim', transform: { position: [0.05, 1.04, 0.75], scale: [1.9, 0.05, 0.04] }, dimensions: { width: 1.9, height: 0.05, depth: 0.04 } },
+  { id: 'fuelDoor', name: 'fuelDoor', parent: 'bodyShell', level: 'meso', role: 'panel', primitive: 'box', material: 'bodyPaint', transform: { position: [-1.18, 0.93, -0.8], scale: [0.02, 0.16, 0.14] }, dimensions: { width: 0.02, height: 0.16, depth: 0.14 } }
 ];
 
 spec.preSpecAssessment.objectClass = {
@@ -35,23 +82,23 @@ spec.preSpecAssessment.objectClass = {
 
 spec.preSpecAssessment.complexity.estimatedCounts = {
   macroComponents: macroComponents.length,
-  mesoComponents: 10,
-  microFeatureGroups: 10,
+  mesoComponents: mesoComponents.length,
+  microFeatureGroups: Object.values(localFeaturesByComponent).reduce((total, features) => total + features.length, 0),
   materialLayers: 6,
   repetitionSystems: 1
 };
 
 spec.preSpecAssessment.detailInventory.details = [
-  { id: 'headlight-boomerang', componentId: 'headlightLeft', note: 'boomerang projector outline visible from front three-quarter' },
-  { id: 'headlight-inner-split', componentId: 'headlightRight', note: 'inner projector break on opposite side' },
-  { id: 'taillight-c-clamp', componentId: 'taillightLeft', note: 'C-shaped rear light identity' },
-  { id: 'taillight-inner-trunk-seam', componentId: 'taillightRight', note: 'inner segment meets trunk edge' },
-  { id: 'hood-leading-edge', componentId: 'hood', note: 'front shut line above grille zone' },
-  { id: 'trunk-cut-line', componentId: 'trunkLid', note: 'sedan trunk separation from quarter panels' },
-  { id: 'beltline-trim', componentId: 'greenhouse', note: 'side glass lower beltline accent' },
-  { id: 'mirror-cap', componentId: 'mirrorLeft', note: 'small black side mirror volume' },
-  { id: 'wheel-five-spoke-read', componentId: 'wheelFrontLeft', note: 'alloy spoke pattern from detail views' },
-  { id: 'rear-lower-insert', componentId: 'rearBumper', note: 'dark lower bumper insert area' }
+  { id: 'headlight-boomerang', componentId: 'headlightLeft', kind: 'contour', mapsTo: { ref: 'headlightLeft/headlightBoomerang' }, note: 'boomerang projector outline visible from front three-quarter' },
+  { id: 'headlight-inner-split', componentId: 'headlightRight', kind: 'linework', mapsTo: { ref: 'headlightRight/headlightInnerSplit' }, note: 'inner projector break on opposite side' },
+  { id: 'taillight-c-clamp', componentId: 'taillightLeft', kind: 'emissive', mapsTo: { ref: 'taillightLeft/taillightCClamp' }, note: 'C-shaped rear light identity' },
+  { id: 'taillight-inner-trunk-seam', componentId: 'taillightRight', kind: 'seam', mapsTo: { ref: 'taillightRight/taillightInnerTrunkSeam' }, note: 'inner segment meets trunk edge' },
+  { id: 'hood-leading-edge', componentId: 'hood', kind: 'seam', mapsTo: { ref: 'hood/hoodLeadingEdge' }, note: 'front shut line above grille zone' },
+  { id: 'trunk-cut-line', componentId: 'trunkLid', kind: 'seam', mapsTo: { ref: 'trunkLid/trunkCutLine' }, note: 'sedan trunk separation from quarter panels' },
+  { id: 'beltline-trim', componentId: 'greenhouse', kind: 'linework', mapsTo: { ref: 'greenhouse/beltlineTrimFeature' }, note: 'side glass lower beltline accent' },
+  { id: 'mirror-cap', componentId: 'mirrorLeft', kind: 'contour', mapsTo: { ref: 'mirrorLeft/mirrorCapFeature' }, note: 'small black side mirror volume' },
+  { id: 'wheel-five-spoke-read', componentId: 'wheelFrontLeft', kind: 'ridge', mapsTo: { ref: 'wheelFrontLeft/wheelFiveSpokeFeature' }, note: 'alloy spoke pattern from detail views' },
+  { id: 'rear-lower-insert', componentId: 'rearBumper', kind: 'groove', mapsTo: { ref: 'rearBumper/rearLowerInsertFeature' }, note: 'dark lower bumper insert area' }
 ];
 
 spec.materials = [
@@ -63,7 +110,7 @@ spec.materials = [
   { id: 'lampLens', name: 'Lamp Lens', baseColor: '#ccd9ef', roughness: { base: 0.12, variation: 0.04 }, metalness: 0.0 }
 ];
 
-spec.componentTree = macroComponents;
+spec.componentTree = [...macroComponents, ...mesoComponents];
 spec.repetitionSystems = [
   {
     id: 'wheelSpokes',

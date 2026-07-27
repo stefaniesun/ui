@@ -107,7 +107,7 @@
       },
       "estimatedCounts": {
         "macroComponents": 17,
-        "mesoComponents": 10,
+        "mesoComponents": 8,
         "microFeatureGroups": 10,
         "materialLayers": 6,
         "repetitionSystems": 1
@@ -138,51 +138,91 @@
         {
           "id": "headlight-boomerang",
           "componentId": "headlightLeft",
+          "kind": "contour",
+          "mapsTo": {
+            "ref": "headlightLeft/headlightBoomerang"
+          },
           "note": "boomerang projector outline visible from front three-quarter"
         },
         {
           "id": "headlight-inner-split",
           "componentId": "headlightRight",
+          "kind": "linework",
+          "mapsTo": {
+            "ref": "headlightRight/headlightInnerSplit"
+          },
           "note": "inner projector break on opposite side"
         },
         {
           "id": "taillight-c-clamp",
           "componentId": "taillightLeft",
+          "kind": "emissive",
+          "mapsTo": {
+            "ref": "taillightLeft/taillightCClamp"
+          },
           "note": "C-shaped rear light identity"
         },
         {
           "id": "taillight-inner-trunk-seam",
           "componentId": "taillightRight",
+          "kind": "seam",
+          "mapsTo": {
+            "ref": "taillightRight/taillightInnerTrunkSeam"
+          },
           "note": "inner segment meets trunk edge"
         },
         {
           "id": "hood-leading-edge",
           "componentId": "hood",
+          "kind": "seam",
+          "mapsTo": {
+            "ref": "hood/hoodLeadingEdge"
+          },
           "note": "front shut line above grille zone"
         },
         {
           "id": "trunk-cut-line",
           "componentId": "trunkLid",
+          "kind": "seam",
+          "mapsTo": {
+            "ref": "trunkLid/trunkCutLine"
+          },
           "note": "sedan trunk separation from quarter panels"
         },
         {
           "id": "beltline-trim",
           "componentId": "greenhouse",
+          "kind": "linework",
+          "mapsTo": {
+            "ref": "greenhouse/beltlineTrimFeature"
+          },
           "note": "side glass lower beltline accent"
         },
         {
           "id": "mirror-cap",
           "componentId": "mirrorLeft",
+          "kind": "contour",
+          "mapsTo": {
+            "ref": "mirrorLeft/mirrorCapFeature"
+          },
           "note": "small black side mirror volume"
         },
         {
           "id": "wheel-five-spoke-read",
           "componentId": "wheelFrontLeft",
+          "kind": "ridge",
+          "mapsTo": {
+            "ref": "wheelFrontLeft/wheelFiveSpokeFeature"
+          },
           "note": "alloy spoke pattern from detail views"
         },
         {
           "id": "rear-lower-insert",
           "componentId": "rearBumper",
+          "kind": "groove",
+          "mapsTo": {
+            "ref": "rearBumper/rearLowerInsertFeature"
+          },
           "note": "dark lower bumper insert area"
         }
       ]
@@ -683,7 +723,8 @@
         "width": 4.6,
         "height": 1.45,
         "depth": 1.9
-      }
+      },
+      "localFeatures": []
     },
     {
       "id": "bodyShell",
@@ -709,7 +750,8 @@
         "width": 4.45,
         "height": 1.18,
         "depth": 1.82
-      }
+      },
+      "localFeatures": []
     },
     {
       "id": "frontBumper",
@@ -735,7 +777,8 @@
         "width": 0.58,
         "height": 0.66,
         "depth": 1.78
-      }
+      },
+      "localFeatures": []
     },
     {
       "id": "rearBumper",
@@ -761,7 +804,14 @@
         "width": 0.52,
         "height": 0.62,
         "depth": 1.78
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "rearLowerInsertFeature",
+          "kind": "groove",
+          "note": "Dark lower rear bumper insert recessed into the fascia."
+        }
+      ]
     },
     {
       "id": "hood",
@@ -787,7 +837,14 @@
         "width": 1.34,
         "height": 0.18,
         "depth": 1.56
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "hoodLeadingEdge",
+          "kind": "seam",
+          "note": "Front hood shut line above the grille zone."
+        }
+      ]
     },
     {
       "id": "greenhouse",
@@ -813,7 +870,14 @@
         "width": 2.05,
         "height": 0.62,
         "depth": 1.46
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "beltlineTrimFeature",
+          "kind": "linework",
+          "note": "Side glass lower beltline accent wrapping the windows."
+        }
+      ]
     },
     {
       "id": "trunkLid",
@@ -839,7 +903,14 @@
         "width": 1.08,
         "height": 0.16,
         "depth": 1.52
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "trunkCutLine",
+          "kind": "seam",
+          "note": "Sedan trunk separation from the rear quarter panels."
+        }
+      ]
     },
     {
       "id": "mirrorLeft",
@@ -865,7 +936,14 @@
         "width": 0.16,
         "height": 0.18,
         "depth": 0.1
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "mirrorCapFeature",
+          "kind": "contour",
+          "note": "Small black mirror cap volume and break line."
+        }
+      ]
     },
     {
       "id": "mirrorRight",
@@ -891,7 +969,8 @@
         "width": 0.16,
         "height": 0.18,
         "depth": 0.1
-      }
+      },
+      "localFeatures": []
     },
     {
       "id": "headlightLeft",
@@ -917,7 +996,14 @@
         "width": 0.38,
         "height": 0.18,
         "depth": 0.24
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "headlightBoomerang",
+          "kind": "contour",
+          "note": "Boomerang projector outline visible from front three-quarter."
+        }
+      ]
     },
     {
       "id": "headlightRight",
@@ -943,7 +1029,14 @@
         "width": 0.38,
         "height": 0.18,
         "depth": 0.24
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "headlightInnerSplit",
+          "kind": "linework",
+          "note": "Inner projector break on the opposite side."
+        }
+      ]
     },
     {
       "id": "taillightLeft",
@@ -969,7 +1062,14 @@
         "width": 0.34,
         "height": 0.2,
         "depth": 0.22
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "taillightCClamp",
+          "kind": "emissive",
+          "note": "C-shaped taillight identity wrapping the quarter panel."
+        }
+      ]
     },
     {
       "id": "taillightRight",
@@ -995,7 +1095,14 @@
         "width": 0.34,
         "height": 0.2,
         "depth": 0.22
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "taillightInnerTrunkSeam",
+          "kind": "seam",
+          "note": "Inner taillight segment meets the trunk edge."
+        }
+      ]
     },
     {
       "id": "wheelFrontLeft",
@@ -1026,7 +1133,14 @@
         "radius": 0.32,
         "height": 0.22,
         "depth": 0.22
-      }
+      },
+      "localFeatures": [
+        {
+          "id": "wheelFiveSpokeFeature",
+          "kind": "ridge",
+          "note": "Five-spoke alloy read visible from the detail views."
+        }
+      ]
     },
     {
       "id": "wheelFrontRight",
@@ -1057,7 +1171,8 @@
         "radius": 0.32,
         "height": 0.22,
         "depth": 0.22
-      }
+      },
+      "localFeatures": []
     },
     {
       "id": "wheelRearLeft",
@@ -1088,7 +1203,8 @@
         "radius": 0.32,
         "height": 0.22,
         "depth": 0.22
-      }
+      },
+      "localFeatures": []
     },
     {
       "id": "wheelRearRight",
@@ -1119,6 +1235,215 @@
         "radius": 0.32,
         "height": 0.22,
         "depth": 0.22
+      },
+      "localFeatures": []
+    },
+    {
+      "id": "frontGrille",
+      "name": "frontGrille",
+      "parent": "frontBumper",
+      "level": "meso",
+      "role": "grille",
+      "primitive": "box",
+      "material": "blackTrim",
+      "transform": {
+        "position": [
+          1.86,
+          0.78,
+          0
+        ],
+        "scale": [
+          0.18,
+          0.2,
+          0.94
+        ]
+      },
+      "dimensions": {
+        "width": 0.18,
+        "height": 0.2,
+        "depth": 0.94
+      }
+    },
+    {
+      "id": "lowerIntake",
+      "name": "lowerIntake",
+      "parent": "frontBumper",
+      "level": "meso",
+      "role": "intake",
+      "primitive": "box",
+      "material": "blackTrim",
+      "transform": {
+        "position": [
+          1.94,
+          0.5,
+          0
+        ],
+        "scale": [
+          0.12,
+          0.14,
+          1.02
+        ]
+      },
+      "dimensions": {
+        "width": 0.12,
+        "height": 0.14,
+        "depth": 1.02
+      }
+    },
+    {
+      "id": "rockerLeft",
+      "name": "rockerLeft",
+      "parent": "bodyShell",
+      "level": "meso",
+      "role": "trim",
+      "primitive": "box",
+      "material": "blackTrim",
+      "transform": {
+        "position": [
+          0,
+          0.43,
+          0.83
+        ],
+        "scale": [
+          2.94,
+          0.12,
+          0.08
+        ]
+      },
+      "dimensions": {
+        "width": 2.94,
+        "height": 0.12,
+        "depth": 0.08
+      }
+    },
+    {
+      "id": "rockerRight",
+      "name": "rockerRight",
+      "parent": "bodyShell",
+      "level": "meso",
+      "role": "trim",
+      "primitive": "box",
+      "material": "blackTrim",
+      "transform": {
+        "position": [
+          0,
+          0.43,
+          -0.83
+        ],
+        "scale": [
+          2.94,
+          0.12,
+          0.08
+        ]
+      },
+      "dimensions": {
+        "width": 2.94,
+        "height": 0.12,
+        "depth": 0.08
+      }
+    },
+    {
+      "id": "rearLowerInsert",
+      "name": "rearLowerInsert",
+      "parent": "rearBumper",
+      "level": "meso",
+      "role": "trim",
+      "primitive": "box",
+      "material": "blackTrim",
+      "transform": {
+        "position": [
+          -1.98,
+          0.46,
+          0
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          1.04
+        ]
+      },
+      "dimensions": {
+        "width": 0.16,
+        "height": 0.16,
+        "depth": 1.04
+      }
+    },
+    {
+      "id": "licenseRecess",
+      "name": "licenseRecess",
+      "parent": "rearBumper",
+      "level": "meso",
+      "role": "recess",
+      "primitive": "box",
+      "material": "bodyPaint",
+      "transform": {
+        "position": [
+          -1.9,
+          0.8,
+          0
+        ],
+        "scale": [
+          0.12,
+          0.22,
+          0.52
+        ]
+      },
+      "dimensions": {
+        "width": 0.12,
+        "height": 0.22,
+        "depth": 0.52
+      }
+    },
+    {
+      "id": "windowBeltlineLeft",
+      "name": "windowBeltlineLeft",
+      "parent": "greenhouse",
+      "level": "meso",
+      "role": "trim",
+      "primitive": "box",
+      "material": "blackTrim",
+      "transform": {
+        "position": [
+          0.05,
+          1.04,
+          0.75
+        ],
+        "scale": [
+          1.9,
+          0.05,
+          0.04
+        ]
+      },
+      "dimensions": {
+        "width": 1.9,
+        "height": 0.05,
+        "depth": 0.04
+      }
+    },
+    {
+      "id": "fuelDoor",
+      "name": "fuelDoor",
+      "parent": "bodyShell",
+      "level": "meso",
+      "role": "panel",
+      "primitive": "box",
+      "material": "bodyPaint",
+      "transform": {
+        "position": [
+          -1.18,
+          0.93,
+          -0.8
+        ],
+        "scale": [
+          0.02,
+          0.16,
+          0.14
+        ]
+      },
+      "dimensions": {
+        "width": 0.02,
+        "height": 0.16,
+        "depth": 0.14
       }
     }
   ],
