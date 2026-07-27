@@ -1,9 +1,20 @@
 param(
-    [string]$PassId,
-    [string]$OutFile
+  [Parameter(Mandatory = $true)]
+  [string]$PassId,
+
+  [Parameter(Mandatory = $true)]
+  [string]$OutFile
 )
 
 $ErrorActionPreference = 'Stop'
+$env:PYTHONUTF8 = '1'
 
-Write-Error "generate:blockout is a Task 1 placeholder. The Civic factory generator for pass '$PassId' and output '$OutFile' will be implemented in a later task."
-exit 1
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $scriptDir
+$specPath = Join-Path $repoRoot 'civvi\analysis\stage2-object-sculpt-spec.json'
+
+python 'C:\Users\stefanie\.codex\skills\img2threejs\forge\stage3_build\generate_threejs_factory.py' `
+  $specPath `
+  --pass-id $PassId `
+  --out $OutFile `
+  --force
