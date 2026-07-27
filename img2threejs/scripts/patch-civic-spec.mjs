@@ -85,11 +85,6 @@ spec.lightingFromPhoto = [
   'soft contact shadow under all four tires'
 ];
 
-spec.tier1Results = [
-  {
-    passId: 'blockout',
-    passed: true
-  }
-];
+delete spec.tier1Results;
 
 writeFileSync(specFile, `${JSON.stringify(spec, null, 2)}\n`, 'utf8');

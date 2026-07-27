@@ -1419,11 +1419,5 @@
         ]
       }
     ]
-  },
-  "tier1Results": [
-    {
-      "passId": "blockout",
-      "passed": true
-    }
-  ]
+  }
 }

@@ -30,4 +30,8 @@ describe('Civic sculpt spec', () => {
     expect(materialIds.has('tireRubber')).toBe(true);
     expect(materialIds.has('lampLens')).toBe(true);
   });
+
+  it('does not pre-record tier 1 blockout review evidence', () => {
+    expect(spec.tier1Results ?? []).toEqual([]);
+  });
 });
