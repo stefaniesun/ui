@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 const specPath = resolve(process.cwd(), 'civvi/analysis/stage2-object-sculpt-spec.json');
 const spec = JSON.parse(readFileSync(specPath, 'utf8'));
+const validatorPath = resolve(process.cwd(), 'scripts/validate-civic-spec.ps1');
+const validatorScript = readFileSync(validatorPath, 'utf8');
 
 describe('Civic sculpt spec', () => {
   it('classifies the object and defines the macro car parts', () => {
@@ -33,5 +35,9 @@ describe('Civic sculpt spec', () => {
 
   it('does not pre-record tier 1 blockout review evidence', () => {
     expect(spec.tier1Results ?? []).toEqual([]);
+  });
+
+  it('stops immediately when sculpt spec validation exits nonzero', () => {
+    expect(validatorScript).toContain("if ($LASTEXITCODE -ne 0) {\n  throw 'Sculpt spec validation failed.'\n}");
   });
 });
