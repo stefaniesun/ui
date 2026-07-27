@@ -1,24 +1,51 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('bootstrapCivicPreview', () => {
+describe('preview bootstrap lifecycle', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.clearAllMocks();
     document.body.innerHTML = '';
   });
 
-  it('mounts a viewport through the main entrypoint wiring', async () => {
-    document.body.innerHTML = '<div id="app"></div>';
-    const createPreviewScene = vi.fn();
+  it('returns the createPreviewScene disposer from mountCivicPreview', async () => {
+    const createPreviewScene = vi.fn((viewport: HTMLElement) => () => {
+      viewport.replaceChildren();
+      viewport.remove();
+    });
+
     vi.doMock('../../src/preview/createPreviewScene', () => ({
       createPreviewScene
     }));
 
-    await import('../../src/main');
-    const host = document.querySelector<HTMLElement>('#app');
-    const viewport = host?.querySelector<HTMLElement>('.viewport');
+    const { mountCivicPreview } = await import('../../src/preview/mountCivicPreview');
+    const host = document.createElement('div');
 
-    expect(host).not.toBeNull();
+    const dispose = mountCivicPreview(host);
+    const viewport = host.querySelector<HTMLElement>('.viewport');
+
     expect(viewport).not.toBeNull();
     expect(createPreviewScene).toHaveBeenCalledWith(viewport);
+    expect(dispose).toBeTypeOf('function');
+
+    dispose();
+
+    expect(host.querySelector('.viewport')).toBeNull();
+  });
+
+  it('returns the mount disposer from bootstrapCivicPreview', async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const disposer = vi.fn();
+    const mountCivicPreview = vi.fn(() => disposer);
+
+    vi.doMock('../../src/preview/mountCivicPreview', () => ({
+      mountCivicPreview
+    }));
+
+    const { bootstrapCivicPreview } = await import('../../src/main');
+    const host = document.querySelector<HTMLElement>('#app');
+
+    expect(host).not.toBeNull();
+    expect(mountCivicPreview).toHaveBeenCalledWith(host);
+    expect(bootstrapCivicPreview(host)).toBe(disposer);
   });
 });

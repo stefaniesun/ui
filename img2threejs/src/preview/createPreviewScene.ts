@@ -3,6 +3,90 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createCivicModel } from '../model/createCivicModel';
 import { BACKGROUND_COLOR, CAMERA_START, LOOK_AT, ORBIT_LIMITS } from './sceneConfig';
 
+type DisposableTextureCandidate = {
+  dispose: () => void;
+  isTexture: true;
+};
+
+function isDisposableTexture(candidate: unknown): candidate is DisposableTextureCandidate {
+  return (
+    !!candidate &&
+    typeof candidate === 'object' &&
+    'isTexture' in candidate &&
+    candidate.isTexture === true &&
+    'dispose' in candidate &&
+    typeof candidate.dispose === 'function'
+  );
+}
+
+function disposeTexture(
+  candidate: unknown,
+  disposedTextures: Set<THREE.Texture>
+): void {
+  if (!isDisposableTexture(candidate)) {
+    return;
+  }
+
+  const texture = candidate as THREE.Texture;
+  if (disposedTextures.has(texture)) {
+    return;
+  }
+
+  disposedTextures.add(texture);
+  texture.dispose();
+}
+
+function disposeMaterial(
+  material: THREE.Material,
+  disposedMaterials: Set<THREE.Material>,
+  disposedTextures: Set<THREE.Texture>
+): void {
+  if (disposedMaterials.has(material)) {
+    return;
+  }
+
+  disposedMaterials.add(material);
+
+  for (const value of Object.values(material)) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        disposeTexture(entry, disposedTextures);
+      }
+
+      continue;
+    }
+
+    disposeTexture(value, disposedTextures);
+  }
+
+  material.dispose();
+}
+
+function disposeObjectResources(root: THREE.Object3D): void {
+  const disposedGeometries = new Set<THREE.BufferGeometry>();
+  const disposedMaterials = new Set<THREE.Material>();
+  const disposedTextures = new Set<THREE.Texture>();
+
+  root.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+
+    if (mesh.geometry instanceof THREE.BufferGeometry && !disposedGeometries.has(mesh.geometry)) {
+      disposedGeometries.add(mesh.geometry);
+      mesh.geometry.dispose();
+    }
+
+    const materials = Array.isArray(mesh.material)
+      ? mesh.material
+      : mesh.material
+        ? [mesh.material]
+        : [];
+
+    for (const material of materials) {
+      disposeMaterial(material, disposedMaterials, disposedTextures);
+    }
+  });
+}
+
 export function createPreviewScene(host: HTMLElement): () => void {
   const width = host.clientWidth || window.innerWidth;
   const height = host.clientHeight || window.innerHeight;
@@ -49,6 +133,7 @@ export function createPreviewScene(host: HTMLElement): () => void {
   scene.add(model);
 
   let disposed = false;
+  let frameHandle = 0;
 
   const onResize = (): void => {
     const nextWidth = host.clientWidth || window.innerWidth;
@@ -67,15 +152,26 @@ export function createPreviewScene(host: HTMLElement): () => void {
 
     controls.update();
     renderer.render(scene, camera);
-    requestAnimationFrame(tick);
+    frameHandle = requestAnimationFrame(tick);
   };
 
   tick();
 
   return () => {
+    if (disposed) {
+      return;
+    }
+
     disposed = true;
     window.removeEventListener('resize', onResize);
+    if (frameHandle && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(frameHandle);
+    }
     controls.dispose();
+    disposeObjectResources(ground);
+    disposeObjectResources(model);
+    scene.clear();
+    renderer.renderLists?.dispose?.();
     renderer.dispose();
     host.replaceChildren();
   };
