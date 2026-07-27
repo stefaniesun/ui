@@ -1,6 +1,14 @@
 import * as THREE from 'three';
 
+function hasDirectChild(parent: THREE.Object3D, name: string): boolean {
+  return parent.children.some((child) => child.name === name);
+}
+
 function addLens(parent: THREE.Object3D, name: string, color: number): void {
+  if (hasDirectChild(parent, name)) {
+    return;
+  }
+
   const lens = new THREE.Mesh(
     new THREE.BoxGeometry(0.26, 0.1, 0.04),
     new THREE.MeshPhysicalMaterial({
@@ -19,6 +27,15 @@ function addLens(parent: THREE.Object3D, name: string, color: number): void {
 }
 
 function addWheelFace(parent: THREE.Object3D, name: string): void {
+  if (hasDirectChild(parent, name)) {
+    return;
+  }
+
+  const wheelPosition = parent.userData.sculptComponent?.transform?.position as
+    | [number, number, number]
+    | undefined;
+  const side = Math.sign(wheelPosition?.[2] ?? 0) || 1;
+
   const face = new THREE.Mesh(
     new THREE.CylinderGeometry(0.2, 0.2, 0.05, 5),
     new THREE.MeshStandardMaterial({
@@ -29,7 +46,7 @@ function addWheelFace(parent: THREE.Object3D, name: string): void {
   );
 
   face.rotation.z = Math.PI / 2;
-  face.position.z = 0.08;
+  face.position.y = side * 0.08;
   face.name = name;
   parent.add(face);
 }
