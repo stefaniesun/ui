@@ -1,7 +1,9 @@
 :root {
   color-scheme: light;
   font-family: "Segoe UI", sans-serif;
-  background: #dde3e8;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.9), rgba(215, 221, 226, 0.96)),
+    #d7dde2;
   color: #172028;
 }
 
@@ -12,13 +14,13 @@ body {
 
 #app {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
 }
 
-.shell {
-  padding: 24px 28px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 16px 40px rgba(23, 32, 40, 0.12);
+.viewport {
+  width: 100vw;
+  height: 100vh;
+}
+
+canvas {
+  display: block;
 }

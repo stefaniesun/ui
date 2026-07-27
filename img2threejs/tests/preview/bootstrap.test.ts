@@ -6,13 +6,19 @@ describe('bootstrapCivicPreview', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders a loading shell through the main entrypoint wiring', async () => {
+  it('mounts a viewport through the main entrypoint wiring', async () => {
     document.body.innerHTML = '<div id="app"></div>';
+    const createPreviewScene = vi.fn();
+    vi.doMock('../../src/preview/createPreviewScene', () => ({
+      createPreviewScene
+    }));
 
     await import('../../src/main');
     const host = document.querySelector<HTMLElement>('#app');
+    const viewport = host?.querySelector<HTMLElement>('.viewport');
 
     expect(host).not.toBeNull();
-    expect(host?.textContent).toContain('Loading Civic preview');
+    expect(viewport).not.toBeNull();
+    expect(createPreviewScene).toHaveBeenCalledWith(viewport);
   });
 });
