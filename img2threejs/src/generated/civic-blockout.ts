@@ -1,10 +1,4 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 export type ProceduralModelOptions = {
   wireframe?: boolean;
@@ -169,7 +163,7 @@ function parseRgba(value: string): [number, number, number] {
 // Analytical per-pixel gradient sample. The extraction schema's colorGradient carries
 // exact rgba(...) stop colors (see extract_part_color_recipe.py), so this samples the
 // same trend directly in JS math rather than round-tripping through a Canvas 2D
-// createLinearGradient/createRadialGradient object — same visual result, and it composes
+// createLinearGradient/createRadialGradient object �?same visual result, and it composes
 // directly with the existing noise/height-correlated colorVariation blend below.
 function sampleColorGradient(gradient: ColorGradientSpec, u: number, v: number): [number, number, number] {
   const stops = gradient.stops.length >= 2 ? gradient.stops : [{ offset: 0, color: 'rgba(138,122,95,1)' }, { offset: 1, color: 'rgba(138,122,95,1)' }];
@@ -357,7 +351,7 @@ function makeProceduralTextureSet(
       let color: [number, number, number];
       if (colorGradient) {
         // Evidence-derived spatial gradient (Plan 1.3 Workstream C) takes priority
-        // over the noise-based palette blend below — it is a measured trend, not a guess.
+        // over the noise-based palette blend below �?it is a measured trend, not a guess.
         color = sampleColorGradient(colorGradient, u, v);
       } else {
         const paletteValue = clamp01(
@@ -1184,141 +1178,4 @@ export function create20162021HondaCivicSedanModel(options: ProceduralModelOptio
     note: 'Use root.userData.sculptRuntime.nodes for transforms, sockets for attachments, colliders for physics proxies, and destructionGroups for breakable sets.',
   };
   return root;
-}
-
-export function create20162021HondaCivicSedanLookDevLights(
-  mode: 'neutral' | 'grazing' | 'reference' = 'neutral',
-): THREE.Group {
-  const lights = new THREE.Group();
-  lights.name = "2016-2021 Honda Civic Sedan look-dev lights";
-  const hemi = new THREE.HemisphereLight(
-    mode === 'reference' ? 0xfff0d6 : 0xf2f4ff,
-    0x363b42,
-    mode === 'grazing' ? 0.28 : mode === 'reference' ? 0.72 : 0.85,
-  );
-  lights.add(hemi);
-  const key = new THREE.DirectionalLight(
-    mode === 'reference' ? 0xffcf8a : 0xfff4e8,
-    mode === 'grazing' ? 4.2 : mode === 'reference' ? 2.6 : 2.15,
-  );
-  if (mode === 'grazing') key.position.set(7.5, 1.1, 4.0);
-  else if (mode === 'reference') key.position.set(-4.5, 7.5, 5.0);
-  else key.position.set(-4.0, 6.0, 5.5);
-  key.castShadow = true;
-  key.shadow.mapSize.set(4096, 4096);
-  key.shadow.bias = -0.00025;
-  key.shadow.normalBias = 0.018;
-  key.shadow.radius = 7;
-  key.shadow.blurSamples = 24;
-  key.shadow.camera.near = 0.5;
-  key.shadow.camera.far = 30;
-  key.shadow.camera.left = -2.6;
-  key.shadow.camera.right = 2.6;
-  key.shadow.camera.top = 2.6;
-  key.shadow.camera.bottom = -2.6;
-  key.shadow.camera.updateProjectionMatrix();
-  lights.add(key);
-  const fill = new THREE.DirectionalLight(0xa8c4ff, mode === 'grazing' ? 0.12 : 0.42);
-  fill.position.set(4.0, 3.0, 3.5);
-  lights.add(fill);
-  const rim = new THREE.DirectionalLight(0xfff1c4, mode === 'grazing' ? 0.28 : 0.85);
-  rim.position.set(0.5, 4.5, -6.0);
-  lights.add(rim);
-  lights.userData.reviewMode = mode;
-  lights.userData.lightingFromPhoto = ["key light from high front-left to keep white paint readable", "soft fill light to preserve greenhouse and rocker separation", "rear rim or environment reflection to define the sedan tail edges", "ACES-style tone mapping with restrained exposure", "soft contact shadow under all four tires"];
-  lights.userData.lookDevTargets = {"qualityPriority": "reference-fidelity", "materialPass": {"albedoPaletteRequired": true, "roughnessVariationRequired": true, "normalOrBumpRequired": true, "localOverridesRequired": true, "minimumTextureResolution": 1024, "preferredTextureResolution": 2048, "independentMapChannels": ["albedo", "roughness", "height", "normal", "ambient-occlusion"], "requiredSurfaceFrequencyBands": ["macro", "meso", "micro"], "geometryReliefRequiredWhenSilhouetteAffected": true, "referencePbrExtraction": {"requiredWhenSourceImagePresent": true, "targetThreshold": 0.7, "stopOnLowConfidence": true, "script": "forge/stage1_intake/extract_pbr_evidence.py", "acceptedLimitation": "single-image extraction is reference-derived inference, not exact photogrammetry"}, "mustAvoid": ["single flat albedo per material", "uniform roughness", "albedo texture reused as roughness/height/normal/AO", "single-frequency random noise", "plastic-looking smooth bark, stone, cloth, foliage, or aged material", "local color/detail described only in prose without material masks", "claiming exact PBR recovery when confidence is below the target threshold"]}, "lightingPass": {"requiredTerms": ["key light", "fill light", "rim or environment light", "exposure", "tone mapping", "background", "contact shadow"], "mustAvoid": ["ambient-only lighting", "flat value range", "missing contact shadow", "reference lighting copied without separating material readability"]}, "screenshotReview": ["Compare albedo palette and local color zones.", "Compare roughness/normal/bump response under light.", "Compare cavity dirt, edge wear, stains, moss, scratches, or other local masks.", "Compare key/fill/rim structure, exposure, tone mapping, background, and contact shadows.", "Capture a neutral-light render to verify material readability without reference lighting.", "Capture a grazing-light close-up to expose flat normals, uniform roughness, tiling, and plastic highlights.", "Capture a reference-matched render from the same camera framing as the source."]};
-  return lights;
-}
-
-// PBR materials (clearcoat/iridescence/transmission/anisotropy) need an environment
-// map to visually behave as intended — call this once per renderer and assign the
-// result to scene.environment before rendering. No external HDR asset required.
-export function create20162021HondaCivicSedanEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const texture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  pmrem.dispose();
-  return texture;
-}
-
-// Plan 1.3 §3.2 — auto-framing by bounding box. The Divine Eye can only compare a
-// render to the reference if the object is FRAMED consistently (an object framed
-// differently scores as wrong even when its shape is right). This positions the camera
-// deterministically from the object's bounding box so it fills the frame at a stable
-// margin, and sets near/far to the object scale. Call after adding the model to the
-// scene, and again on resize (after updating camera.aspect).
-export function frame20162021HondaCivicSedanCamera(
-  camera: THREE.PerspectiveCamera,
-  object: THREE.Object3D,
-  options: { margin?: number; azimuthDeg?: number; elevationDeg?: number } = {},
-): void {
-  const box = new THREE.Box3().setFromObject(object);
-  if (box.isEmpty()) return;
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const margin = options.margin ?? 1.15;
-  const maxDim = Math.max(size.x, size.y, size.z) * margin;
-  const fov = (camera.fov * Math.PI) / 180;
-  // distance so the largest object dimension fits vertically in the frame
-  const distance = (maxDim / 2) / Math.tan(fov / 2);
-  const az = ((options.azimuthDeg ?? 0) * Math.PI) / 180;
-  const el = ((options.elevationDeg ?? 0) * Math.PI) / 180;
-  const dir = new THREE.Vector3(
-    Math.sin(az) * Math.cos(el),
-    Math.sin(el),
-    Math.cos(az) * Math.cos(el),
-  );
-  camera.position.copy(center).addScaledVector(dir, distance);
-  camera.near = Math.max(0.01, distance - maxDim);
-  camera.far = distance + maxDim * 2;
-  camera.lookAt(center);
-  camera.updateProjectionMatrix();
-}
-
-// Plan 1.3 §3.2c — PRESENTATION composer (DOF + bloom). CRITICAL (R-POSTFX): this is
-// for the showcase/hero render ONLY. The Divine Eye's EVALUATION render MUST use a
-// plain renderer with NO composer — bloom blows highlights and DOF blurs edges, which
-// would corrupt the deterministic IoU/DCD/edge/blowout signals. Enable dof/bloom ONLY
-// when the reference photo actually exhibits them (detect_reference_effects.py authorizes).
-export function create20162021HondaCivicSedanPresentationComposer(
-  renderer: THREE.WebGLRenderer,
-  scene: THREE.Scene,
-  camera: THREE.Camera,
-  options: { dof?: boolean; bloom?: boolean; bloomStrength?: number; dofFocus?: number; dofAperture?: number } = {},
-): EffectComposer {
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  if (options.dof) {
-    composer.addPass(new BokehPass(scene, camera, {
-      focus: options.dofFocus ?? 10.0,
-      aperture: options.dofAperture ?? 0.0002,
-      maxblur: 0.01,
-    }));
-  }
-  if (options.bloom) {
-    const size = new THREE.Vector2();
-    renderer.getSize(size);
-    composer.addPass(new UnrealBloomPass(size, options.bloomStrength ?? 0.4, 0.4, 0.85));
-  }
-  return composer;
-}
-
-export function configure20162021HondaCivicSedanRenderer(renderer: THREE.WebGLRenderer): void {
-  // Load-bearing for view-dependent finishes (anodized / Doppler): without ACES + sRGB
-  // the environment reflection reads flat/washed instead of a believable metal response.
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-}
-
-export function create20162021HondaCivicSedanInspectControls(
-  camera: THREE.Camera,
-  domElement: HTMLElement,
-): OrbitControls {
-  // View-dependent finishes only read correctly once the user orbits — their color
-  // comes from the environment reflection, not albedo, so free rotation matters here.
-  const controls = new OrbitControls(camera, domElement);
-  controls.enableDamping = true;
-  controls.minDistance = 1.0;
-  controls.maxDistance = 8.0;
-  controls.autoRotate = false;
-  return controls;
 }
