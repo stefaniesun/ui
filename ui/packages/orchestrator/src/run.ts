@@ -90,6 +90,8 @@ export async function runRefinement(deps: RefinementDependencies, maxRounds = 8)
       history.push({ round, decision, quality: after.total })
       if (decision === 'revert') {
         await applied.rollback()
+        await deps.render(round - 1)
+        quality = await deps.measure(round - 1)
       } else {
         quality = after
         acceptedScores.push(after.total)
@@ -105,7 +107,19 @@ export async function runRefinement(deps: RefinementDependencies, maxRounds = 8)
   } catch (error) {
     journal.fail(error)
     const best = store.best()
-    if (best) await deps.workspace.restoreSnapshot(best.workspaceSnapshotId)
+    if (best) {
+      await deps.workspace.restoreSnapshot(best.workspaceSnapshotId)
+      try {
+        await deps.render(best.round)
+        await deps.measure(best.round)
+      } catch (recoveryError) {
+        history.push({
+          round: best.round,
+          decision: 'recovery-error',
+          error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        })
+      }
+    }
     history.push({ round: history.length + 1, decision: 'error', error: error instanceof Error ? error.message : String(error) })
     return { reason: 'error', bestRound: best?.round ?? 0, bestSnapshotId: best?.id ?? '', history, journal: journal.entries }
   }
@@ -116,5 +130,7 @@ async function finish(reason: StopReason, store: SnapshotStore, deps: Refinement
   const best = store.best()
   if (!best) throw new Error('No stable snapshot exists')
   await deps.workspace.restoreSnapshot(best.workspaceSnapshotId)
+  await deps.render(best.round)
+  await deps.measure(best.round)
   return { reason, bestRound: best.round, bestSnapshotId: best.id, history, journal: journal.entries }
 }

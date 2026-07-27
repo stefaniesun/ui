@@ -26,10 +26,20 @@ describe('PatchPlanSchema', () => {
     affectedStateIds: ['default'],
     affectedTargets: ['h5', 'wechat'],
     rollbackConditions: ['page score decreases'],
+    replacementFiles: {
+      'src/components/profile/OwnerServices.vue': '<template />',
+    },
   }
 
   it('accepts a complete project-relative patch plan', () => {
     expect(PatchPlanSchema.parse(valid).targetRegionIds).toEqual(['owner-services'])
+  })
+
+  it('rejects replacement files outside allowedFiles', () => {
+    expect(() => PatchPlanSchema.parse({
+      ...valid,
+      replacementFiles: { 'src/components/profile/Other.vue': '<template />' },
+    })).toThrow(/allowedFiles/i)
   })
 
   it.each(['allowedComponents', 'allowedTokens', 'affectedStateIds', 'affectedTargets'] as const)(

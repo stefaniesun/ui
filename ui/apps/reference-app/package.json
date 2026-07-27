@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build:h5": "vite build",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-4060620250520001",
