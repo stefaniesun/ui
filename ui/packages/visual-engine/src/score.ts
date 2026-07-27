@@ -11,7 +11,7 @@ import { createMask, cropRegion, validateBounds } from './regions.js'
 import { hashImage } from './text-cache.js'
 import type { TextExtractionCache } from './text-cache.js'
 import { scoreRegionText } from './text-score.js'
-import { extractionReason, TextExtractionGateError, textExtractionFailure } from './text-errors.js'
+import { extractionReason, textExtractionFailure } from './text-errors.js'
 export { TextExtractionGateError } from './text-errors.js'
 
 export interface ScoredRegion {
