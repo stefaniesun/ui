@@ -100,6 +100,7 @@ describe('createPreviewScene lifecycle', () => {
     expect(host.querySelector('canvas')).not.toBeNull();
 
     dispose();
+    dispose();
 
     expect(mockState.controlsDispose).toHaveBeenCalledTimes(1);
     expect(mockState.rendererDispose).toHaveBeenCalledTimes(1);

@@ -10,7 +10,6 @@ describe('preview bootstrap lifecycle', () => {
   it('returns the createPreviewScene disposer from mountCivicPreview', async () => {
     const createPreviewScene = vi.fn((viewport: HTMLElement) => () => {
       viewport.replaceChildren();
-      viewport.remove();
     });
 
     vi.doMock('../../src/preview/createPreviewScene', () => ({
@@ -29,6 +28,7 @@ describe('preview bootstrap lifecycle', () => {
 
     dispose();
 
+    expect(host.childElementCount).toBe(0);
     expect(host.querySelector('.viewport')).toBeNull();
   });
 

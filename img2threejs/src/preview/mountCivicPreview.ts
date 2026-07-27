@@ -8,5 +8,16 @@ export function mountCivicPreview(host: HTMLElement): () => void {
     throw new Error('Missing preview viewport');
   }
 
-  return createPreviewScene(viewport);
+  const disposeScene = createPreviewScene(viewport);
+  let disposed = false;
+
+  return () => {
+    if (disposed) {
+      return;
+    }
+
+    disposed = true;
+    disposeScene();
+    host.replaceChildren();
+  };
 }
