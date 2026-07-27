@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { create20162021HondaCivicSedanModel } from '../generated/civic-blockout';
+import { refineCivicModel } from './refineCivicModel';
 
 function restOnGround(model: THREE.Group): void {
   const box = new THREE.Box3().setFromObject(model);
@@ -20,6 +21,7 @@ export function createCivicModel(): THREE.Group {
     receiveShadow: true
   });
 
+  refineCivicModel(model);
   model.name = 'civic-root';
   restOnGround(model);
   model.rotation.y = Math.PI;
