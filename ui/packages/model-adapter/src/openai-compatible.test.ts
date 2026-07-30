@@ -14,6 +14,21 @@ const request: TransportRequest = {
 }
 
 describe('OpenAICompatibleTransport', () => {
+  it('sends json schemas without enabling provider strict mode', async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({
+      choices: [{ message: { content: '{"ok":true}' } }],
+    }))
+    const transport = new OpenAICompatibleTransport({
+      baseUrl: 'http://127.0.0.1:1234/v1', model: 'vision', fetch,
+    })
+    await transport.send({ ...request, structuredOutput: 'json-schema' })
+    const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))
+    expect(body.response_format.json_schema).toMatchObject({
+      strict: false,
+      schema: request.jsonSchema,
+    })
+  })
+
   it('rejects remote endpoints unless their origin is explicitly trusted', () => {
     expect(() => new OpenAICompatibleTransport({
       baseUrl: 'https://example.com/v1',
@@ -26,6 +41,12 @@ describe('OpenAICompatibleTransport', () => {
       model: 'vision',
       fetch: vi.fn(),
     })).not.toThrow()
+    expect(() => new OpenAICompatibleTransport({
+      baseUrl: 'http://example.com/v1',
+      trustedRemoteOrigins: ['http://example.com'],
+      model: 'vision',
+      fetch: vi.fn(),
+    })).toThrow(/HTTPS/i)
   })
 
   it('extracts message content and tool arguments', async () => {
@@ -77,6 +98,30 @@ describe('OpenAICompatibleTransport', () => {
     const failure = await transport.send(request)
     expect(failure).toMatchObject({ ok: false, status: 500, kind: 'http' })
     expect(JSON.stringify(failure)).not.toMatch(/sk-secret|base64data/)
+
+    const descriptiveTransport = new OpenAICompatibleTransport({
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'vision',
+      fetch: vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ error: { message: 'unsupported image format' } }),
+        { status: 400 },
+      )),
+    })
+    await expect(descriptiveTransport.send(request)).resolves.toMatchObject({
+      ok: false,
+      message: 'unsupported image format',
+    })
+
+    const secretMessageTransport = new OpenAICompatibleTransport({
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      apiKey: 'sk-secret', model: 'vision',
+      fetch: vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ error: { message: 'failed sk-secret data:image/png;base64,base64data' } }),
+        { status: 400 },
+      )),
+    })
+    const secretFailure = await secretMessageTransport.send(request)
+    expect(JSON.stringify(secretFailure)).not.toMatch(/sk-secret|base64data/)
 
     const controller = new AbortController()
     controller.abort()

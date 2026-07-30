@@ -1,0 +1,12 @@
+version: 1.0.0
+projectId: uinotes-xunlei
+pageId: xunlei-member
+device:
+  width: 390
+  height: 844
+  pixelRatio: 3
+states:
+  - id: default
+    screenshot: reference/default.png
+    screenshotType: viewport
+    scale: 3

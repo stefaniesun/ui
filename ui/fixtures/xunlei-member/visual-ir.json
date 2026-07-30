@@ -1,0 +1,950 @@
+{
+  "version": "1.0.0",
+  "projectId": "uinotes-xunlei",
+  "pageId": "xunlei-member",
+  "coordinateSpace": "logical-px",
+  "tokens": {
+    "colors": {
+      "page-background": "#FFFFFF",
+      "hero-gold": "#F8D77A",
+      "hero-gold-light": "#FBE39A",
+      "primary-brown": "#7C3D00",
+      "secondary-brown": "#A16A29",
+      "text-primary": "#17171D",
+      "text-secondary": "#55555B",
+      "text-muted": "#99999D",
+      "text-disabled": "#BEBEC1",
+      "surface-white": "#FFFFFF",
+      "surface-subtle": "#FAFAFA",
+      "surface-selected": "#FFF0B8",
+      "border-subtle": "#E7E7E7",
+      "divider": "#F4F4F4",
+      "cloud-purple": "#7146FF",
+      "platinum-gold": "#E99A14",
+      "checkout-gold": "#FFE28A",
+      "system-black": "#000000"
+    },
+    "typography": {
+      "font-family": "system-ui, -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Microsoft YaHei\", sans-serif",
+      "status-time": {
+        "fontSize": 17,
+        "fontWeight": 600,
+        "lineHeight": 22
+      },
+      "page-title": {
+        "fontSize": 17,
+        "fontWeight": 600,
+        "lineHeight": 24
+      },
+      "account-name": {
+        "fontSize": 16,
+        "fontWeight": 600,
+        "lineHeight": 22
+      },
+      "account-subtitle": {
+        "fontSize": 14,
+        "fontWeight": 400,
+        "lineHeight": 20
+      },
+      "tab": {
+        "fontSize": 18,
+        "fontWeight": 600,
+        "lineHeight": 25
+      },
+      "plan-duration": {
+        "fontSize": 15,
+        "fontWeight": 500,
+        "lineHeight": 22
+      },
+      "plan-price": {
+        "fontSize": 38,
+        "fontWeight": 700,
+        "lineHeight": 44
+      },
+      "plan-original-price": {
+        "fontSize": 13,
+        "fontWeight": 400,
+        "lineHeight": 18
+      },
+      "section-title": {
+        "fontSize": 17,
+        "fontWeight": 600,
+        "lineHeight": 24
+      },
+      "section-caption": {
+        "fontSize": 13,
+        "fontWeight": 400,
+        "lineHeight": 19
+      },
+      "table-header": {
+        "fontSize": 14,
+        "fontWeight": 600,
+        "lineHeight": 20
+      },
+      "table-body": {
+        "fontSize": 14,
+        "fontWeight": 400,
+        "lineHeight": 21
+      },
+      "table-emphasis": {
+        "fontSize": 14,
+        "fontWeight": 600,
+        "lineHeight": 21
+      },
+      "checkout-label": {
+        "fontSize": 20,
+        "fontWeight": 600,
+        "lineHeight": 28
+      },
+      "agreement": {
+        "fontSize": 12,
+        "fontWeight": 400,
+        "lineHeight": 18
+      }
+    },
+    "spacing": {
+      "xs": 4,
+      "sm": 8,
+      "md": 12,
+      "lg": 20,
+      "xl": 28,
+      "section": 40,
+      "page-gutter": 20
+    },
+    "radii": {
+      "none": 0,
+      "small": 6,
+      "medium": 12,
+      "large": 18,
+      "panel-top": 18,
+      "plan-card": 12,
+      "pill": 24,
+      "checkout-button": 12,
+      "round": 999
+    }
+  },
+  "states": [
+    {
+      "id": "default",
+      "screenshot": "reference/default.png"
+    }
+  ],
+  "regions": [
+    {
+      "regionId": "member-page",
+      "displayName": "Member Purchase Page",
+      "aliases": [
+        "page-root",
+        "membership-page"
+      ],
+      "parentId": null,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/MemberPage.vue",
+      "selector": "#member-page",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "system-status-bar",
+      "displayName": "System Status Bar",
+      "aliases": [
+        "ios-status-bar"
+      ],
+      "parentId": "member-page",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 40
+      },
+      "source": "model",
+      "confidence": 0.95,
+      "componentPath": "src/components/xunlei-member/SystemStatusBar.vue",
+      "selector": "#member-page .system-status-bar",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "browser-domain-pill",
+      "displayName": "Browser Domain Pill",
+      "aliases": [
+        "site-domain",
+        "uinotes-domain"
+      ],
+      "parentId": "system-status-bar",
+      "bounds": {
+        "x": 146,
+        "y": 9,
+        "width": 98,
+        "height": 24
+      },
+      "source": "model",
+      "confidence": 0.97,
+      "componentPath": "src/components/xunlei-member/BrowserDomainPill.vue",
+      "selector": "#member-page .browser-domain-pill",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "member-hero",
+      "displayName": "Membership Hero Header",
+      "aliases": [
+        "gold-header",
+        "member-header"
+      ],
+      "parentId": "member-page",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 163
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/MemberHero.vue",
+      "selector": "#member-page .member-hero",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "member-navigation",
+      "displayName": "Member Page Navigation",
+      "aliases": [
+        "top-navigation",
+        "title-bar"
+      ],
+      "parentId": "member-hero",
+      "bounds": {
+        "x": 20,
+        "y": 64,
+        "width": 350,
+        "height": 24
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/MemberNavigation.vue",
+      "selector": "#member-page .member-navigation",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "back-button",
+      "displayName": "Back Button",
+      "aliases": [
+        "navigate-back"
+      ],
+      "parentId": "member-navigation",
+      "bounds": {
+        "x": 16,
+        "y": 61,
+        "width": 44,
+        "height": 44
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/BackButton.vue",
+      "selector": "#member-page .back-button",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "page-title",
+      "displayName": "Purchase Membership Title",
+      "aliases": [
+        "购买会员",
+        "member-title"
+      ],
+      "parentId": "member-navigation",
+      "bounds": {
+        "x": 155,
+        "y": 66,
+        "width": 80,
+        "height": 24
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/PageTitle.vue",
+      "selector": "#member-page .page-title",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "account-summary",
+      "displayName": "Account Membership Summary",
+      "aliases": [
+        "user-summary",
+        "member-status"
+      ],
+      "parentId": "member-hero",
+      "bounds": {
+        "x": 20,
+        "y": 105,
+        "width": 250,
+        "height": 37
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/AccountSummary.vue",
+      "selector": "#member-page .account-summary",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "account-avatar",
+      "displayName": "Account Avatar",
+      "aliases": [
+        "profile-avatar"
+      ],
+      "parentId": "account-summary",
+      "bounds": {
+        "x": 20,
+        "y": 105,
+        "width": 36,
+        "height": 36
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/AccountAvatar.vue",
+      "selector": "#member-page .account-avatar",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "account-copy",
+      "displayName": "Account Name and Status",
+      "aliases": [
+        "account-details"
+      ],
+      "parentId": "account-summary",
+      "bounds": {
+        "x": 68,
+        "y": 106,
+        "width": 195,
+        "height": 35
+      },
+      "source": "model",
+      "confidence": 0.97,
+      "componentPath": "src/components/xunlei-member/AccountCopy.vue",
+      "selector": "#member-page .account-copy",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "membership-purchase-panel",
+      "displayName": "Membership Purchase Panel",
+      "aliases": [
+        "plan-picker",
+        "purchase-card"
+      ],
+      "parentId": "member-page",
+      "bounds": {
+        "x": 0,
+        "y": 163,
+        "width": 390,
+        "height": 231
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/MembershipPurchasePanel.vue",
+      "selector": "#member-page .membership-purchase-panel",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "membership-tabs",
+      "displayName": "Membership Type Tabs",
+      "aliases": [
+        "member-type-switcher"
+      ],
+      "parentId": "membership-purchase-panel",
+      "bounds": {
+        "x": 0,
+        "y": 163,
+        "width": 390,
+        "height": 48
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/MembershipTabs.vue",
+      "selector": "#member-page .membership-tabs",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "platinum-tab",
+      "displayName": "Platinum Member Tab",
+      "aliases": [
+        "白金会员",
+        "active-member-tab"
+      ],
+      "parentId": "membership-tabs",
+      "bounds": {
+        "x": 0,
+        "y": 163,
+        "width": 203,
+        "height": 48
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/PlatinumTab.vue",
+      "selector": "#member-page .membership-tab[data-type='platinum']",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "cloud-tab",
+      "displayName": "Cloud Drive Member Tab",
+      "aliases": [
+        "云盘会员",
+        "inactive-member-tab"
+      ],
+      "parentId": "membership-tabs",
+      "bounds": {
+        "x": 203,
+        "y": 163,
+        "width": 187,
+        "height": 48
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/CloudTab.vue",
+      "selector": "#member-page .membership-tab[data-type='cloud']",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "plan-carousel",
+      "displayName": "Duration Plan Carousel",
+      "aliases": [
+        "pricing-options",
+        "horizontal-plans"
+      ],
+      "parentId": "membership-purchase-panel",
+      "bounds": {
+        "x": 20,
+        "y": 229,
+        "width": 370,
+        "height": 151
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/PlanCarousel.vue",
+      "selector": "#member-page .plan-carousel",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "one-month-plan",
+      "displayName": "One Month Plan",
+      "aliases": [
+        "1个月",
+        "selected-plan"
+      ],
+      "parentId": "plan-carousel",
+      "bounds": {
+        "x": 20,
+        "y": 229,
+        "width": 131,
+        "height": 151
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/OneMonthPlan.vue",
+      "selector": "#member-page .plan-card[data-duration='1-month']",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "three-month-plan",
+      "displayName": "Three Month Plan",
+      "aliases": [
+        "3个月"
+      ],
+      "parentId": "plan-carousel",
+      "bounds": {
+        "x": 161,
+        "y": 229,
+        "width": 131,
+        "height": 151
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/ThreeMonthPlan.vue",
+      "selector": "#member-page .plan-card[data-duration='3-month']",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "twelve-month-plan",
+      "displayName": "Twelve Month Plan",
+      "aliases": [
+        "12个月",
+        "partially-visible-plan"
+      ],
+      "parentId": "plan-carousel",
+      "bounds": {
+        "x": 302,
+        "y": 229,
+        "width": 131,
+        "height": 151
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/TwelveMonthPlan.vue",
+      "selector": "#member-page .plan-card[data-duration='12-month']",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "benefits-comparison",
+      "displayName": "Membership Benefits Comparison",
+      "aliases": [
+        "权益对比",
+        "comparison-section"
+      ],
+      "parentId": "member-page",
+      "bounds": {
+        "x": 0,
+        "y": 402,
+        "width": 390,
+        "height": 295
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/BenefitsComparison.vue",
+      "selector": "#member-page .benefits-comparison",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "comparison-heading",
+      "displayName": "Benefits Comparison Heading",
+      "aliases": [
+        "comparison-title"
+      ],
+      "parentId": "benefits-comparison",
+      "bounds": {
+        "x": 20,
+        "y": 421,
+        "width": 350,
+        "height": 25
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/ComparisonHeading.vue",
+      "selector": "#member-page .comparison-heading",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "benefits-table",
+      "displayName": "Benefits Comparison Table",
+      "aliases": [
+        "membership-table"
+      ],
+      "parentId": "benefits-comparison",
+      "bounds": {
+        "x": 20,
+        "y": 464,
+        "width": 354,
+        "height": 233
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/BenefitsTable.vue",
+      "selector": "#member-page .benefits-table",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "benefit-label-column",
+      "displayName": "Benefit Labels Column",
+      "aliases": [
+        "权益"
+      ],
+      "parentId": "benefits-table",
+      "bounds": {
+        "x": 20,
+        "y": 464,
+        "width": 116,
+        "height": 233
+      },
+      "source": "model",
+      "confidence": 0.97,
+      "componentPath": "src/components/xunlei-member/BenefitLabelColumn.vue",
+      "selector": "#member-page .benefit-label-column",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "cloud-benefits-column",
+      "displayName": "Cloud Member Benefits Column",
+      "aliases": [
+        "云盘会员权益"
+      ],
+      "parentId": "benefits-table",
+      "bounds": {
+        "x": 136,
+        "y": 464,
+        "width": 119,
+        "height": 233
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/CloudBenefitsColumn.vue",
+      "selector": "#member-page .cloud-benefits-column",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "platinum-benefits-column",
+      "displayName": "Platinum Member Benefits Column",
+      "aliases": [
+        "白金会员权益"
+      ],
+      "parentId": "benefits-table",
+      "bounds": {
+        "x": 257,
+        "y": 460,
+        "width": 117,
+        "height": 237
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/PlatinumBenefitsColumn.vue",
+      "selector": "#member-page .platinum-benefits-column",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "checkout-footer",
+      "displayName": "Membership Checkout Footer",
+      "aliases": [
+        "purchase-footer",
+        "sticky-checkout"
+      ],
+      "parentId": "member-page",
+      "bounds": {
+        "x": 0,
+        "y": 703,
+        "width": 390,
+        "height": 141
+      },
+      "source": "model",
+      "confidence": 0.97,
+      "componentPath": "src/components/xunlei-member/CheckoutFooter.vue",
+      "selector": "#member-page .checkout-footer",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "pay-now-button",
+      "displayName": "Pay Now Button",
+      "aliases": [
+        "立即支付",
+        "checkout-button"
+      ],
+      "parentId": "checkout-footer",
+      "bounds": {
+        "x": 20,
+        "y": 727,
+        "width": 350,
+        "height": 54
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/PayNowButton.vue",
+      "selector": "#member-page .pay-now-button",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "agreement-control",
+      "displayName": "Membership Agreement Control",
+      "aliases": [
+        "agreement-checkbox-row"
+      ],
+      "parentId": "checkout-footer",
+      "bounds": {
+        "x": 122,
+        "y": 796,
+        "width": 168,
+        "height": 22
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/AgreementControl.vue",
+      "selector": "#member-page .agreement-control",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "agreement-checkbox",
+      "displayName": "Agreement Checkbox",
+      "aliases": [
+        "terms-checkbox"
+      ],
+      "parentId": "agreement-control",
+      "bounds": {
+        "x": 122,
+        "y": 797,
+        "width": 17,
+        "height": 17
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/AgreementCheckbox.vue",
+      "selector": "#member-page .agreement-checkbox",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "agreement-link",
+      "displayName": "Membership Agreement Link",
+      "aliases": [
+        "《会员协议》",
+        "terms-link"
+      ],
+      "parentId": "agreement-control",
+      "bounds": {
+        "x": 212,
+        "y": 796,
+        "width": 78,
+        "height": 21
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/AgreementLink.vue",
+      "selector": "#member-page .agreement-link",
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "home-indicator",
+      "displayName": "System Home Indicator",
+      "aliases": [
+        "ios-home-indicator"
+      ],
+      "parentId": "member-page",
+      "bounds": {
+        "x": 126,
+        "y": 833,
+        "width": 139,
+        "height": 5
+      },
+      "source": "model",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/HomeIndicator.vue",
+      "selector": "#member-page .home-indicator",
+      "lockedByHuman": false
+    }
+  ],
+  "assets": [
+    {
+      "assetId": "account-avatar-logo",
+      "slot": "member-account-avatar",
+      "type": "image",
+      "bounds": {
+        "x": 20,
+        "y": 105,
+        "width": 36,
+        "height": 36
+      },
+      "replaceable": true,
+      "fit": "cover",
+      "shape": "circle",
+      "description": "Black circular account avatar with white MX monogram."
+    },
+    {
+      "assetId": "navigation-back-icon",
+      "slot": "member-back-icon",
+      "type": "vector-icon",
+      "bounds": {
+        "x": 20,
+        "y": 67,
+        "width": 18,
+        "height": 16
+      },
+      "replaceable": true,
+      "description": "Brown left-pointing navigation arrow."
+    },
+    {
+      "assetId": "cloud-member-badge",
+      "slot": "cloud-membership-icon",
+      "type": "vector-icon",
+      "bounds": {
+        "x": 166,
+        "y": 481,
+        "width": 14,
+        "height": 14
+      },
+      "replaceable": true,
+      "description": "Purple cloud membership badge."
+    },
+    {
+      "assetId": "platinum-member-diamond",
+      "slot": "platinum-membership-icon",
+      "type": "vector-icon",
+      "bounds": {
+        "x": 280,
+        "y": 480,
+        "width": 15,
+        "height": 15
+      },
+      "replaceable": true,
+      "description": "Gold diamond badge for platinum membership."
+    },
+    {
+      "assetId": "cloud-checkmark",
+      "slot": "cloud-acceleration-checkmark",
+      "type": "vector-icon",
+      "bounds": {
+        "x": 190,
+        "y": 528,
+        "width": 14,
+        "height": 12
+      },
+      "replaceable": true,
+      "description": "Checkmark indicating cloud-member acceleration support."
+    },
+    {
+      "assetId": "system-wifi-icon",
+      "slot": "system-wifi",
+      "type": "system-icon",
+      "bounds": {
+        "x": 312,
+        "y": 19,
+        "width": 18,
+        "height": 13
+      },
+      "replaceable": false
+    },
+    {
+      "assetId": "system-battery-icon",
+      "slot": "system-battery",
+      "type": "system-icon",
+      "bounds": {
+        "x": 336,
+        "y": 19,
+        "width": 27,
+        "height": 13
+      },
+      "replaceable": false
+    },
+    {
+      "assetId": "browser-site-mark",
+      "slot": "browser-domain-mark",
+      "type": "image",
+      "bounds": {
+        "x": 152,
+        "y": 14,
+        "width": 13,
+        "height": 13
+      },
+      "replaceable": true,
+      "description": "Circular uinotes site mark in the browser domain pill."
+    }
+  ],
+  "interactions": [
+    {
+      "interactionId": "navigate-back",
+      "regionId": "back-button",
+      "trigger": "tap",
+      "action": "navigate-back",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "open-account-login",
+      "regionId": "account-summary",
+      "trigger": "tap",
+      "action": "open-login-or-account-management",
+      "confidence": 0.63
+    },
+    {
+      "interactionId": "select-platinum-membership",
+      "regionId": "platinum-tab",
+      "trigger": "tap",
+      "action": "set-membership-type",
+      "parameters": {
+        "type": "platinum"
+      },
+      "stateEffect": "Platinum tab remains active; pricing and benefits use platinum products.",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "select-cloud-membership",
+      "regionId": "cloud-tab",
+      "trigger": "tap",
+      "action": "set-membership-type",
+      "parameters": {
+        "type": "cloud"
+      },
+      "stateEffect": "Cloud tab becomes active and plan pricing/benefits update.",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "scroll-plan-carousel",
+      "regionId": "plan-carousel",
+      "trigger": "horizontal-drag",
+      "action": "scroll-horizontal",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "select-one-month-plan",
+      "regionId": "one-month-plan",
+      "trigger": "tap",
+      "action": "select-plan",
+      "parameters": {
+        "durationMonths": 1,
+        "priceCny": 18
+      },
+      "stateEffect": "Plan card receives selected styling and checkout total becomes ¥18.",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "select-three-month-plan",
+      "regionId": "three-month-plan",
+      "trigger": "tap",
+      "action": "select-plan",
+      "parameters": {
+        "durationMonths": 3,
+        "priceCny": 50,
+        "originalPriceCny": 54
+      },
+      "stateEffect": "Three-month card receives selected styling and checkout total updates to ¥50.",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "select-twelve-month-plan",
+      "regionId": "twelve-month-plan",
+      "trigger": "tap",
+      "action": "select-plan",
+      "parameters": {
+        "durationMonths": 12,
+        "priceCny": 198,
+        "originalPriceCny": 216
+      },
+      "stateEffect": "Twelve-month card receives selected styling and checkout total updates to ¥198.",
+      "confidence": 0.98
+    },
+    {
+      "interactionId": "scroll-member-page",
+      "regionId": "member-page",
+      "trigger": "vertical-drag",
+      "action": "scroll-vertical",
+      "confidence": 0.96
+    },
+    {
+      "interactionId": "toggle-membership-agreement",
+      "regionId": "agreement-checkbox",
+      "trigger": "tap",
+      "action": "toggle",
+      "parameters": {
+        "field": "membershipAgreementAccepted"
+      },
+      "stateEffect": "Checkbox toggles between unchecked and checked states.",
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "open-membership-agreement",
+      "regionId": "agreement-link",
+      "trigger": "tap",
+      "action": "open-document",
+      "parameters": {
+        "document": "membership-agreement"
+      },
+      "confidence": 0.99
+    },
+    {
+      "interactionId": "submit-membership-payment",
+      "regionId": "pay-now-button",
+      "trigger": "tap",
+      "action": "begin-payment",
+      "parameters": {
+        "membershipType": "platinum",
+        "selectedDurationMonths": 1,
+        "amountCny": 18
+      },
+      "precondition": "membershipAgreementAccepted is true; otherwise request agreement confirmation.",
+      "confidence": 0.96
+    }
+  ]
+}

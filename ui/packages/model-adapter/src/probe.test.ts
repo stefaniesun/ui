@@ -37,14 +37,53 @@ describe('probeCapabilities', () => {
     })
     expect(transport.calls.map(call => call.structuredOutput)).toEqual(['json-schema', 'tools', 'tools'])
     expect(JSON.stringify(transport.calls[1]?.jsonSchema)).not.toContain('"const":"blue"')
+    expect(transport.calls[1]?.images[0]).toMatchObject({ width: 256, height: 256 })
+    expect(transport.calls[1]?.prompt).toContain('Return exactly one JSON object')
+    expect(transport.calls[1]?.prompt).toContain('Do not infer the answer from this instruction')
     expect(transport.calls[2]?.images[0]).toEqual(referenceImage)
+  })
+
+  it('falls back to the real reference image when a gateway rejects synthetic probes', async () => {
+    const calls: TransportRequest[] = []
+    const transport: ModelTransport = {
+      calls,
+      async send(request) {
+        calls.push(request)
+        if (request.images[0] !== referenceImage) {
+          return { ok: false, status: 400, kind: 'http', message: 'invalid image' }
+        }
+        return { ok: true, status: 200, output: '{"width":396,"height":842}' }
+      },
+    }
+    await expect(probeCapabilities(transport, referenceImage, undefined, {
+      challengeColor: 'blue',
+    })).resolves.toMatchObject({ vision: true, structuredOutput: 'json-schema' })
+    expect(calls.filter(call => call.images[0] === referenceImage)).toHaveLength(1)
+  })
+
+  it('falls back for mixed HTTP 400 and 422 synthetic image rejections', async () => {
+    const calls: TransportRequest[] = []
+    const transport: ModelTransport = {
+      calls,
+      async send(request) {
+        calls.push(request)
+        if (request.images[0] === referenceImage) {
+          return { ok: true, status: 200, output: '{"width":396,"height":842}' }
+        }
+        const status = request.structuredOutput === 'json-schema' ? 400 : 422
+        return { ok: false, status, kind: 'http', message: 'invalid image' }
+      },
+    }
+    await expect(probeCapabilities(transport, referenceImage, undefined, {
+      challengeColor: 'blue',
+    })).resolves.toMatchObject({ vision: true, structuredOutput: 'json-schema' })
   })
 
   it('rejects a model whose answer does not match the image challenge', async () => {
     const transport = createFakeTransport({ 'json-schema': 200 })
     await expect(probeCapabilities(transport, referenceImage, undefined, {
       challengeColor: 'red',
-    })).rejects.toThrow(/image-grounded/i)
+    })).rejects.toThrow(/json-schema.*\{"color":"blue"\}/i)
   })
 
   it('rejects incorrect reported dimensions with actionable tiling guidance', async () => {

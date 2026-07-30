@@ -20,6 +20,7 @@ function endpointUrl(baseUrl: string, trustedRemoteOrigins: readonly string[]): 
   const url = new URL(baseUrl)
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Model endpoint must use HTTP(S)')
   const local = ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)
+  if (!local && url.protocol !== 'https:') throw new Error('Remote model endpoints must use HTTPS')
   const trusted = trustedRemoteOrigins.some(origin => new URL(origin).origin === url.origin)
   if (!local && !trusted) throw new Error(`Model endpoint is not trusted: ${url.origin}`)
   return new URL('chat/completions', `${url.toString().replace(/\/?$/, '/')}`)
@@ -33,7 +34,7 @@ function schemaInstruction(request: TransportRequest): string {
 function structureFields(request: TransportRequest): Record<string, unknown> {
   if (request.structuredOutput === 'json-schema') {
     return { response_format: { type: 'json_schema', json_schema: {
-      name: request.schemaName, strict: true, schema: request.jsonSchema,
+      name: request.schemaName, strict: false, schema: request.jsonSchema,
     } } }
   }
   if (request.structuredOutput === 'tools') {
@@ -48,6 +49,17 @@ function structureFields(request: TransportRequest): Record<string, unknown> {
   return request.structuredOutput === 'json-mode'
     ? { response_format: { type: 'json_object' } }
     : {}
+}
+
+function errorMessage(body: unknown, secrets: readonly string[]): string | null {
+  if (typeof body !== 'object' || body === null) return null
+  const error = Reflect.get(body, 'error')
+  if (typeof error !== 'object' || error === null) return null
+  const message = Reflect.get(error, 'message')
+  if (typeof message !== 'string') return null
+  let sanitized = message.replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/=]+/gi, '[redacted image]')
+  for (const secret of secrets.filter(Boolean)) sanitized = sanitized.replaceAll(secret, '[redacted]')
+  return sanitized.slice(0, 500)
 }
 
 function extractOutput(body: unknown, mode: StructuredOutputMode): string | null {
@@ -85,7 +97,7 @@ export class OpenAICompatibleTransport implements ModelTransport {
     this.fetchImplementation = options.fetch ?? globalThis.fetch
     this.apiKey = options.apiKey
     this.model = options.model
-    this.timeoutMs = options.timeoutMs ?? 60_000
+    this.timeoutMs = options.timeoutMs ?? 180_000
   }
 
   async send(request: TransportRequest): Promise<TransportResponse> {
@@ -116,7 +128,14 @@ export class OpenAICompatibleTransport implements ModelTransport {
         signal: controller.signal,
       })
       if (!response.ok) {
-        return { ok: false, status: response.status, kind: 'http', message: 'model request failed' }
+        let body: unknown
+        try { body = await response.json() } catch { /* use generic message */ }
+        return {
+          ok: false,
+          status: response.status,
+          kind: 'http',
+          message: errorMessage(body, [this.apiKey ?? '', ...request.images.map(image => image.base64)]) ?? 'model request failed',
+        }
       }
       let body: unknown
       try { body = await response.json() } catch {
