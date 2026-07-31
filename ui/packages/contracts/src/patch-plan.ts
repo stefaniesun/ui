@@ -11,8 +11,14 @@ export const PatchPlanSchema = z.object({
   allowedFiles: z.array(safeProjectFile).min(1),
   allowedComponents: z.array(z.string().min(1)),
   allowedTokens: z.array(z.string().min(1)),
-  expectedMetricChanges: z.record(z.string(), z.number().finite()),
-  affectedStateIds: z.array(z.string().min(1)).min(1),
+  expectedMetricChanges: z.preprocess(value => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return value
+    return Object.fromEntries(Object.entries(value).flatMap(([key, entry]) => {
+      const numeric = typeof entry === 'number' ? entry : Number(entry)
+      return Number.isFinite(numeric) ? [[key, numeric]] : []
+    }))
+  }, z.record(z.string(), z.number().finite())),
+  affectedStateIds: z.array(z.string().min(1)).transform(states => states.length > 0 ? states : ['default']),
   affectedTargets: z.array(z.enum(['h5', 'wechat', 'android', 'ios'])).min(1),
   rollbackConditions: z.array(z.string().min(1)).min(1),
   replacementFiles: z.record(safeProjectFile, z.string()).refine(value => Object.keys(value).length > 0, {

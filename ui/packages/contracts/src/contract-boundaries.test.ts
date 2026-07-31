@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ContentNodeSchema,
   ManifestSchema,
   PatchPlanSchema,
   ReviewReportSchema,
+  VisualAssetSchema,
+  VisualInteractionSchema,
   VisualIRSchema,
 } from './index.js'
 
@@ -10,6 +13,9 @@ describe('public contract exports', () => {
   it('exports every Task 2 runtime schema', () => {
     expect(ManifestSchema).toBeDefined()
     expect(VisualIRSchema).toBeDefined()
+    expect(ContentNodeSchema).toBeDefined()
+    expect(VisualAssetSchema).toBeDefined()
+    expect(VisualInteractionSchema).toBeDefined()
     expect(PatchPlanSchema).toBeDefined()
     expect(ReviewReportSchema).toBeDefined()
   })

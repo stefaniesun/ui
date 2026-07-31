@@ -17,6 +17,8 @@ const regions: RegionNode[] = [
     source: 'model',
     confidence: 0.94,
     componentPath: 'src/components/profile/OwnerServices.vue',
+    content: [],
+    decorationOnly: true,
     lockedByHuman: false,
   },
   {
@@ -28,6 +30,8 @@ const regions: RegionNode[] = [
     source: 'model',
     confidence: 0.99,
     selector: '[data-region-id="primary-tabbar"]',
+    content: [],
+    decorationOnly: true,
     lockedByHuman: false,
   },
 ]

@@ -219,11 +219,15 @@ export async function requestStructuredOutput<T>(
       }
     }
   }
-  throw new StructuredOutputError(`Structured output failed after ${totalAttempts} attempts`, {
-    mode: options.mode,
-    status: lastStatus,
-    kind: lastError?.kind,
-    issues: lastError?.schemaPaths.map(path => ({ code: 'custom', path: [path], message: '' })),
-    attempts: totalAttempts,
-  })
+  throw new StructuredOutputError(
+    `Structured output failed after ${totalAttempts} attempts`
+    + `${lastError?.message ? `: ${lastError.message}` : ''}`,
+    {
+      mode: options.mode,
+      status: lastStatus,
+      kind: lastError?.kind,
+      issues: lastError?.schemaPaths.map(path => ({ code: 'custom', path: [path], message: '' })),
+      attempts: totalAttempts,
+    },
+  )
 }

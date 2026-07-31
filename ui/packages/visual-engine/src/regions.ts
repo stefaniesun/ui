@@ -4,6 +4,22 @@ import type { NormalizedImage } from './image.js'
 
 export interface NamedRegion { regionId: string; bounds: Bounds }
 
+export function clipBoundsToCanvas(
+  bounds: Bounds,
+  width: number,
+  height: number,
+  name: string,
+): Bounds {
+  const left = Math.max(0, bounds.x)
+  const top = Math.max(0, bounds.y)
+  const right = Math.min(width, bounds.x + bounds.width)
+  const bottom = Math.min(height, bounds.y + bounds.height)
+  if (right - left < 0.5 || bottom - top < 0.5) {
+    throw new Error(`${name} is outside the captured canvas`)
+  }
+  return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
 export function validateBounds(bounds: Bounds, width: number, height: number, name: string): void {
   const values = [bounds.x, bounds.y, bounds.width, bounds.height]
   if (!values.every(Number.isFinite) || bounds.width < 0.5 || bounds.height < 0.5) {

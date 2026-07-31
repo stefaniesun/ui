@@ -1,3 +1,4 @@
+import { PatchPlanSchema } from '@ui-rebuild/contracts'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { OpenAICompatibleTransport, requestStructuredOutput } from './openai-compatible.js'
@@ -12,6 +13,25 @@ const request: TransportRequest = {
   schemaName: 'test',
   jsonSchema: { type: 'object' },
 }
+
+describe('PatchPlanSchema', () => {
+  it('normalizes numeric strings and fills an empty affected state list', () => {
+    const result = PatchPlanSchema.parse({
+      targetRegionIds: ['hero'],
+      rootCause: 'geometry',
+      allowedFiles: ['src/components/profile/Hero.vue'],
+      allowedComponents: ['Hero'],
+      allowedTokens: [],
+      expectedMetricChanges: { geometryErrorPx: '12.5', ocrMatch: '0.8', total: 'increase' },
+      affectedStateIds: [],
+      affectedTargets: ['h5'],
+      rollbackConditions: ['score regresses'],
+      replacementFiles: { 'src/components/profile/Hero.vue': '<template />' },
+    })
+    expect(result.expectedMetricChanges).toEqual({ geometryErrorPx: 12.5, ocrMatch: 0.8 })
+    expect(result.affectedStateIds).toEqual(['default'])
+  })
+})
 
 describe('OpenAICompatibleTransport', () => {
   it('sends json schemas without enabling provider strict mode', async () => {

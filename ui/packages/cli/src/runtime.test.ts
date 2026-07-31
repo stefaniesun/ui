@@ -1,10 +1,31 @@
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { modelAdapter } from './runtime.js'
+import { modelAdapter, writeGenerated } from './runtime.js'
 
 const original = { ...process.env }
+const temporaryDirectories: string[] = []
 
-afterEach(() => {
+afterEach(async () => {
   process.env = { ...original }
+  await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })))
+})
+
+describe('writeGenerated', () => {
+  it('does not partially update the app when any generated path is unsafe', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'ui-rebuild-write-'))
+    temporaryDirectories.push(root)
+    await mkdir(path.join(root, 'src'), { recursive: true })
+    await writeFile(path.join(root, 'src', 'page.vue'), 'stable')
+
+    await expect(writeGenerated(root, {
+      'src/page.vue': 'candidate',
+      '../escape.vue': 'unsafe',
+    })).rejects.toThrow(/escapes app/i)
+
+    await expect(readFile(path.join(root, 'src', 'page.vue'), 'utf8')).resolves.toBe('stable')
+  })
 })
 
 describe('modelAdapter', () => {

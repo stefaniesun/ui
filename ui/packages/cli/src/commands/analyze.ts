@@ -1,11 +1,29 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { VisualIRSchema } from '@ui-rebuild/contracts'
-import type { VisualIR } from '@ui-rebuild/contracts'
+import type { Bounds, Manifest, VisualIR } from '@ui-rebuild/contracts'
 import { loadManifest, modelAdapter, modelImage } from '../runtime.js'
 
 function componentName(regionId: string) {
   return regionId.split('-').map(part => part[0]!.toUpperCase() + part.slice(1)).join('')
+}
+
+export function buildAnalysisPrompt(
+  manifest: Manifest,
+  overrides: Record<string, { displayName?: string; aliases?: string[] }>,
+): string {
+  return `Analyze these UI states into Visual IR version 1.0.0. projectId=${manifest.projectId}, pageId=${manifest.pageId}, logical canvas=${manifest.device.width}x${manifest.device.height}. Build maintainable semantic regions with stable kebab-case regionId and Design Tokens. Extract exact visible text including Chinese, currency symbols, numbers, dates, and punctuation. Represent every visible fact as ordered text, asset, control, or decoration content nodes. Do not use region displayName as visible text. Every non-decorative leaf region must have visible content. Use page-level logical-pixel bounds for regions and content nodes. Create referenced asset definitions under src/assets for avatars, icons, backgrounds, and product images. Include confidence-rated interactions whose triggerNodeId references a control node. Human region overrides: ${JSON.stringify(overrides)}. States: ${JSON.stringify(manifest.states.map(state => ({ id: state.id, screenshot: state.screenshot })))}`
+}
+
+export function clampRegionBounds(bounds: Bounds, width: number, height: number): Bounds {
+  const x = Math.min(Math.max(bounds.x, 0), width - 0.5)
+  const y = Math.min(Math.max(bounds.y, 0), height - 0.5)
+  return {
+    x,
+    y,
+    width: Math.max(0.5, Math.min(bounds.width, width - x)),
+    height: Math.max(0.5, Math.min(bounds.height, height - y)),
+  }
 }
 
 async function existingBindings(root: string) {
@@ -26,11 +44,12 @@ export async function analyzePage(root: string) {
   await model.probe(screenshots[0]!)
   const analyzed = await model.analyzeScreens({
     screenshots,
-    prompt: `Analyze these UI states into Visual IR version 1.0.0. projectId=${manifest.projectId}, pageId=${manifest.pageId}, logical canvas=${manifest.device.width}x${manifest.device.height}. Build maintainable semantic regions with stable kebab-case regionId, bounds in logical pixels, Design Tokens, replaceable asset slots, and confidence-rated interactions. Human region overrides: ${JSON.stringify(overrides)}. States: ${JSON.stringify(manifest.states.map(state => ({ id: state.id, screenshot: state.screenshot })))}`,
+    prompt: buildAnalysisPrompt(manifest, overrides),
   })
   const regions = analyzed.regions.map(region => {
     const normalized: VisualIR['regions'][number] = {
       ...region,
+      bounds: clampRegionBounds(region.bounds, manifest.device.width, manifest.device.height),
       componentPath: previousPaths.get(region.regionId) ?? `src/components/${manifest.pageId}/${componentName(region.regionId)}.vue`,
     }
     const override = overrides[region.regionId]
@@ -54,6 +73,13 @@ export async function analyzePage(root: string) {
     states: manifest.states.map(state => ({ id: state.id, screenshot: state.screenshot })),
     regions,
   })
-  await writeFile(path.join(root, 'visual-ir.json'), JSON.stringify(merged, null, 2))
+  const outputPath = path.join(root, 'visual-ir.json')
+  const temporaryPath = `${outputPath}.tmp`
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(merged, null, 2)}\n`)
+    await rename(temporaryPath, outputPath)
+  } finally {
+    await rm(temporaryPath, { force: true })
+  }
   return merged
 }

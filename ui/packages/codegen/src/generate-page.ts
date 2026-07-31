@@ -1,12 +1,90 @@
-import { VisualIRSchema,isSafeProjectRelativePath } from '@ui-rebuild/contracts'
-import type { RegionNode,VisualIRInput } from '@ui-rebuild/contracts'
+import { VisualIRSchema, isSafeProjectRelativePath } from '@ui-rebuild/contracts'
+import type { RegionNode, VisualIRInput } from '@ui-rebuild/contracts'
 import { writeAssetRegistry } from './asset-registry.js'
 import { assertHealthyGeneratedFiles } from './component-policy.js'
-import { logicalPxToRpx,writeTokens } from './token-writer.js'
-export interface GenerateOptions{logicalWidth:number;assets?:Array<{key:string;path:string}>}
-const pascal=(v:string)=>{const r=v.split('-').map(p=>p[0]!.toUpperCase()+p.slice(1)).join('');if(!/^[A-Z][A-Za-z0-9]*$/u.test(r))throw new Error(`Unsafe component name: ${v}`);return r}
-const escape=(v:string)=>v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')
-function safePath(v:string){return isSafeProjectRelativePath(v)&&/^src\/components\/[a-zA-Z0-9_./-]+\.vue$/u.test(v)}
-function relative(from:string,to:string){const a=from.split('/').slice(0,-1),b=to.split('/');while(a.length>0&&b.length>0&&a[0]===b[0]){a.shift();b.shift()}return `${'../'.repeat(a.length)}${b.join('/').replace(/\.vue$/u,'')}`}
-function component(region:RegionNode,children:RegionNode[],current:string,paths:ReadonlyMap<string,string>,width:number){const imports=children.map(c=>`import ${pascal(c.regionId)} from '${relative(current,paths.get(c.regionId)!)}'`).join('\n');const tags=children.map(c=>`    <${pascal(c.regionId)} />`).join('\n');return `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="semantic-region" data-region-id="${region.regionId}" aria-label="${escape(region.displayName)}">\n${tags}\n</view></template>\n<style scoped lang="scss">.semantic-region{display:flex;flex-direction:column;gap:var(--ui-space-page);min-width:${logicalPxToRpx(region.bounds.width,width)};min-height:${logicalPxToRpx(region.bounds.height,width)};background:var(--ui-color-surface)}</style>\n`}
-export function generatePage(input:VisualIRInput,o:GenerateOptions):Record<string,string>{const ir=VisualIRSchema.parse(input);if(!/^[a-z][a-z0-9-]*$/u.test(ir.pageId))throw new Error(`Unsafe pageId: ${ir.pageId}`);const files:Record<string,string>={},paths=new Map<string,string>(),names=new Set<string>(),componentPaths=new Set<string>();for(const r of ir.regions){const n=pascal(r.regionId);if(names.has(n))throw new Error(`Component name collision: ${n}`);names.add(n);const p=(r.componentPath??`src/components/${ir.pageId}/${n}.vue`).replaceAll('\\','/');if(!safePath(p))throw new Error(`Unsafe componentPath: ${p}`);if(componentPaths.has(p))throw new Error(`Duplicate componentPath: ${p}`);componentPaths.add(p);paths.set(r.regionId,p)}for(const r of ir.regions){const p=paths.get(r.regionId)!;files[p]=component(r,ir.regions.filter(c=>c.parentId===r.regionId),p,paths,o.logicalWidth)}const page=`src/pages/${ir.pageId}/index.vue`,roots=ir.regions.filter(r=>r.parentId===null),imports=roots.map(r=>`import ${pascal(r.regionId)} from '${relative(page,paths.get(r.regionId)!)}'`).join('\n'),tags=roots.map(r=>`    <${pascal(r.regionId)} />`).join('\n');files[page]=`<script setup lang="ts">\n${imports}\n</script>\n<template><view class="page-${ir.pageId}">\n${tags}\n</view></template>\n<style scoped lang="scss">.page-${ir.pageId}{min-height:100vh;padding:var(--ui-space-page);background:var(--ui-color-page)}</style>\n`;files['src/styles/tokens.scss']=writeTokens(ir.tokens,o.logicalWidth);files['src/assets/registry.ts']=writeAssetRegistry(o.assets??[]);assertHealthyGeneratedFiles(files);return files}
+import { renderRegionContent } from './content-renderer.js'
+import { logicalPxToRpx, writeTokens } from './token-writer.js'
+
+export interface GenerateOptions { logicalWidth: number }
+
+const pascal = (value: string) => {
+  const result = value.split('-').map(part => part[0]!.toUpperCase() + part.slice(1)).join('')
+  if (!/^[A-Z][A-Za-z0-9]*$/u.test(result)) throw new Error(`Unsafe component name: ${value}`)
+  return result
+}
+const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+function safePath(value: string) { return isSafeProjectRelativePath(value) && /^src\/components\/[a-zA-Z0-9_./-]+\.vue$/u.test(value) }
+function relative(from: string, to: string) {
+  const source = from.split('/').slice(0, -1)
+  const target = to.split('/')
+  while (source.length > 0 && target.length > 0 && source[0] === target[0]) { source.shift(); target.shift() }
+  const result = `${'../'.repeat(source.length)}${target.join('/').replace(/\.vue$/u, '')}`
+  return result.startsWith('.') ? result : `./${result}`
+}
+
+function component(
+  region: RegionNode,
+  children: RegionNode[],
+  current: string,
+  paths: ReadonlyMap<string, string>,
+  width: number,
+  assetBindings: ReadonlyMap<string, string>,
+  tokens: Parameters<typeof renderRegionContent>[0]['tokens'],
+  parent?: RegionNode,
+) {
+  const rendered = renderRegionContent({ region, logicalWidth: width, assetBindings, tokens })
+  const imports = [
+    ...(rendered.usesAssets ? [`import { assets } from '${relative(current, 'src/assets/registry.ts').replace(/\.ts$/u, '')}'`] : []),
+    ...children.map(child => `import ${pascal(child.regionId)} from '${relative(current, paths.get(child.regionId)!)}'`),
+  ].join('\n')
+  const body = [rendered.markup, ...children.map(child => `    <${pascal(child.regionId)} />`)].filter(Boolean).join('\n')
+  const x = region.bounds.x - (parent?.bounds.x ?? 0)
+  const y = region.bounds.y - (parent?.bounds.y ?? 0)
+  return `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="semantic-region" data-region-id="${region.regionId}" aria-label="${escape(region.displayName)}">\n${body}\n</view></template>\n<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:${logicalPxToRpx(x, width)};top:${logicalPxToRpx(y, width)};width:${logicalPxToRpx(region.bounds.width, width)};height:${logicalPxToRpx(region.bounds.height, width)};background:var(--ui-color-surface)}\n${rendered.styles}</style>\n`
+}
+
+export function generatePage(input: VisualIRInput, options: GenerateOptions): Record<string, string> {
+  const ir = VisualIRSchema.parse(input)
+  if (!/^[a-z][a-z0-9-]*$/u.test(ir.pageId)) throw new Error(`Unsafe pageId: ${ir.pageId}`)
+  const files: Record<string, string> = {}
+  const paths = new Map<string, string>()
+  const names = new Set<string>()
+  const componentPaths = new Set<string>()
+  const assetRegistry = writeAssetRegistry(ir.assets)
+
+  for (const region of ir.regions) {
+    const name = pascal(region.regionId)
+    if (names.has(name)) throw new Error(`Component name collision: ${name}`)
+    names.add(name)
+    const componentPath = (region.componentPath ?? `src/components/${ir.pageId}/${name}.vue`).replaceAll('\\', '/')
+    if (!safePath(componentPath)) throw new Error(`Unsafe componentPath: ${componentPath}`)
+    if (componentPaths.has(componentPath)) throw new Error(`Duplicate componentPath: ${componentPath}`)
+    componentPaths.add(componentPath)
+    paths.set(region.regionId, componentPath)
+  }
+
+  for (const region of ir.regions) {
+    const componentPath = paths.get(region.regionId)!
+    files[componentPath] = component(
+      region,
+      ir.regions.filter(child => child.parentId === region.regionId),
+      componentPath,
+      paths,
+      options.logicalWidth,
+      assetRegistry.bindings,
+      ir.tokens,
+      ir.regions.find(parent => parent.regionId === region.parentId),
+    )
+  }
+
+  const page = `src/pages/${ir.pageId}/index.vue`
+  const roots = ir.regions.filter(region => region.parentId === null)
+  const imports = roots.map(region => `import ${pascal(region.regionId)} from '${relative(page, paths.get(region.regionId)!)}'`).join('\n')
+  const tags = roots.map(region => `    <${pascal(region.regionId)} />`).join('\n')
+  files[page] = `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="page-${ir.pageId}">\n${tags}\n</view></template>\n<style scoped lang="scss">.page-${ir.pageId}{position:relative;width:100vw;min-height:100vh;overflow:hidden;background:var(--ui-color-page)}</style>\n`
+  files['src/pages.json'] = `${JSON.stringify({ pages: [{ path: `pages/${ir.pageId}/index`, style: { navigationStyle: 'custom' } }], globalStyle: { backgroundColor: '#f5f6f8' } }, null, 2)}\n`
+  files['src/styles/tokens.scss'] = writeTokens(ir.tokens, options.logicalWidth)
+  files['src/assets/registry.ts'] = assetRegistry.source
+  assertHealthyGeneratedFiles(files)
+  return files
+}

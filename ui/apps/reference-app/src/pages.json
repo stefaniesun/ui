@@ -1,1 +1,13 @@
-{"pages":[{"path":"pages/profile/index","style":{"navigationStyle":"custom"}}],"globalStyle":{"backgroundColor":"#f5f6f8"}}
+{
+  "pages": [
+    {
+      "path": "pages/xunlei-member/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "backgroundColor": "#f5f6f8"
+  }
+}
