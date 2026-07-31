@@ -33,7 +33,7 @@ function component(
   const imports = rendered.usesAssets
     ? `import { assets } from '${relative(current, 'src/assets/registry.ts').replace(/\.ts$/u, '')}'`
     : ''
-  return `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="semantic-region" data-region-id="${region.regionId}" aria-label="${escape(region.displayName)}">\n${rendered.markup}\n</view></template>\n<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:${logicalPxToRpx(region.bounds.x, width)};top:${logicalPxToRpx(region.bounds.y, width)};width:${logicalPxToRpx(region.bounds.width, width)};height:${logicalPxToRpx(region.bounds.height, width)};background:var(--ui-color-surface)}\n${rendered.styles}</style>\n`
+  return `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="semantic-region" data-region-id="${region.regionId}" aria-label="${escape(region.displayName)}">\n${rendered.markup}\n</view></template>\n<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:${logicalPxToRpx(region.bounds.x, width)};top:${logicalPxToRpx(region.bounds.y, width)};width:${logicalPxToRpx(region.bounds.width, width)};height:${logicalPxToRpx(region.bounds.height, width)};background:transparent}\n${rendered.styles}</style>\n`
 }
 
 export function generatePage(input: VisualIRInput, options: GenerateOptions): Record<string, string> {

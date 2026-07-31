@@ -6,7 +6,7 @@ import { assets } from '../../assets/registry'
     <image class="content-node content-asset content-back-icon" data-content-id="back-icon" :src="assets.iconBack" alt="返回" mode="aspectFit" />
     <text class="content-node content-text content-page-title" data-content-id="page-title">购买会员</text>
 </view></template>
-<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:30.76923076923077rpx;top:38.46153846153846rpx;width:688.4615384615385rpx;height:51.92307692307693rpx;background:var(--ui-color-surface)}
+<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:30.76923076923077rpx;top:38.46153846153846rpx;width:688.4615384615385rpx;height:71.15384615384616rpx;background:transparent}
 .content-node{position:absolute;box-sizing:border-box}
 .content-control{appearance:none;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0}
 .content-back-control{left:0rpx;top:0rpx;width:53.84615384615385rpx;height:51.92307692307693rpx}

@@ -23,7 +23,7 @@ import { assets } from '../../assets/registry'
     <text class="content-node content-text content-cloud-playback-quality-value" data-content-id="cloud-playback-quality-value">支持所有</text>
     <text class="content-node content-text content-platinum-playback-quality-value" data-content-id="platinum-playback-quality-value">720P/480P</text>
 </view></template>
-<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:38.46153846153846rpx;top:809.6153846153846rpx;width:673.0769230769231rpx;height:461.53846153846155rpx;background:var(--ui-color-surface)}
+<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:38.46153846153846rpx;top:809.6153846153846rpx;width:673.0769230769231rpx;height:461.53846153846155rpx;background:transparent}
 .content-node{position:absolute;box-sizing:border-box}
 .content-control{appearance:none;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0}
 .content-benefit-label-column-surface{left:0rpx;top:0rpx;width:225rpx;height:461.53846153846155rpx;background:var(--ui-color-surface-subtle);border-radius:21.153846153846153rpx}

@@ -6,7 +6,7 @@
     <button class="content-node content-control content-payment-submit-control" data-content-id="payment-submit-control" aria-label="立即支付 ¥18"></button>
     <text class="content-node content-text content-payment-button-label" data-content-id="payment-button-label">立即支付 ¥18</text>
 </view></template>
-<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:38.46153846153846rpx;top:1313.4615384615386rpx;width:673.0769230769231rpx;height:103.84615384615385rpx;background:var(--ui-color-surface)}
+<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:38.46153846153846rpx;top:1313.4615384615386rpx;width:673.0769230769231rpx;height:103.84615384615385rpx;background:transparent}
 .content-node{position:absolute;box-sizing:border-box}
 .content-control{appearance:none;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0}
 .content-payment-button-background{left:0rpx;top:0rpx;width:673.0769230769231rpx;height:103.84615384615385rpx;background:var(--ui-color-surface-gold-strong);border-radius:21.153846153846153rpx}

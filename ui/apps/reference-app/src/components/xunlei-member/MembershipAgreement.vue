@@ -8,7 +8,7 @@
     <button class="content-node content-control content-agreement-link-control" data-content-id="agreement-link-control" aria-label="《会员协议》"></button>
     <text class="content-node content-text content-agreement-link-label" data-content-id="agreement-link-label">《会员协议》</text>
 </view></template>
-<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:234.6153846153846rpx;top:1444.2307692307693rpx;width:282.6923076923077rpx;height:36.53846153846154rpx;background:var(--ui-color-surface)}
+<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:234.6153846153846rpx;top:1444.2307692307693rpx;width:282.6923076923077rpx;height:36.53846153846154rpx;background:transparent}
 .content-node{position:absolute;box-sizing:border-box}
 .content-control{appearance:none;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0}
 .content-agreement-radio-outline{left:0rpx;top:1.9230769230769231rpx;width:28.846153846153847rpx;height:28.846153846153847rpx;background:var(--ui-color-control-outline);border-radius:15.384615384615385rpx}

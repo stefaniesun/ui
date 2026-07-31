@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { VisualIRSchema } from '@ui-rebuild/contracts'
 import { describe, expect, it } from 'vitest'
 import { generatePage } from './generate-page.js'
 import { inspectGeneratedFiles } from './component-policy.js'
@@ -22,6 +25,45 @@ const ir = {
   assets: [{ assetId: 'avatar-default', regionId: 'owner-services', role: 'avatar' as const,
     source: 'src/assets/profile/avatar.png', mediaType: 'image/png' as const }], interactions: [],
 }
+
+describe('xunlei member top layout', () => {
+  const fixturePath = fileURLToPath(new URL('../../../fixtures/xunlei-member/visual-ir.json', import.meta.url))
+  const fixture = VisualIRSchema.parse(JSON.parse(readFileSync(fixturePath, 'utf8')))
+  const regions = new Map(fixture.regions.map(region => [region.regionId, region]))
+
+  it('keeps the account copy and plan cards deterministic', () => {
+    const accountNames = regions.get('account-summary')!.content.filter(node => node.nodeId === 'account-name')
+    expect(accountNames).toHaveLength(1)
+    expect(accountNames[0]).toMatchObject({ kind: 'text', text: '设计师 mx（1 登录）' })
+
+    const cards = ['plan-one-month', 'plan-three-months', 'plan-twelve-months'].map(id => regions.get(id)!)
+    expect(cards.map(card => ({ x: card.bounds.x, width: card.bounds.width }))).toEqual([
+      { x: 20, width: 110 }, { x: 140, width: 110 }, { x: 260, width: 110 },
+    ])
+    expect(cards.every(card => card.bounds.x + card.bounds.width <= 390)).toBe(true)
+    expect(fixture.assets.some(asset => asset.assetId === 'background-plan-gold')).toBe(false)
+    expect(cards[0]!.content).toContainEqual(expect.objectContaining({ kind: 'decoration', nodeId: 'one-month-surface' }))
+  })
+
+  it('keeps top content inside its semantic region and strikes only old prices', () => {
+    for (const regionId of ['page-header', 'account-summary', 'membership-tier-tabs', 'plan-one-month', 'plan-three-months', 'plan-twelve-months']) {
+      const region = regions.get(regionId)!
+      for (const node of region.content) {
+        expect(node.bounds.x).toBeGreaterThanOrEqual(region.bounds.x)
+        expect(node.bounds.y).toBeGreaterThanOrEqual(region.bounds.y)
+        expect(node.bounds.x + node.bounds.width).toBeLessThanOrEqual(region.bounds.x + region.bounds.width)
+        expect(node.bounds.y + node.bounds.height).toBeLessThanOrEqual(region.bounds.y + region.bounds.height)
+      }
+    }
+    for (const prefix of ['three-month', 'twelve-month']) {
+      const content = regions.get(`plan-${prefix.replace('-month', '-months')}`)!.content
+      const oldPrice = content.find(node => node.nodeId === `${prefix}-old-price`)!
+      const strike = content.find(node => node.nodeId === `${prefix}-old-price-strike`)!
+      expect(strike.bounds.x).toBe(oldPrice.bounds.x)
+      expect(strike.bounds.width).toBe(oldPrice.bounds.width)
+    }
+  })
+})
 
 describe('generatePage', () => {
   it('generates semantic regions, tokens and data-driven grids', () => {
@@ -54,6 +96,8 @@ describe('generatePage', () => {
     expect(nestedFiles['src/components/profile/ServiceItem.vue'])
       .toContain(`left:${16 * (750 / 396)}rpx;top:${300 * (750 / 396)}rpx`)
     expect(Object.values(files).join('\n')).not.toContain('reference/default.png')
+    expect(files['src/components/profile/OwnerServices.vue']).toMatch(/\.semantic-region\{[^}]*background:transparent\}/u)
+    expect(files['src/components/profile/OwnerServices.vue']).not.toContain('background:var(--ui-color-surface)')
     expect(files['src/styles/tokens.scss']).toContain(`${16 * (750 / 396)}rpx`)
     expect(generatePage({
       ...ir,
