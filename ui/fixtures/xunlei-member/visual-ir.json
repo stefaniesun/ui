@@ -6,162 +6,122 @@
   "tokens": {
     "colors": {
       "page.background": "#FFFFFF",
-      "header.gradient": "linear-gradient(135deg, #FFDA70 0%, #F6D98D 100%)",
+      "hero.background": "#FFDF86",
       "surface.primary": "#FFFFFF",
       "surface.subtle": "#FAFAFA",
       "surface.muted": "#F7F7F7",
-      "surface.browser-pill": "#FFFFFF",
-      "surface.selected-plan": "linear-gradient(145deg, #FFEDA9 0%, #FFF6D2 100%)",
-      "surface.platinum-column": "linear-gradient(180deg, #FFF0B4 0%, #FFF9E5 100%)",
-      "surface.cta": "linear-gradient(90deg, #FFE27C 0%, #FFEDB0 100%)",
-      "text.primary": "#17171D",
-      "text.header": "#7F3E00",
-      "text.header-secondary": "#A36C25",
-      "text.platinum": "#854300",
-      "text.cloud": "#7543F5",
-      "text.secondary": "#55555C",
-      "text.muted": "#9A9A9F",
-      "text.disabled": "#BEBEBE",
-      "text.white": "#FFFFFF",
-      "border.subtle": "#E4E4E4",
-      "divider": "#F5F5F5",
-      "icon.black": "#000000",
-      "icon.header": "#8A480C",
-      "icon.platinum": "#E99A14",
-      "icon.cloud": "#7651F7",
-      "agreement.unchecked": "#E2E2E2"
+      "surface.gold": "#FFF0B5",
+      "surface.gold-strong": "#FFE38A",
+      "text.primary": "#202124",
+      "text.secondary": "#8D8D8D",
+      "text.muted": "#B5B5B5",
+      "text.brown": "#7A3600",
+      "text.gold": "#A85B00",
+      "text.purple": "#7C5CFF",
+      "icon.dark": "#5B3B19",
+      "icon.check": "#4A4F55",
+      "divider.light": "#F3F3F3",
+      "divider.muted": "#D6D6D6",
+      "control.outline": "#E2E2E2"
     },
     "typography": {
-      "status.time": {
-        "fontFamily": "system-ui, sans-serif",
-        "fontSize": 17,
+      "title.page": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 18,
         "fontWeight": 600,
-        "lineHeight": 21
+        "lineHeight": 25
       },
-      "browser.domain": {
-        "fontFamily": "system-ui, sans-serif",
-        "fontSize": 12,
-        "fontWeight": 700,
-        "lineHeight": 16
-      },
-      "page.title": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 17,
-        "fontWeight": 600,
-        "lineHeight": 24
-      },
-      "profile.name": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 15,
-        "fontWeight": 600,
-        "lineHeight": 21
-      },
-      "profile.meta": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 14,
-        "fontWeight": 400,
-        "lineHeight": 20
-      },
-      "profile.subtitle": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 14,
-        "fontWeight": 400,
-        "lineHeight": 20
-      },
-      "tab.active": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 17,
-        "fontWeight": 600,
-        "lineHeight": 24
-      },
-      "tab.inactive": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 17,
-        "fontWeight": 600,
-        "lineHeight": 24
-      },
-      "plan.duration": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 15,
+      "account.name": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 16,
         "fontWeight": 500,
-        "lineHeight": 21
+        "lineHeight": 22
       },
-      "plan.price": {
-        "fontFamily": "system-ui, sans-serif",
-        "fontSize": 39,
-        "fontWeight": 700,
-        "lineHeight": 44
-      },
-      "plan.original-price": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 13,
-        "fontWeight": 400,
-        "lineHeight": 18,
-        "textDecoration": "line-through"
-      },
-      "section.title": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 17,
-        "fontWeight": 600,
-        "lineHeight": 24
-      },
-      "section.caption": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
+      "body.small": {
+        "fontFamily": "PingFang SC, sans-serif",
         "fontSize": 13,
         "fontWeight": 400,
         "lineHeight": 19
       },
-      "table.header": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 14,
+      "tab.label": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 17,
         "fontWeight": 600,
-        "lineHeight": 20
+        "lineHeight": 24
       },
-      "table.header-muted": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
+      "plan.term": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 16,
+        "fontWeight": 500,
+        "lineHeight": 23
+      },
+      "plan.price": {
+        "fontFamily": "Arial, PingFang SC, sans-serif",
+        "fontSize": 42,
+        "fontWeight": 700,
+        "lineHeight": 48
+      },
+      "plan.old-price": {
+        "fontFamily": "PingFang SC, sans-serif",
         "fontSize": 13,
         "fontWeight": 400,
+        "lineHeight": 18
+      },
+      "section.title": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 16,
+        "fontWeight": 600,
+        "lineHeight": 23
+      },
+      "section.note": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 12,
+        "fontWeight": 400,
+        "lineHeight": 18
+      },
+      "table.header": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 13,
+        "fontWeight": 600,
         "lineHeight": 19
       },
       "table.body": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
+        "fontFamily": "PingFang SC, sans-serif",
         "fontSize": 13,
         "fontWeight": 400,
         "lineHeight": 19
       },
       "table.emphasis": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
+        "fontFamily": "PingFang SC, sans-serif",
         "fontSize": 13,
         "fontWeight": 600,
         "lineHeight": 19
       },
-      "cta.label": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
+      "button.primary": {
+        "fontFamily": "PingFang SC, sans-serif",
         "fontSize": 18,
         "fontWeight": 600,
         "lineHeight": 25
       },
-      "agreement.label": {
-        "fontFamily": "PingFang SC, system-ui, sans-serif",
-        "fontSize": 12,
+      "agreement": {
+        "fontFamily": "PingFang SC, sans-serif",
+        "fontSize": 11,
         "fontWeight": 400,
-        "lineHeight": 17
+        "lineHeight": 16
       }
     },
     "spacing": {
-      "page.horizontal": 20,
+      "page.gutter": 20,
       "section.gap": 20,
       "card.gap": 10,
-      "table.row": 46,
-      "control.min-height": 44
+      "table.row": 47,
+      "control.height": 53
     },
     "radii": {
-      "browser-pill": 24,
-      "membership-panel": 18,
-      "plan-card": 13,
-      "table-card": 12,
-      "cta": 13,
-      "agreement-indicator": 8
+      "surface.top": 18,
+      "card": 11,
+      "button": 11,
+      "radio": 8
     }
   },
   "states": [
@@ -172,294 +132,82 @@
   ],
   "regions": [
     {
-      "regionId": "xunlei-member-page",
-      "displayName": "Xunlei member purchase page",
+      "regionId": "member-page",
+      "displayName": "Member page",
       "aliases": [
-        "member-page",
-        "purchase-page"
+        "page",
+        "membership-page"
       ],
       "parentId": null,
       "bounds": {
         "x": 0,
         "y": 0,
         "width": 390,
-        "height": 844
+        "height": 781
       },
       "source": "model",
       "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/XunleiMemberPage.vue",
-      "selector": "#xunlei-member-page",
+      "componentPath": "src/components/xunlei-member/MemberPage.vue",
+      "selector": "main.member-page",
       "content": [],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "header-background",
-      "displayName": "Header gradient background",
+      "regionId": "member-hero",
+      "displayName": "Membership hero",
       "aliases": [
-        "hero-background"
+        "hero",
+        "account-hero"
       ],
-      "parentId": "xunlei-member-page",
+      "parentId": "member-page",
       "bounds": {
         "x": 0,
         "y": 0,
         "width": 390,
-        "height": 177
+        "height": 137
       },
       "source": "model",
       "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/HeaderBackground.vue",
-      "selector": "#header-background",
+      "componentPath": "src/components/xunlei-member/MemberHero.vue",
+      "selector": "section.member-hero",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "header-background-surface",
+          "nodeId": "hero-background",
           "decoration": "surface",
           "bounds": {
             "x": 0,
             "y": 0,
             "width": 390,
-            "height": 177
+            "height": 137
           },
-          "colorToken": "header.gradient",
-          "radiusToken": "membership-panel"
+          "colorToken": "hero.background",
+          "radiusToken": "surface.top"
         }
       ],
-      "decorationOnly": true,
+      "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "status-bar",
-      "displayName": "Browser status bar",
+      "regionId": "page-header",
+      "displayName": "Page header",
       "aliases": [
-        "system-status"
+        "header",
+        "navigation-header"
       ],
-      "parentId": "xunlei-member-page",
+      "parentId": "member-hero",
       "bounds": {
-        "x": 20,
-        "y": 8,
-        "width": 350,
+        "x": 16,
+        "y": 20,
+        "width": 358,
         "height": 27
       },
       "source": "model",
-      "confidence": 0.98,
-      "componentPath": "src/components/xunlei-member/StatusBar.vue",
-      "selector": "#status-bar",
-      "content": [],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "status-time",
-      "displayName": "Current time",
-      "aliases": [
-        "time"
-      ],
-      "parentId": "status-bar",
-      "bounds": {
-        "x": 40,
-        "y": 17,
-        "width": 47,
-        "height": 18
-      },
-      "source": "model",
       "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/StatusTime.vue",
-      "selector": "#status-time",
+      "componentPath": "src/components/xunlei-member/PageHeader.vue",
+      "selector": "header.page-header",
       "content": [
-        {
-          "kind": "text",
-          "nodeId": "status-time-text",
-          "text": "14:54",
-          "role": "label",
-          "bounds": {
-            "x": 40,
-            "y": 17,
-            "width": 47,
-            "height": 18
-          },
-          "typographyToken": "status.time",
-          "colorToken": "text.primary"
-        }
-      ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "browser-origin",
-      "displayName": "Browser origin pill",
-      "aliases": [
-        "address-pill"
-      ],
-      "parentId": "status-bar",
-      "bounds": {
-        "x": 146,
-        "y": 8,
-        "width": 98,
-        "height": 25
-      },
-      "source": "model",
-      "confidence": 0.98,
-      "componentPath": "src/components/xunlei-member/BrowserOrigin.vue",
-      "selector": "#browser-origin",
-      "content": [
-        {
-          "kind": "decoration",
-          "nodeId": "browser-origin-surface",
-          "decoration": "surface",
-          "bounds": {
-            "x": 146,
-            "y": 8,
-            "width": 98,
-            "height": 25
-          },
-          "colorToken": "surface.browser-pill",
-          "radiusToken": "browser-pill"
-        },
-        {
-          "kind": "asset",
-          "nodeId": "site-mark-image",
-          "assetId": "site-mark",
-          "alt": "uinotes site mark",
-          "bounds": {
-            "x": 152,
-            "y": 14,
-            "width": 13,
-            "height": 13
-          },
-          "fit": "contain"
-        },
-        {
-          "kind": "text",
-          "nodeId": "browser-domain-text",
-          "text": "uinotes.com",
-          "role": "label",
-          "bounds": {
-            "x": 168,
-            "y": 14,
-            "width": 69,
-            "height": 14
-          },
-          "typographyToken": "browser.domain",
-          "colorToken": "text.primary"
-        }
-      ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "status-connectivity",
-      "displayName": "Connectivity and battery indicators",
-      "aliases": [
-        "system-indicators"
-      ],
-      "parentId": "status-bar",
-      "bounds": {
-        "x": 285,
-        "y": 18,
-        "width": 79,
-        "height": 15
-      },
-      "source": "model",
-      "confidence": 0.97,
-      "componentPath": "src/components/xunlei-member/StatusConnectivity.vue",
-      "selector": "#status-connectivity",
-      "content": [
-        {
-          "kind": "asset",
-          "nodeId": "cellular-indicator-image",
-          "assetId": "cellular-indicator",
-          "alt": "Cellular signal indicator",
-          "bounds": {
-            "x": 285,
-            "y": 28,
-            "width": 20,
-            "height": 4
-          },
-          "fit": "contain"
-        },
-        {
-          "kind": "asset",
-          "nodeId": "wifi-indicator-image",
-          "assetId": "wifi-indicator",
-          "alt": "Wi-Fi indicator",
-          "bounds": {
-            "x": 312,
-            "y": 19,
-            "width": 18,
-            "height": 13
-          },
-          "fit": "contain"
-        },
-        {
-          "kind": "asset",
-          "nodeId": "battery-indicator-image",
-          "assetId": "battery-indicator",
-          "alt": "Battery indicator",
-          "bounds": {
-            "x": 336,
-            "y": 19,
-            "width": 28,
-            "height": 13
-          },
-          "fit": "contain"
-        }
-      ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "purchase-header",
-      "displayName": "Purchase header and member profile",
-      "aliases": [
-        "member-header"
-      ],
-      "parentId": "xunlei-member-page",
-      "bounds": {
-        "x": 20,
-        "y": 66,
-        "width": 350,
-        "height": 80
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/PurchaseHeader.vue",
-      "selector": "#purchase-header",
-      "content": [],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "purchase-navigation",
-      "displayName": "Purchase navigation",
-      "aliases": [
-        "top-navigation"
-      ],
-      "parentId": "purchase-header",
-      "bounds": {
-        "x": 20,
-        "y": 66,
-        "width": 350,
-        "height": 21
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/PurchaseNavigation.vue",
-      "selector": "#purchase-navigation",
-      "content": [
-        {
-          "kind": "asset",
-          "nodeId": "back-arrow-image",
-          "assetId": "back-arrow",
-          "alt": "Back arrow",
-          "bounds": {
-            "x": 20,
-            "y": 68,
-            "width": 18,
-            "height": 15
-          },
-          "fit": "contain"
-        },
         {
           "kind": "control",
           "nodeId": "back-control",
@@ -467,193 +215,202 @@
           "label": "返回",
           "bounds": {
             "x": 16,
-            "y": 61,
-            "width": 32,
-            "height": 30
+            "y": 20,
+            "width": 28,
+            "height": 27
           },
           "actionId": "navigate-back"
         },
         {
+          "kind": "asset",
+          "nodeId": "back-icon",
+          "assetId": "icon-back",
+          "alt": "返回",
+          "bounds": {
+            "x": 20,
+            "y": 25,
+            "width": 18,
+            "height": 15
+          },
+          "fit": "contain"
+        },
+        {
           "kind": "text",
-          "nodeId": "purchase-title-text",
+          "nodeId": "page-title",
           "text": "购买会员",
           "role": "title",
           "bounds": {
             "x": 161,
-            "y": 67,
+            "y": 24,
             "width": 68,
-            "height": 24
+            "height": 25
           },
-          "typographyToken": "page.title",
-          "colorToken": "text.header"
+          "typographyToken": "title.page",
+          "colorToken": "text.brown"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "member-profile-avatar",
-      "displayName": "Member avatar",
+      "regionId": "account-summary",
+      "displayName": "Account summary",
       "aliases": [
-        "profile-avatar"
+        "account",
+        "profile-summary"
       ],
-      "parentId": "purchase-header",
+      "parentId": "member-hero",
       "bounds": {
         "x": 20,
-        "y": 105,
-        "width": 36,
-        "height": 36
+        "y": 61,
+        "width": 277,
+        "height": 39
       },
       "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/MemberProfileAvatar.vue",
-      "selector": "#member-profile-avatar",
+      "confidence": 0.96,
+      "componentPath": "src/components/xunlei-member/AccountSummary.vue",
+      "selector": "section.account-summary",
       "content": [
         {
           "kind": "asset",
-          "nodeId": "designer-avatar-image",
-          "assetId": "designer-avatar",
-          "alt": "Designer mx avatar",
+          "nodeId": "account-avatar",
+          "assetId": "avatar-designer-mx",
+          "alt": "设计师mx头像",
           "bounds": {
             "x": 20,
-            "y": 105,
+            "y": 62,
             "width": 36,
             "height": 36
           },
           "fit": "cover"
-        }
-      ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "member-profile-copy",
-      "displayName": "Member identity and status",
-      "aliases": [
-        "profile-copy"
-      ],
-      "parentId": "purchase-header",
-      "bounds": {
-        "x": 68,
-        "y": 106,
-        "width": 205,
-        "height": 35
-      },
-      "source": "model",
-      "confidence": 0.97,
-      "componentPath": "src/components/xunlei-member/MemberProfileCopy.vue",
-      "selector": "#member-profile-copy",
-      "content": [
-        {
-          "kind": "text",
-          "nodeId": "member-name-text",
-          "text": "设计师 mx",
-          "role": "label",
-          "bounds": {
-            "x": 68,
-            "y": 106,
-            "width": 73,
-            "height": 20
-          },
-          "typographyToken": "profile.name",
-          "colorToken": "text.header"
         },
         {
           "kind": "text",
-          "nodeId": "member-login-meta-text",
-          "text": "（1 登录）",
-          "role": "caption",
-          "bounds": {
-            "x": 143,
-            "y": 107,
-            "width": 116,
-            "height": 19
-          },
-          "typographyToken": "profile.meta",
-          "colorToken": "text.header-secondary"
-        },
-        {
-          "kind": "text",
-          "nodeId": "member-status-text",
-          "text": "您还不是白金会员，开通立享特权",
+          "nodeId": "account-name-prefix",
+          "text": "设计师mx（1",
           "role": "body",
           "bounds": {
-            "x": 68,
-            "y": 128,
-            "width": 193,
+            "x": 67,
+            "y": 64,
+            "width": 89,
+            "height": 22
+          },
+          "typographyToken": "account.name",
+          "colorToken": "text.brown"
+        },
+        {
+          "kind": "text",
+          "nodeId": "account-login",
+          "text": "登录）",
+          "role": "label",
+          "bounds": {
+            "x": 225,
+            "y": 65,
+            "width": 36,
             "height": 19
           },
-          "typographyToken": "profile.subtitle",
-          "colorToken": "text.header-secondary"
+          "typographyToken": "body.small",
+          "colorToken": "text.brown"
+        },
+        {
+          "kind": "text",
+          "nodeId": "account-membership-status",
+          "text": "您还不是白金会员，开通立享特权",
+          "role": "caption",
+          "bounds": {
+            "x": 67,
+            "y": 86,
+            "width": 230,
+            "height": 19
+          },
+          "typographyToken": "body.small",
+          "colorToken": "text.brown"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "membership-selector",
-      "displayName": "Membership type and plan selector",
+      "regionId": "plan-selection",
+      "displayName": "Plan selection",
       "aliases": [
+        "plans",
         "membership-plans"
       ],
-      "parentId": "xunlei-member-page",
+      "parentId": "member-page",
       "bounds": {
         "x": 0,
-        "y": 163,
+        "y": 120,
         "width": 390,
-        "height": 231
+        "height": 230
       },
       "source": "model",
       "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/MembershipSelector.vue",
-      "selector": "#membership-selector",
-      "content": [],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "membership-tabs",
-      "displayName": "Membership type tabs",
-      "aliases": [
-        "type-tabs"
-      ],
-      "parentId": "membership-selector",
-      "bounds": {
-        "x": 0,
-        "y": 163,
-        "width": 390,
-        "height": 50
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/MembershipTabs.vue",
-      "selector": "#membership-tabs",
+      "componentPath": "src/components/xunlei-member/PlanSelection.vue",
+      "selector": "section.plan-selection",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "membership-tabs-surface",
+          "nodeId": "plan-selection-surface",
           "decoration": "surface",
           "bounds": {
             "x": 0,
-            "y": 163,
+            "y": 120,
             "width": 390,
-            "height": 50
+            "height": 230
           },
           "colorToken": "surface.primary",
-          "radiusToken": "membership-panel"
-        },
+          "radiusToken": "surface.top"
+        }
+      ],
+      "decorationOnly": false,
+      "lockedByHuman": false
+    },
+    {
+      "regionId": "membership-tier-tabs",
+      "displayName": "Membership tier tabs",
+      "aliases": [
+        "tier-tabs",
+        "membership-tabs"
+      ],
+      "parentId": "plan-selection",
+      "bounds": {
+        "x": 36,
+        "y": 133,
+        "width": 318,
+        "height": 28
+      },
+      "source": "model",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/MembershipTierTabs.vue",
+      "selector": "nav.membership-tier-tabs",
+      "content": [
         {
           "kind": "control",
           "nodeId": "platinum-tab-control",
           "control": "button",
           "label": "白金会员",
           "bounds": {
-            "x": 65,
-            "y": 180,
-            "width": 72,
+            "x": 54,
+            "y": 132,
+            "width": 99,
+            "height": 31
+          },
+          "actionId": "select-platinum-tier"
+        },
+        {
+          "kind": "text",
+          "nodeId": "platinum-tab-label",
+          "text": "白金会员",
+          "role": "label",
+          "bounds": {
+            "x": 71,
+            "y": 136,
+            "width": 68,
             "height": 24
           },
-          "actionId": "select-platinum-membership"
+          "typographyToken": "tab.label",
+          "colorToken": "text.brown"
         },
         {
           "kind": "control",
@@ -661,775 +418,728 @@
           "control": "button",
           "label": "云盘会员",
           "bounds": {
-            "x": 251,
-            "y": 180,
+            "x": 236,
+            "y": 132,
+            "width": 99,
+            "height": 31
+          },
+          "actionId": "select-cloud-tier"
+        },
+        {
+          "kind": "text",
+          "nodeId": "cloud-tab-label",
+          "text": "云盘会员",
+          "role": "label",
+          "bounds": {
+            "x": 252,
+            "y": 136,
             "width": 68,
             "height": 24
           },
-          "actionId": "select-cloud-membership"
+          "typographyToken": "tab.label",
+          "colorToken": "text.gold"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "plan-carousel",
-      "displayName": "Scrollable membership plans",
+      "regionId": "plan-one-month",
+      "displayName": "One month plan",
       "aliases": [
-        "pricing-carousel"
+        "selected-plan",
+        "one-month-plan"
       ],
-      "parentId": "membership-selector",
-      "bounds": {
-        "x": 0,
-        "y": 213,
-        "width": 390,
-        "height": 181
-      },
-      "source": "model",
-      "confidence": 0.98,
-      "componentPath": "src/components/xunlei-member/PlanCarousel.vue",
-      "selector": "#plan-carousel",
-      "content": [],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "one-month-plan",
-      "displayName": "Selected one month plan",
-      "aliases": [
-        "selected-plan"
-      ],
-      "parentId": "plan-carousel",
+      "parentId": "plan-selection",
       "bounds": {
         "x": 20,
-        "y": 229,
+        "y": 186,
         "width": 131,
-        "height": 151
+        "height": 152
       },
       "source": "model",
       "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/OneMonthPlan.vue",
-      "selector": "#one-month-plan",
+      "componentPath": "src/components/xunlei-member/PlanOneMonth.vue",
+      "selector": "button.plan-card[data-plan='1-month']",
       "content": [
         {
-          "kind": "decoration",
-          "nodeId": "one-month-plan-surface",
-          "decoration": "surface",
+          "kind": "asset",
+          "nodeId": "one-month-background",
+          "assetId": "background-plan-gold",
+          "alt": "已选套餐金色背景",
           "bounds": {
             "x": 20,
-            "y": 229,
+            "y": 186,
             "width": 131,
-            "height": 151
+            "height": 152
           },
-          "colorToken": "surface.selected-plan",
-          "radiusToken": "plan-card"
+          "fit": "fill"
         },
         {
           "kind": "control",
           "nodeId": "one-month-plan-control",
           "control": "button",
-          "label": "1个月",
+          "label": "1个月，¥18",
           "bounds": {
-            "x": 66,
-            "y": 259,
-            "width": 43,
-            "height": 22
+            "x": 20,
+            "y": 186,
+            "width": 131,
+            "height": 152
           },
           "actionId": "select-one-month-plan"
         },
         {
           "kind": "text",
-          "nodeId": "one-month-price-text",
+          "nodeId": "one-month-term",
+          "text": "1个月",
+          "role": "label",
+          "bounds": {
+            "x": 66,
+            "y": 215,
+            "width": 39,
+            "height": 23
+          },
+          "typographyToken": "plan.term",
+          "colorToken": "text.brown"
+        },
+        {
+          "kind": "text",
+          "nodeId": "one-month-price",
           "text": "¥18",
           "role": "price",
           "bounds": {
             "x": 58,
-            "y": 285,
+            "y": 240,
             "width": 57,
-            "height": 41
+            "height": 48
           },
           "typographyToken": "plan.price",
-          "colorToken": "text.platinum"
+          "colorToken": "text.brown"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "three-month-plan",
+      "regionId": "plan-three-months",
       "displayName": "Three month plan",
       "aliases": [
-        "quarter-plan"
+        "three-month-plan"
       ],
-      "parentId": "plan-carousel",
+      "parentId": "plan-selection",
       "bounds": {
         "x": 161,
-        "y": 229,
+        "y": 186,
         "width": 131,
-        "height": 151
+        "height": 152
       },
       "source": "model",
       "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/ThreeMonthPlan.vue",
-      "selector": "#three-month-plan",
+      "componentPath": "src/components/xunlei-member/PlanThreeMonths.vue",
+      "selector": "button.plan-card[data-plan='3-months']",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "three-month-plan-surface",
+          "nodeId": "three-month-surface",
           "decoration": "surface",
           "bounds": {
             "x": 161,
-            "y": 229,
+            "y": 186,
             "width": 131,
-            "height": 151
+            "height": 152
           },
           "colorToken": "surface.primary",
-          "radiusToken": "plan-card"
-        },
-        {
-          "kind": "decoration",
-          "nodeId": "three-month-plan-border",
-          "decoration": "shape",
-          "bounds": {
-            "x": 161,
-            "y": 229,
-            "width": 131,
-            "height": 151
-          },
-          "colorToken": "border.subtle",
-          "radiusToken": "plan-card"
+          "radiusToken": "card"
         },
         {
           "kind": "control",
           "nodeId": "three-month-plan-control",
           "control": "button",
-          "label": "3个月",
+          "label": "3个月，¥50，原价¥64元",
           "bounds": {
-            "x": 207,
-            "y": 259,
-            "width": 43,
-            "height": 22
+            "x": 161,
+            "y": 186,
+            "width": 131,
+            "height": 152
           },
           "actionId": "select-three-month-plan"
         },
         {
           "kind": "text",
-          "nodeId": "three-month-price-text",
+          "nodeId": "three-month-term",
+          "text": "3个月",
+          "role": "label",
+          "bounds": {
+            "x": 207,
+            "y": 215,
+            "width": 39,
+            "height": 23
+          },
+          "typographyToken": "plan.term",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "text",
+          "nodeId": "three-month-price",
           "text": "¥50",
           "role": "price",
           "bounds": {
             "x": 199,
-            "y": 286,
-            "width": 59,
-            "height": 40
+            "y": 240,
+            "width": 61,
+            "height": 48
           },
           "typographyToken": "plan.price",
           "colorToken": "text.primary"
         },
         {
           "kind": "text",
-          "nodeId": "three-month-original-price-text",
-          "text": "¥54元",
+          "nodeId": "three-month-old-price",
+          "text": "¥ 64元",
           "role": "caption",
           "bounds": {
-            "x": 205,
-            "y": 329,
-            "width": 45,
-            "height": 17
+            "x": 204,
+            "y": 284,
+            "width": 48,
+            "height": 18
           },
-          "typographyToken": "plan.original-price",
-          "colorToken": "text.disabled"
+          "typographyToken": "plan.old-price",
+          "colorToken": "text.muted"
+        },
+        {
+          "kind": "decoration",
+          "nodeId": "three-month-old-price-strike",
+          "decoration": "divider",
+          "bounds": {
+            "x": 204,
+            "y": 291,
+            "width": 48,
+            "height": 1
+          },
+          "colorToken": "divider.muted",
+          "radiusToken": "radio"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "twelve-month-plan",
-      "displayName": "Partially visible twelve month plan",
+      "regionId": "plan-twelve-months",
+      "displayName": "Twelve month plan",
       "aliases": [
-        "annual-plan"
+        "annual-plan",
+        "twelve-month-plan"
       ],
-      "parentId": "plan-carousel",
+      "parentId": "plan-selection",
       "bounds": {
         "x": 302,
-        "y": 229,
+        "y": 186,
         "width": 88,
-        "height": 151
+        "height": 152
       },
       "source": "model",
-      "confidence": 0.96,
-      "componentPath": "src/components/xunlei-member/TwelveMonthPlan.vue",
-      "selector": "#twelve-month-plan",
+      "confidence": 0.95,
+      "componentPath": "src/components/xunlei-member/PlanTwelveMonths.vue",
+      "selector": "button.plan-card[data-plan='12-months']",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "twelve-month-plan-surface",
+          "nodeId": "twelve-month-surface",
           "decoration": "surface",
           "bounds": {
             "x": 302,
-            "y": 229,
+            "y": 186,
             "width": 88,
-            "height": 151
+            "height": 152
           },
           "colorToken": "surface.primary",
-          "radiusToken": "plan-card"
-        },
-        {
-          "kind": "decoration",
-          "nodeId": "twelve-month-plan-border",
-          "decoration": "shape",
-          "bounds": {
-            "x": 302,
-            "y": 229,
-            "width": 88,
-            "height": 151
-          },
-          "colorToken": "border.subtle",
-          "radiusToken": "plan-card"
+          "radiusToken": "card"
         },
         {
           "kind": "control",
           "nodeId": "twelve-month-plan-control",
           "control": "button",
-          "label": "12个月",
+          "label": "12个月，¥198，原价¥216元",
           "bounds": {
-            "x": 344,
-            "y": 259,
-            "width": 46,
-            "height": 22
+            "x": 302,
+            "y": 186,
+            "width": 88,
+            "height": 152
           },
           "actionId": "select-twelve-month-plan"
         },
         {
           "kind": "text",
-          "nodeId": "twelve-month-price-text",
+          "nodeId": "twelve-month-term",
+          "text": "12个月",
+          "role": "label",
+          "bounds": {
+            "x": 344,
+            "y": 215,
+            "width": 46,
+            "height": 23
+          },
+          "typographyToken": "plan.term",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "text",
+          "nodeId": "twelve-month-price",
           "text": "¥198",
           "role": "price",
           "bounds": {
-            "x": 333,
-            "y": 286,
-            "width": 57,
-            "height": 40
+            "x": 331,
+            "y": 240,
+            "width": 59,
+            "height": 48
           },
           "typographyToken": "plan.price",
           "colorToken": "text.primary"
         },
         {
           "kind": "text",
-          "nodeId": "twelve-month-original-price-text",
-          "text": "¥216元",
+          "nodeId": "twelve-month-old-price",
+          "text": "¥ 216元",
           "role": "caption",
           "bounds": {
             "x": 343,
-            "y": 329,
+            "y": 284,
             "width": 47,
-            "height": 17
+            "height": 18
           },
-          "typographyToken": "plan.original-price",
-          "colorToken": "text.disabled"
+          "typographyToken": "plan.old-price",
+          "colorToken": "text.muted"
+        },
+        {
+          "kind": "decoration",
+          "nodeId": "twelve-month-old-price-strike",
+          "decoration": "divider",
+          "bounds": {
+            "x": 343,
+            "y": 291,
+            "width": 47,
+            "height": 1
+          },
+          "colorToken": "divider.muted",
+          "radiusToken": "radio"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "section-divider",
-      "displayName": "Section divider",
+      "regionId": "plan-section-divider",
+      "displayName": "Plan section divider",
       "aliases": [
-        "content-divider"
+        "section-divider"
       ],
-      "parentId": "xunlei-member-page",
+      "parentId": "member-page",
       "bounds": {
         "x": 0,
-        "y": 394,
+        "y": 350,
         "width": 390,
-        "height": 8
+        "height": 9
       },
       "source": "model",
-      "confidence": 0.98,
-      "componentPath": "src/components/xunlei-member/SectionDivider.vue",
-      "selector": "#section-divider",
+      "confidence": 0.99,
+      "componentPath": "src/components/xunlei-member/PlanSectionDivider.vue",
+      "selector": "div.plan-section-divider",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "section-divider-surface",
+          "nodeId": "plan-divider-surface",
           "decoration": "divider",
           "bounds": {
             "x": 0,
-            "y": 394,
+            "y": 350,
             "width": 390,
-            "height": 8
+            "height": 9
           },
-          "colorToken": "divider",
-          "radiusToken": "table-card"
+          "colorToken": "divider.light",
+          "radiusToken": "radio"
         }
       ],
       "decorationOnly": true,
       "lockedByHuman": false
     },
     {
-      "regionId": "benefits-comparison",
-      "displayName": "Membership benefits comparison",
-      "aliases": [
-        "benefits-table"
-      ],
-      "parentId": "xunlei-member-page",
-      "bounds": {
-        "x": 20,
-        "y": 423,
-        "width": 354,
-        "height": 272
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/BenefitsComparison.vue",
-      "selector": "#benefits-comparison",
-      "content": [],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
       "regionId": "benefits-heading",
-      "displayName": "Benefits comparison heading",
+      "displayName": "Benefits heading",
       "aliases": [
         "comparison-heading"
       ],
-      "parentId": "benefits-comparison",
+      "parentId": "member-page",
       "bounds": {
         "x": 20,
-        "y": 423,
-        "width": 340,
-        "height": 24
+        "y": 378,
+        "width": 278,
+        "height": 23
       },
       "source": "model",
       "confidence": 0.99,
       "componentPath": "src/components/xunlei-member/BenefitsHeading.vue",
-      "selector": "#benefits-heading",
+      "selector": "header.benefits-heading",
       "content": [
         {
           "kind": "text",
-          "nodeId": "benefits-title-text",
+          "nodeId": "benefits-title",
           "text": "权益对比",
           "role": "title",
           "bounds": {
             "x": 20,
-            "y": 423,
-            "width": 68,
-            "height": 24
+            "y": 379,
+            "width": 64,
+            "height": 23
           },
           "typographyToken": "section.title",
           "colorToken": "text.primary"
         },
         {
           "kind": "text",
-          "nodeId": "benefits-device-caption-text",
+          "nodeId": "benefits-device-note",
           "text": "均支持手机/电脑/平板设备使用",
           "role": "caption",
           "bounds": {
             "x": 90,
-            "y": 426,
-            "width": 167,
-            "height": 19
+            "y": 382,
+            "width": 208,
+            "height": 18
           },
-          "typographyToken": "section.caption",
-          "colorToken": "text.muted"
+          "typographyToken": "section.note",
+          "colorToken": "text.secondary"
         }
       ],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
-      "regionId": "benefit-labels-column",
-      "displayName": "Benefit labels",
+      "regionId": "benefits-comparison",
+      "displayName": "Benefits comparison table",
       "aliases": [
-        "benefit-names"
+        "benefits-table",
+        "comparison-table"
       ],
-      "parentId": "benefits-comparison",
+      "parentId": "member-page",
       "bounds": {
         "x": 20,
-        "y": 464,
-        "width": 117,
-        "height": 229
+        "y": 421,
+        "width": 350,
+        "height": 240
       },
       "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/BenefitLabelsColumn.vue",
-      "selector": "#benefit-labels-column",
+      "confidence": 0.98,
+      "componentPath": "src/components/xunlei-member/BenefitsComparison.vue",
+      "selector": "section.benefits-comparison",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "benefit-labels-surface",
+          "nodeId": "benefit-label-column-surface",
           "decoration": "surface",
           "bounds": {
             "x": 20,
-            "y": 464,
+            "y": 421,
             "width": 117,
-            "height": 229
+            "height": 240
           },
           "colorToken": "surface.subtle",
-          "radiusToken": "table-card"
+          "radiusToken": "card"
+        },
+        {
+          "kind": "decoration",
+          "nodeId": "cloud-benefit-column-surface",
+          "decoration": "surface",
+          "bounds": {
+            "x": 138,
+            "y": 421,
+            "width": 119,
+            "height": 240
+          },
+          "colorToken": "surface.primary",
+          "radiusToken": "radio"
+        },
+        {
+          "kind": "decoration",
+          "nodeId": "platinum-benefit-column-surface",
+          "decoration": "surface",
+          "bounds": {
+            "x": 257,
+            "y": 417,
+            "width": 117,
+            "height": 244
+          },
+          "colorToken": "surface.gold",
+          "radiusToken": "card"
         },
         {
           "kind": "text",
-          "nodeId": "benefits-label-header-text",
+          "nodeId": "benefit-column-heading",
           "text": "权益",
           "role": "label",
           "bounds": {
             "x": 66,
-            "y": 481,
-            "width": 27,
-            "height": 20
+            "y": 437,
+            "width": 26,
+            "height": 19
           },
-          "typographyToken": "table.header-muted",
-          "colorToken": "text.muted"
-        },
-        {
-          "kind": "text",
-          "nodeId": "speed-benefit-label-text",
-          "text": "会员加速",
-          "role": "body",
-          "bounds": {
-            "x": 54,
-            "y": 527,
-            "width": 54,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.primary"
-        },
-        {
-          "kind": "text",
-          "nodeId": "storage-benefit-label-text",
-          "text": "云盘空间",
-          "role": "body",
-          "bounds": {
-            "x": 54,
-            "y": 573,
-            "width": 54,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.primary"
-        },
-        {
-          "kind": "text",
-          "nodeId": "cloud-add-benefit-label-text",
-          "text": "云添加次数",
-          "role": "body",
-          "bounds": {
-            "x": 48,
-            "y": 619,
-            "width": 67,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.primary"
-        },
-        {
-          "kind": "text",
-          "nodeId": "playback-benefit-label-text",
-          "text": "播放清晰度",
-          "role": "body",
-          "bounds": {
-            "x": 48,
-            "y": 665,
-            "width": 67,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.disabled"
-        }
-      ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "cloud-benefits-column",
-      "displayName": "Cloud member benefits",
-      "aliases": [
-        "cloud-column"
-      ],
-      "parentId": "benefits-comparison",
-      "bounds": {
-        "x": 137,
-        "y": 464,
-        "width": 119,
-        "height": 229
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/CloudBenefitsColumn.vue",
-      "selector": "#cloud-benefits-column",
-      "content": [
-        {
-          "kind": "decoration",
-          "nodeId": "cloud-benefits-surface",
-          "decoration": "surface",
-          "bounds": {
-            "x": 137,
-            "y": 464,
-            "width": 119,
-            "height": 229
-          },
-          "colorToken": "surface.subtle",
-          "radiusToken": "table-card"
+          "typographyToken": "table.header",
+          "colorToken": "text.secondary"
         },
         {
           "kind": "asset",
-          "nodeId": "cloud-member-badge-image",
-          "assetId": "cloud-member-badge",
-          "alt": "Cloud member badge",
+          "nodeId": "cloud-member-icon",
+          "assetId": "icon-cloud-member",
+          "alt": "云盘会员图标",
           "bounds": {
             "x": 166,
-            "y": 481,
-            "width": 14,
-            "height": 14
+            "y": 438,
+            "width": 13,
+            "height": 13
           },
           "fit": "contain"
         },
         {
           "kind": "text",
-          "nodeId": "cloud-member-header-text",
+          "nodeId": "cloud-column-heading",
           "text": "云盘会员",
           "role": "label",
           "bounds": {
-            "x": 184,
-            "y": 480,
-            "width": 47,
-            "height": 20
+            "x": 183,
+            "y": 437,
+            "width": 52,
+            "height": 19
           },
           "typographyToken": "table.header",
-          "colorToken": "text.cloud"
+          "colorToken": "text.purple"
         },
         {
           "kind": "asset",
-          "nodeId": "cloud-speed-checkmark-image",
-          "assetId": "benefit-checkmark",
-          "alt": "Included benefit checkmark",
+          "nodeId": "platinum-member-icon",
+          "assetId": "icon-platinum-member",
+          "alt": "白金会员图标",
           "bounds": {
-            "x": 191,
-            "y": 528,
-            "width": 13,
-            "height": 11
+            "x": 281,
+            "y": 437,
+            "width": 14,
+            "height": 13
           },
           "fit": "contain"
         },
         {
           "kind": "text",
-          "nodeId": "cloud-storage-text",
-          "text": "10TB",
-          "role": "body",
-          "bounds": {
-            "x": 182,
-            "y": 573,
-            "width": 29,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.secondary"
-        },
-        {
-          "kind": "text",
-          "nodeId": "cloud-add-limit-text",
-          "text": "500次/天",
-          "role": "body",
-          "bounds": {
-            "x": 169,
-            "y": 619,
-            "width": 55,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.secondary"
-        },
-        {
-          "kind": "text",
-          "nodeId": "cloud-playback-text",
-          "text": "支持所有",
-          "role": "body",
-          "bounds": {
-            "x": 173,
-            "y": 665,
-            "width": 47,
-            "height": 20
-          },
-          "typographyToken": "table.body",
-          "colorToken": "text.disabled"
-        }
-      ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "platinum-benefits-column",
-      "displayName": "Platinum member benefits",
-      "aliases": [
-        "platinum-column"
-      ],
-      "parentId": "benefits-comparison",
-      "bounds": {
-        "x": 256,
-        "y": 460,
-        "width": 118,
-        "height": 233
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/PlatinumBenefitsColumn.vue",
-      "selector": "#platinum-benefits-column",
-      "content": [
-        {
-          "kind": "decoration",
-          "nodeId": "platinum-benefits-surface",
-          "decoration": "surface",
-          "bounds": {
-            "x": 256,
-            "y": 460,
-            "width": 118,
-            "height": 233
-          },
-          "colorToken": "surface.platinum-column",
-          "radiusToken": "table-card"
-        },
-        {
-          "kind": "asset",
-          "nodeId": "platinum-diamond-image",
-          "assetId": "platinum-member-diamond",
-          "alt": "Platinum member diamond",
-          "bounds": {
-            "x": 280,
-            "y": 480,
-            "width": 15,
-            "height": 15
-          },
-          "fit": "contain"
-        },
-        {
-          "kind": "text",
-          "nodeId": "platinum-member-header-text",
+          "nodeId": "platinum-column-heading",
           "text": "白金会员",
           "role": "label",
           "bounds": {
-            "x": 300,
-            "y": 480,
+            "x": 299,
+            "y": 437,
             "width": 52,
-            "height": 20
+            "height": 19
           },
           "typographyToken": "table.header",
-          "colorToken": "text.platinum"
+          "colorToken": "text.gold"
         },
         {
           "kind": "text",
-          "nodeId": "platinum-speed-text",
+          "nodeId": "acceleration-label",
+          "text": "会员加速",
+          "role": "label",
+          "bounds": {
+            "x": 54,
+            "y": 483,
+            "width": 52,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "asset",
+          "nodeId": "cloud-acceleration-check",
+          "assetId": "icon-check",
+          "alt": "支持",
+          "bounds": {
+            "x": 190,
+            "y": 485,
+            "width": 13,
+            "height": 10
+          },
+          "fit": "contain"
+        },
+        {
+          "kind": "text",
+          "nodeId": "platinum-acceleration-value",
           "text": "最高 +20MB/s",
           "role": "body",
           "bounds": {
             "x": 273,
-            "y": 527,
-            "width": 83,
-            "height": 20
+            "y": 483,
+            "width": 86,
+            "height": 19
           },
           "typographyToken": "table.emphasis",
-          "colorToken": "text.platinum"
+          "colorToken": "text.brown"
         },
         {
           "kind": "text",
-          "nodeId": "platinum-storage-text",
+          "nodeId": "cloud-storage-label",
+          "text": "云盘空间",
+          "role": "label",
+          "bounds": {
+            "x": 54,
+            "y": 530,
+            "width": 52,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "text",
+          "nodeId": "cloud-storage-value",
+          "text": "10TB",
+          "role": "body",
+          "bounds": {
+            "x": 182,
+            "y": 530,
+            "width": 30,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "text",
+          "nodeId": "platinum-storage-value",
           "text": "3TB",
           "role": "body",
           "bounds": {
-            "x": 302,
-            "y": 573,
-            "width": 27,
-            "height": 20
+            "x": 303,
+            "y": 530,
+            "width": 25,
+            "height": 19
           },
           "typographyToken": "table.emphasis",
-          "colorToken": "text.platinum"
+          "colorToken": "text.brown"
         },
         {
           "kind": "text",
-          "nodeId": "platinum-add-limit-text",
+          "nodeId": "cloud-add-count-label",
+          "text": "云添加次数",
+          "role": "label",
+          "bounds": {
+            "x": 47,
+            "y": 577,
+            "width": 65,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "text",
+          "nodeId": "cloud-add-count-value",
+          "text": "500次/天",
+          "role": "body",
+          "bounds": {
+            "x": 169,
+            "y": 577,
+            "width": 55,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.primary"
+        },
+        {
+          "kind": "text",
+          "nodeId": "platinum-add-count-value",
           "text": "100次/天",
           "role": "body",
           "bounds": {
             "x": 286,
-            "y": 619,
+            "y": 577,
             "width": 58,
-            "height": 20
+            "height": 19
           },
           "typographyToken": "table.emphasis",
-          "colorToken": "text.platinum"
+          "colorToken": "text.brown"
         },
         {
           "kind": "text",
-          "nodeId": "platinum-playback-text",
+          "nodeId": "playback-quality-label",
+          "text": "播放清晰度",
+          "role": "label",
+          "bounds": {
+            "x": 47,
+            "y": 623,
+            "width": 65,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.muted"
+        },
+        {
+          "kind": "text",
+          "nodeId": "cloud-playback-quality-value",
+          "text": "支持所有",
+          "role": "body",
+          "bounds": {
+            "x": 172,
+            "y": 623,
+            "width": 52,
+            "height": 19
+          },
+          "typographyToken": "table.body",
+          "colorToken": "text.muted"
+        },
+        {
+          "kind": "text",
+          "nodeId": "platinum-playback-quality-value",
           "text": "720P/480P",
           "role": "body",
           "bounds": {
             "x": 280,
-            "y": 665,
-            "width": 70,
-            "height": 20
+            "y": 623,
+            "width": 72,
+            "height": 19
           },
           "typographyToken": "table.emphasis",
-          "colorToken": "text.disabled"
+          "colorToken": "text.muted"
         }
       ],
-      "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "checkout",
-      "displayName": "Payment and agreement controls",
-      "aliases": [
-        "purchase-checkout"
-      ],
-      "parentId": "xunlei-member-page",
-      "bounds": {
-        "x": 20,
-        "y": 726,
-        "width": 350,
-        "height": 92
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/Checkout.vue",
-      "selector": "#checkout",
-      "content": [],
       "decorationOnly": false,
       "lockedByHuman": false
     },
     {
       "regionId": "payment-action",
-      "displayName": "Immediate payment action",
+      "displayName": "Payment action",
       "aliases": [
-        "pay-button"
+        "pay-button",
+        "checkout-action"
       ],
-      "parentId": "checkout",
+      "parentId": "member-page",
       "bounds": {
         "x": 20,
-        "y": 726,
+        "y": 683,
         "width": 350,
         "height": 54
       },
       "source": "model",
       "confidence": 0.99,
       "componentPath": "src/components/xunlei-member/PaymentAction.vue",
-      "selector": "#payment-action",
+      "selector": "button.payment-action",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "payment-button-surface",
+          "nodeId": "payment-button-background",
           "decoration": "surface",
           "bounds": {
             "x": 20,
-            "y": 726,
+            "y": 683,
             "width": 350,
             "height": 54
           },
-          "colorToken": "surface.cta",
-          "radiusToken": "cta"
+          "colorToken": "surface.gold-strong",
+          "radiusToken": "button"
         },
         {
           "kind": "control",
@@ -1438,11 +1148,25 @@
           "label": "立即支付 ¥18",
           "bounds": {
             "x": 20,
-            "y": 726,
+            "y": 683,
             "width": 350,
             "height": 54
           },
           "actionId": "submit-payment"
+        },
+        {
+          "kind": "text",
+          "nodeId": "payment-button-label",
+          "text": "立即支付 ¥18",
+          "role": "label",
+          "bounds": {
+            "x": 141,
+            "y": 700,
+            "width": 108,
+            "height": 25
+          },
+          "typographyToken": "button.primary",
+          "colorToken": "text.brown"
         }
       ],
       "decorationOnly": false,
@@ -1450,47 +1174,62 @@
     },
     {
       "regionId": "membership-agreement",
-      "displayName": "Membership agreement acknowledgment",
+      "displayName": "Membership agreement",
       "aliases": [
-        "agreement-row"
+        "agreement",
+        "terms-consent"
       ],
-      "parentId": "checkout",
+      "parentId": "member-page",
       "bounds": {
         "x": 122,
-        "y": 798,
+        "y": 751,
         "width": 147,
-        "height": 20
+        "height": 19
       },
       "source": "model",
-      "confidence": 0.99,
+      "confidence": 0.98,
       "componentPath": "src/components/xunlei-member/MembershipAgreement.vue",
-      "selector": "#membership-agreement",
+      "selector": "div.membership-agreement",
       "content": [
         {
           "kind": "decoration",
-          "nodeId": "agreement-indicator-ring",
+          "nodeId": "agreement-radio-outline",
           "decoration": "shape",
           "bounds": {
             "x": 122,
-            "y": 800,
+            "y": 752,
             "width": 15,
             "height": 15
           },
-          "colorToken": "agreement.unchecked",
-          "radiusToken": "agreement-indicator"
+          "colorToken": "control.outline",
+          "radiusToken": "radio"
         },
         {
           "kind": "control",
           "nodeId": "agreement-toggle-control",
           "control": "button",
-          "label": "开通前请阅读",
+          "label": "同意会员协议",
           "bounds": {
-            "x": 121,
-            "y": 797,
-            "width": 91,
-            "height": 20
+            "x": 122,
+            "y": 750,
+            "width": 19,
+            "height": 19
           },
           "actionId": "toggle-membership-agreement"
+        },
+        {
+          "kind": "text",
+          "nodeId": "agreement-prefix",
+          "text": "开通前请阅读",
+          "role": "caption",
+          "bounds": {
+            "x": 141,
+            "y": 753,
+            "width": 66,
+            "height": 16
+          },
+          "typographyToken": "agreement",
+          "colorToken": "text.muted"
         },
         {
           "kind": "control",
@@ -1498,179 +1237,137 @@
           "control": "button",
           "label": "《会员协议》",
           "bounds": {
-            "x": 211,
-            "y": 797,
-            "width": 58,
+            "x": 207,
+            "y": 750,
+            "width": 62,
             "height": 20
           },
           "actionId": "open-membership-agreement"
+        },
+        {
+          "kind": "text",
+          "nodeId": "agreement-link-label",
+          "text": "《会员协议》",
+          "role": "caption",
+          "bounds": {
+            "x": 207,
+            "y": 753,
+            "width": 62,
+            "height": 16
+          },
+          "typographyToken": "agreement",
+          "colorToken": "text.primary"
         }
       ],
       "decorationOnly": false,
-      "lockedByHuman": false
-    },
-    {
-      "regionId": "home-indicator",
-      "displayName": "System home indicator",
-      "aliases": [
-        "gesture-indicator"
-      ],
-      "parentId": "xunlei-member-page",
-      "bounds": {
-        "x": 126,
-        "y": 833,
-        "width": 139,
-        "height": 5
-      },
-      "source": "model",
-      "confidence": 0.99,
-      "componentPath": "src/components/xunlei-member/HomeIndicator.vue",
-      "selector": "#home-indicator",
-      "content": [
-        {
-          "kind": "decoration",
-          "nodeId": "home-indicator-shape",
-          "decoration": "shape",
-          "bounds": {
-            "x": 126,
-            "y": 833,
-            "width": 139,
-            "height": 5
-          },
-          "colorToken": "icon.black",
-          "radiusToken": "browser-pill"
-        }
-      ],
-      "decorationOnly": true,
       "lockedByHuman": false
     }
   ],
   "assets": [
     {
-      "assetId": "site-mark",
-      "regionId": "browser-origin",
+      "assetId": "icon-back",
+      "regionId": "page-header",
       "role": "icon",
-      "source": "src/assets/site-mark.png",
+      "source": "src/assets/icon-back.png",
       "mediaType": "image/png"
     },
     {
-      "assetId": "cellular-indicator",
-      "regionId": "status-connectivity",
-      "role": "icon",
-      "source": "src/assets/cellular-indicator.png",
-      "mediaType": "image/png"
-    },
-    {
-      "assetId": "wifi-indicator",
-      "regionId": "status-connectivity",
-      "role": "icon",
-      "source": "src/assets/wifi-indicator.png",
-      "mediaType": "image/png"
-    },
-    {
-      "assetId": "battery-indicator",
-      "regionId": "status-connectivity",
-      "role": "icon",
-      "source": "src/assets/battery-indicator.png",
-      "mediaType": "image/png"
-    },
-    {
-      "assetId": "back-arrow",
-      "regionId": "purchase-navigation",
-      "role": "icon",
-      "source": "src/assets/back-arrow.png",
-      "mediaType": "image/png"
-    },
-    {
-      "assetId": "designer-avatar",
-      "regionId": "member-profile-avatar",
+      "assetId": "avatar-designer-mx",
+      "regionId": "account-summary",
       "role": "avatar",
-      "source": "src/assets/designer-avatar.png",
+      "source": "src/assets/avatar-designer-mx.png",
       "mediaType": "image/png"
     },
     {
-      "assetId": "cloud-member-badge",
-      "regionId": "cloud-benefits-column",
-      "role": "icon",
-      "source": "src/assets/cloud-member-badge.png",
+      "assetId": "background-plan-gold",
+      "regionId": "plan-one-month",
+      "role": "background",
+      "source": "src/assets/background-plan-gold.png",
       "mediaType": "image/png"
     },
     {
-      "assetId": "platinum-member-diamond",
-      "regionId": "platinum-benefits-column",
+      "assetId": "icon-cloud-member",
+      "regionId": "benefits-comparison",
       "role": "icon",
-      "source": "src/assets/platinum-member-diamond.png",
+      "source": "src/assets/icon-cloud-member.png",
       "mediaType": "image/png"
     },
     {
-      "assetId": "benefit-checkmark",
-      "regionId": "cloud-benefits-column",
+      "assetId": "icon-platinum-member",
+      "regionId": "benefits-comparison",
       "role": "icon",
-      "source": "src/assets/benefit-checkmark.png",
+      "source": "src/assets/icon-platinum-member.png",
+      "mediaType": "image/png"
+    },
+    {
+      "assetId": "icon-check",
+      "regionId": "benefits-comparison",
+      "role": "icon",
+      "source": "src/assets/icon-check.png",
       "mediaType": "image/png"
     }
   ],
   "interactions": [
     {
-      "interactionId": "navigate-back-interaction",
-      "regionId": "purchase-navigation",
+      "interactionId": "navigate-back",
+      "regionId": "page-header",
       "triggerNodeId": "back-control",
       "action": "navigate",
       "confidence": 0.99
     },
     {
-      "interactionId": "select-platinum-tab-interaction",
-      "regionId": "membership-tabs",
+      "interactionId": "select-platinum-tier",
+      "regionId": "membership-tier-tabs",
       "triggerNodeId": "platinum-tab-control",
       "action": "tap",
       "resultingStateId": "default",
       "confidence": 0.99
     },
     {
-      "interactionId": "select-cloud-tab-interaction",
-      "regionId": "membership-tabs",
+      "interactionId": "select-cloud-tier",
+      "regionId": "membership-tier-tabs",
       "triggerNodeId": "cloud-tab-control",
       "action": "tap",
       "confidence": 0.98
     },
     {
-      "interactionId": "select-one-month-plan-interaction",
-      "regionId": "one-month-plan",
+      "interactionId": "select-one-month-plan",
+      "regionId": "plan-one-month",
       "triggerNodeId": "one-month-plan-control",
       "action": "tap",
       "resultingStateId": "default",
       "confidence": 0.99
     },
     {
-      "interactionId": "select-three-month-plan-interaction",
-      "regionId": "three-month-plan",
+      "interactionId": "select-three-month-plan",
+      "regionId": "plan-three-months",
       "triggerNodeId": "three-month-plan-control",
       "action": "tap",
       "confidence": 0.99
     },
     {
-      "interactionId": "select-twelve-month-plan-interaction",
-      "regionId": "twelve-month-plan",
+      "interactionId": "select-twelve-month-plan",
+      "regionId": "plan-twelve-months",
       "triggerNodeId": "twelve-month-plan-control",
       "action": "tap",
-      "confidence": 0.97
+      "confidence": 0.98
     },
     {
-      "interactionId": "submit-payment-interaction",
+      "interactionId": "submit-payment",
       "regionId": "payment-action",
       "triggerNodeId": "payment-submit-control",
       "action": "submit",
       "confidence": 0.99
     },
     {
-      "interactionId": "toggle-agreement-interaction",
+      "interactionId": "toggle-membership-agreement",
       "regionId": "membership-agreement",
       "triggerNodeId": "agreement-toggle-control",
       "action": "toggle",
       "confidence": 0.99
     },
     {
-      "interactionId": "open-agreement-interaction",
+      "interactionId": "open-membership-agreement",
       "regionId": "membership-agreement",
       "triggerNodeId": "agreement-link-control",
       "action": "navigate",

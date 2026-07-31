@@ -23,6 +23,31 @@ describe('ManifestSchema', () => {
     expect(result.states[0]?.scale).toBe(3)
   })
 
+  it('accepts an integer content viewport for captured page content', () => {
+    const input = {
+      ...createManifest(),
+      states: [{
+        ...createManifest().states[0]!,
+        contentViewport: { x: 0, y: 282, width: 1170, height: 2160 },
+      }],
+    }
+    expect(ManifestSchema.parse(input).states[0]?.contentViewport).toEqual(input.states[0]?.contentViewport)
+  })
+
+  it.each([
+    { x: -1, y: 0, width: 100, height: 100 },
+    { x: 0, y: -1, width: 100, height: 100 },
+    { x: 0, y: 0, width: 0, height: 100 },
+    { x: 0, y: 0, width: 100, height: 0 },
+    { x: 0.5, y: 0, width: 100, height: 100 },
+  ])('rejects an invalid content viewport: %j', contentViewport => {
+    const input = {
+      ...createManifest(),
+      states: [{ ...createManifest().states[0]!, contentViewport }],
+    }
+    expect(() => ManifestSchema.parse(input)).toThrow()
+  })
+
   it('rejects non-positive device dimensions', () => {
     const input = createManifest()
     input.device.width = 0

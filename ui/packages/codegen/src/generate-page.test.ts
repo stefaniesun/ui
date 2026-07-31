@@ -47,10 +47,12 @@ describe('generatePage', () => {
         { ...ir.regions[0]!, regionId: 'service-item', parentId: 'owner-services', componentPath: 'src/components/profile/ServiceItem.vue', content: [], decorationOnly: true },
       ],
     }, { logicalWidth: 396 })
+    expect(nestedFiles['src/pages/profile/index.vue']).toContain('<OwnerServices />')
+    expect(nestedFiles['src/pages/profile/index.vue']).toContain('<ServiceItem />')
     expect(nestedFiles['src/components/profile/OwnerServices.vue'])
-      .toContain("from './ServiceItem'")
+      .not.toContain('ServiceItem')
     expect(nestedFiles['src/components/profile/ServiceItem.vue'])
-      .toContain('left:0rpx;top:0rpx')
+      .toContain(`left:${16 * (750 / 396)}rpx;top:${300 * (750 / 396)}rpx`)
     expect(Object.values(files).join('\n')).not.toContain('reference/default.png')
     expect(files['src/styles/tokens.scss']).toContain(`${16 * (750 / 396)}rpx`)
     expect(generatePage({
@@ -73,6 +75,24 @@ describe('generatePage', () => {
 
   it('rejects duplicate component paths without hanging', () => {
     expect(() => generatePage({ ...ir, regions: [ir.regions[0]!, { ...ir.regions[0]!, regionId: 'second-region', content: [], decorationOnly: true }] }, { logicalWidth: 396 })).toThrow(/componentPath/i)
+  })
+
+  it('allows data-driven visual content to repeat zero dimensions', () => {
+    const repeated = {
+      ...ir,
+      regions: [{
+        ...ir.regions[0]!,
+        content: Array.from({ length: 10 }, (_, index) => ({
+          kind: 'text' as const,
+          nodeId: `cell-${index}`,
+          text: `${index}`,
+          role: 'body' as const,
+          bounds: { x: 0, y: index * 20, width: 40, height: 20 },
+        })),
+      }],
+      assets: [],
+    }
+    expect(() => generatePage(repeated, { logicalWidth: 396 })).not.toThrow()
   })
 
   it('rejects an empty visible leaf but accepts a decorative leaf', () => {

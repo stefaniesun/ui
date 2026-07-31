@@ -10,11 +10,19 @@ const safeRelativePath = z.string().min(1).refine(isSafeProjectRelativePath, {
 
 export const ScreenshotTypeSchema = z.enum(['viewport', 'fullpage'])
 
+export const ContentViewportSchema = z.object({
+  x: z.number().finite().int().nonnegative(),
+  y: z.number().finite().int().nonnegative(),
+  width: finitePositiveInteger,
+  height: finitePositiveInteger,
+}).strict()
+
 export const ManifestStateSchema = z.object({
   id: z.string().min(1),
   screenshot: safeRelativePath,
   screenshotType: ScreenshotTypeSchema,
   scale: finitePositive,
+  contentViewport: ContentViewportSchema.optional(),
 }).strict()
 
 const ManifestBaseSchema = z.object({

@@ -55,7 +55,7 @@ export function renderRegionContent(input: RenderRegionContentInput): RenderedRe
       const mode = node.fit === 'cover' ? 'aspectFill' : node.fit === 'fill' ? 'scaleToFill' : 'aspectFit'
       markup.push(`    <image class="content-node content-asset ${className}" data-content-id="${suffix}" :src="assets.${binding}" alt="${escapeAttribute(node.alt)}" mode="${mode}" />`)
     } else if (node.kind === 'control') {
-      markup.push(`    <button class="content-node content-control ${className}" data-content-id="${suffix}">${escapeText(node.label)}</button>`)
+      markup.push(`    <button class="content-node content-control ${className}" data-content-id="${suffix}" aria-label="${escapeAttribute(node.label)}"></button>`)
     } else {
       markup.push(`    <view class="content-node content-decoration ${className}" data-content-id="${suffix}" aria-hidden="true" />`)
     }
@@ -91,7 +91,7 @@ export function renderRegionContent(input: RenderRegionContentInput): RenderedRe
 
   return {
     markup: markup.join('\n'),
-    styles: `.content-node{position:absolute;box-sizing:border-box}\n${styles.join('\n')}`,
+    styles: `.content-node{position:absolute;box-sizing:border-box}\n.content-control{appearance:none;margin:0;padding:0;border:0;background:transparent;color:transparent;font-size:0}\n${styles.join('\n')}`,
     usesAssets,
   }
 }

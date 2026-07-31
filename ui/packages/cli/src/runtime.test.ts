@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { modelAdapter, writeGenerated } from './runtime.js'
+import { loadManifest, modelAdapter, writeGenerated } from './runtime.js'
 
 const original = { ...process.env }
 const temporaryDirectories: string[] = []
@@ -10,6 +10,15 @@ const temporaryDirectories: string[] = []
 afterEach(async () => {
   process.env = { ...original }
   await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })))
+})
+
+describe('loadManifest', () => {
+  it('validates screenshot files before returning the manifest', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'ui-rebuild-manifest-'))
+    temporaryDirectories.push(root)
+    await writeFile(path.join(root, 'manifest.yaml'), `version: 1.0.0\nprojectId: test\npageId: test\ndevice:\n  width: 390\n  height: 844\n  pixelRatio: 3\nstates:\n  - id: default\n    screenshot: reference/missing.png\n    screenshotType: viewport\n    scale: 1\n`)
+    await expect(loadManifest(root)).rejects.toThrow(/missing/i)
+  })
 })
 
 describe('writeGenerated', () => {

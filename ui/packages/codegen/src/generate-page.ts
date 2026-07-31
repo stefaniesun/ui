@@ -24,23 +24,16 @@ function relative(from: string, to: string) {
 
 function component(
   region: RegionNode,
-  children: RegionNode[],
   current: string,
-  paths: ReadonlyMap<string, string>,
   width: number,
   assetBindings: ReadonlyMap<string, string>,
   tokens: Parameters<typeof renderRegionContent>[0]['tokens'],
-  parent?: RegionNode,
 ) {
   const rendered = renderRegionContent({ region, logicalWidth: width, assetBindings, tokens })
-  const imports = [
-    ...(rendered.usesAssets ? [`import { assets } from '${relative(current, 'src/assets/registry.ts').replace(/\.ts$/u, '')}'`] : []),
-    ...children.map(child => `import ${pascal(child.regionId)} from '${relative(current, paths.get(child.regionId)!)}'`),
-  ].join('\n')
-  const body = [rendered.markup, ...children.map(child => `    <${pascal(child.regionId)} />`)].filter(Boolean).join('\n')
-  const x = region.bounds.x - (parent?.bounds.x ?? 0)
-  const y = region.bounds.y - (parent?.bounds.y ?? 0)
-  return `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="semantic-region" data-region-id="${region.regionId}" aria-label="${escape(region.displayName)}">\n${body}\n</view></template>\n<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:${logicalPxToRpx(x, width)};top:${logicalPxToRpx(y, width)};width:${logicalPxToRpx(region.bounds.width, width)};height:${logicalPxToRpx(region.bounds.height, width)};background:var(--ui-color-surface)}\n${rendered.styles}</style>\n`
+  const imports = rendered.usesAssets
+    ? `import { assets } from '${relative(current, 'src/assets/registry.ts').replace(/\.ts$/u, '')}'`
+    : ''
+  return `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="semantic-region" data-region-id="${region.regionId}" aria-label="${escape(region.displayName)}">\n${rendered.markup}\n</view></template>\n<style scoped lang="scss">.semantic-region{position:absolute;box-sizing:border-box;left:${logicalPxToRpx(region.bounds.x, width)};top:${logicalPxToRpx(region.bounds.y, width)};width:${logicalPxToRpx(region.bounds.width, width)};height:${logicalPxToRpx(region.bounds.height, width)};background:var(--ui-color-surface)}\n${rendered.styles}</style>\n`
 }
 
 export function generatePage(input: VisualIRInput, options: GenerateOptions): Record<string, string> {
@@ -67,20 +60,16 @@ export function generatePage(input: VisualIRInput, options: GenerateOptions): Re
     const componentPath = paths.get(region.regionId)!
     files[componentPath] = component(
       region,
-      ir.regions.filter(child => child.parentId === region.regionId),
       componentPath,
-      paths,
       options.logicalWidth,
       assetRegistry.bindings,
       ir.tokens,
-      ir.regions.find(parent => parent.regionId === region.parentId),
     )
   }
 
   const page = `src/pages/${ir.pageId}/index.vue`
-  const roots = ir.regions.filter(region => region.parentId === null)
-  const imports = roots.map(region => `import ${pascal(region.regionId)} from '${relative(page, paths.get(region.regionId)!)}'`).join('\n')
-  const tags = roots.map(region => `    <${pascal(region.regionId)} />`).join('\n')
+  const imports = ir.regions.map(region => `import ${pascal(region.regionId)} from '${relative(page, paths.get(region.regionId)!)}'`).join('\n')
+  const tags = ir.regions.map(region => `    <${pascal(region.regionId)} />`).join('\n')
   files[page] = `<script setup lang="ts">\n${imports}\n</script>\n<template><view class="page-${ir.pageId}">\n${tags}\n</view></template>\n<style scoped lang="scss">.page-${ir.pageId}{position:relative;width:100vw;min-height:100vh;overflow:hidden;background:var(--ui-color-page)}</style>\n`
   files['src/pages.json'] = `${JSON.stringify({ pages: [{ path: `pages/${ir.pageId}/index`, style: { navigationStyle: 'custom' } }], globalStyle: { backgroundColor: '#f5f6f8' } }, null, 2)}\n`
   files['src/styles/tokens.scss'] = writeTokens(ir.tokens, options.logicalWidth)

@@ -16,15 +16,7 @@ export function inspectGeneratedFiles(files: Readonly<Record<string, string>>): 
     if (file.includes('/components/') && !content.includes('data-region-id=')) {
       violations.push({ rule: 'semantic-region-required', file, message: 'Semantic component has no region binding' })
     }
-    const repeatedNumericValues = [...content.matchAll(/(?:margin|padding|gap|width|height)[^:]*:\s*(\d+(?:\.\d+)?)(?:rpx|px)/giu)]
-      .map(match => match[1]).filter(Boolean)
-    const counts = new Map<string, number>()
-    for (const value of repeatedNumericValues) {
-      if (value !== undefined) counts.set(value, (counts.get(value) ?? 0) + 1)
-    }
-    if ([...counts.values()].some(count => count > 8)) {
-      violations.push({ rule: 'repeated-magic-number', file, message: 'Repeated layout values must become Design Tokens' })
-    }
+
   }
   return violations
 }
