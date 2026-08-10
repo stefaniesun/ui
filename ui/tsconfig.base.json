@@ -1,5 +1,12 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@ui-rebuild/workbench-contracts": ["packages/workbench-contracts/src/index.ts"],
+      "@ui-rebuild/workbench-measurement": ["packages/workbench-measurement/src/index.ts"],
+      "@ui-rebuild/workbench-store": ["packages/workbench-store/src/index.ts"],
+      "@ui-rebuild/workbench-server": ["packages/workbench-server/src/app.ts"]
+    },
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "module": "NodeNext",

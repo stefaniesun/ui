@@ -1,7 +1,0 @@
-import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { createServer } from 'node:http'
-import path from 'node:path'
-
-const types:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'}
-export async function startStaticServer(root:string){const absoluteRoot=path.resolve(root),server=createServer(async(request,response)=>{try{const url=new URL(request.url??'/','http://127.0.0.1'),relative=decodeURIComponent(url.pathname).replace(/^\/+/,''),candidate=path.resolve(absoluteRoot,relative||'index.html');if(candidate!==absoluteRoot&&!candidate.startsWith(`${absoluteRoot}${path.sep}`))throw new Error('Path traversal');const info=await stat(candidate);if(!info.isFile())throw new Error('Not a file');response.statusCode=200;response.setHeader('Content-Type',types[path.extname(candidate)]??'application/octet-stream');createReadStream(candidate).pipe(response)}catch{response.statusCode=404;response.end('Not found')}});await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>resolve())});const address=server.address();if(!address||typeof address==='string')throw new Error('Static server failed');return{url:`http://127.0.0.1:${address.port}`,close:()=>new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()))}}

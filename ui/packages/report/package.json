@@ -1,1 +1,0 @@
-{"name":"@ui-rebuild/report","version":"0.0.0","private":true,"type":"module","exports":{".":"./src/index.ts"},"devDependencies":{"playwright":"1.54.1"},"scripts":{"test":"vitest run","typecheck":"tsc --noEmit -p tsconfig.json","lint":"eslint src"}}

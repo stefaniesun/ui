@@ -1,7 +1,9 @@
 node_modules/
+.pnpm-store/
 dist/
 coverage/
-*.tsbuildinfo
-.cache/
-**/.ui-rebuild/
-.worktrees/
+.env
+.env.*
+!.env.example
+pages/*
+!pages/.gitkeep

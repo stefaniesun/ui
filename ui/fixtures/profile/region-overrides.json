@@ -1,8 +1,0 @@
-{
-  "account-summary": { "displayName": "账号概览区", "aliases": ["登录头像区"] },
-  "creator-actions": { "displayName": "创作与消息区", "aliases": ["消息入口区"] },
-  "points-overview": { "displayName": "积分概览区", "aliases": ["积分卡片"] },
-  "personal-tools": { "displayName": "个人工具区", "aliases": ["收藏历史区"] },
-  "owner-services": { "displayName": "车主服务区", "aliases": ["爱车服务模块"] },
-  "primary-tabbar": { "displayName": "一级底部导航", "aliases": ["主 TabBar"] }
-}

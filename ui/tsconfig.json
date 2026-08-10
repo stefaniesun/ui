@@ -1,16 +1,12 @@
 {
   "extends": "./tsconfig.base.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "types": ["node", "vitest/globals"]
-  },
-  "include": [
-    "apps/**/*.ts",
-    "apps/**/*.tsx",
-    "apps/**/*.vue",
-    "packages/**/*.ts",
-    "packages/**/*.tsx",
-    "packages/**/*.vue",
-    "*.ts"
+  "files": [],
+  "references": [
+    { "path": "./packages/workbench-contracts" },
+    { "path": "./packages/workbench-measurement" },
+    { "path": "./packages/workbench-store" },
+    { "path": "./packages/workbench-server" },
+    { "path": "./apps/workbench" },
+    { "path": "./packages/workbench-cli" }
   ]
 }

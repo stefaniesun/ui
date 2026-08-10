@@ -1,1 +1,0 @@
-{"name":"@ui-rebuild/orchestrator","version":"0.0.0","private":true,"type":"module","exports":{".":"./src/index.ts"},"dependencies":{"@ui-rebuild/contracts":"workspace:*"},"scripts":{"test":"vitest run","typecheck":"tsc --noEmit -p tsconfig.json","lint":"eslint src"}}
