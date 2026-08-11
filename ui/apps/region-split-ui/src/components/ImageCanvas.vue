@@ -67,60 +67,75 @@ function onStageClick() {
 
 <template>
   <div class="canvas" data-test="backdrop" @click.self="props.store.clearSelection()">
-    <div
-      v-if="image"
-      ref="stageEl"
-      class="stage"
-      data-test="stage"
-      :class="{ splitting }"
-      @mousemove="onStageMove"
-      @click="onStageClick"
-    >
-      <img ref="imgEl" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
-      <div
-        v-for="(region, index) in props.store.regions.value"
-        :key="region.id"
-        class="overlay"
-        :class="{
-          selected: props.store.selectedIds.value.includes(region.id),
-          hovered: props.hoveredId === region.id,
-        }"
-        :data-region-id="region.id"
-        :style="{
-          top: `${region.bounds.y * displayScale}px`,
-          height: `${region.bounds.h * displayScale}px`,
-        }"
-        @click.stop="onRegionClick(region.id, $event)"
-        @mouseenter="emit('hover', region.id)"
-        @mouseleave="emit('hover', null)"
-      >
-        <span class="label">{{ index + 1 }} {{ region.displayName }}</span>
-      </div>
+    <div v-if="image" class="comparison">
+      <section class="preview-panel">
+        <h2>原始效果图</h2>
+        <div class="image-frame">
+          <img :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" />
+        </div>
+      </section>
 
-      <template v-if="splitting && splitY !== null">
+      <section class="preview-panel">
+        <h2>区域分析图</h2>
         <div
-          data-test="split-line"
-          class="split-line"
-          :class="{ snapped: splitSnapped, invalid: !splitValid }"
-          :style="{ top: `${splitY * displayScale}px` }"
-        />
-        <span
-          data-test="split-info"
-          class="split-info"
-          :style="{ top: `${splitY * displayScale}px` }"
+          ref="stageEl"
+          class="stage image-frame"
+          data-test="stage"
+          :class="{ splitting }"
+          @mousemove="onStageMove"
+          @click="onStageClick"
         >
-          y {{ splitY }} · 上 {{ splitHalves?.top }} / 下 {{ splitHalves?.bottom }}
-        </span>
-      </template>
+          <img ref="imgEl" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
+          <div
+            v-for="(region, index) in props.store.regions.value"
+            :key="region.id"
+            class="overlay"
+            :class="{
+              selected: props.store.selectedIds.value.includes(region.id),
+              hovered: props.hoveredId === region.id,
+            }"
+            :data-region-id="region.id"
+            :style="{
+              top: `${region.bounds.y * displayScale}px`,
+              height: `${region.bounds.h * displayScale}px`,
+            }"
+            @click.stop="onRegionClick(region.id, $event)"
+            @mouseenter="emit('hover', region.id)"
+            @mouseleave="emit('hover', null)"
+          >
+            <span class="label">{{ index + 1 }} {{ region.displayName }}</span>
+          </div>
+
+          <template v-if="splitting && splitY !== null">
+            <div
+              data-test="split-line"
+              class="split-line"
+              :class="{ snapped: splitSnapped, invalid: !splitValid }"
+              :style="{ top: `${splitY * displayScale}px` }"
+            />
+            <span
+              data-test="split-info"
+              class="split-info"
+              :style="{ top: `${splitY * displayScale}px` }"
+            >
+              y {{ splitY }} · 上 {{ splitHalves?.top }} / 下 {{ splitHalves?.bottom }}
+            </span>
+          </template>
+        </div>
+      </section>
     </div>
     <p v-else class="empty">先选择一张 UI 效果图</p>
   </div>
 </template>
 
 <style scoped>
-.canvas { min-height: 100%; padding: 16px; display: flex; justify-content: center; }
-.stage { position: relative; width: 100%; max-width: 480px; align-self: flex-start; }
-.stage img { display: block; width: 100%; }
+.canvas { min-height: 100%; padding: 12px; display: flex; justify-content: center; box-sizing: border-box; }
+.comparison { width: min(100%, 732px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.preview-panel { min-width: 0; }
+.preview-panel h2 { height: 24px; margin: 0; font-size: 12px; line-height: 24px; font-weight: 500; color: #666; }
+.image-frame { width: 100%; box-sizing: border-box; border: 1px solid #d9dce1; background: #fff; overflow: hidden; }
+.stage { position: relative; }
+.image-frame img { display: block; width: 100%; height: auto; }
 .overlay {
   position: absolute; left: 0; right: 0; cursor: pointer;
   border-bottom: 1px solid #00000033; box-sizing: border-box;
@@ -143,5 +158,8 @@ function onStageClick() {
   position: absolute; right: 4px; transform: translateY(-140%);
   font-size: 12px; padding: 1px 5px; border-radius: 3px;
   background: #2f6fedee; color: #fff; white-space: nowrap; pointer-events: none;
+}
+@media (max-width: 760px) {
+  .comparison { grid-template-columns: 1fr; }
 }
 </style>

@@ -64,9 +64,13 @@ onUnmounted(() => {
 </template>
 
 <style>
-html, body, #app { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
-.layout { display: grid; grid-template-columns: 1fr 300px; grid-template-rows: auto 1fr; height: 100%; }
+html, body, #app { height: 100%; margin: 0; font-family: system-ui, sans-serif; font-size: 13px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
 header { grid-column: 1 / -1; border-bottom: 1px solid #ddd; }
-main { overflow: auto; background: #f0f1f3; }
-aside { border-left: 1px solid #ddd; overflow: auto; }
+main { min-width: 0; overflow: auto; background: #f0f1f3; }
+aside { border-left: 1px solid #ddd; overflow: auto; background: #fff; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr) 220px; }
+}
 </style>
