@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { canSplitAt } from "@region-split/core/browser";
 import { imageUrl } from "../api.js";
+import { snapToCandidates, toImageY } from "../coords.js";
 import type { Store } from "../state.js";
 
 const props = defineProps<{ store: Store; hoveredId?: string | null }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
+
+const SNAP_THRESHOLD = 12;
 
 const imgEl = ref<HTMLImageElement>();
 const displayWidth = ref(0);
@@ -20,13 +24,58 @@ onMounted(() => { measure(); window.addEventListener("resize", measure); });
 onUnmounted(() => window.removeEventListener("resize", measure));
 
 function onRegionClick(id: string, event: MouseEvent) {
+  if (splitting.value) return;
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
+}
+
+const stageEl = ref<HTMLElement>();
+const splitY = ref<number | null>(null);
+const splitSnapped = ref(false);
+
+const splitting = computed(() => props.store.mode.value === "split");
+const splitValid = computed(() =>
+  splitY.value !== null &&
+  canSplitAt(props.store.regions.value, props.store.selectedIndex.value, splitY.value));
+const splitHalves = computed(() => {
+  const region = props.store.selectedRegion.value;
+  if (!region || splitY.value === null) return null;
+  return {
+    top: splitY.value - region.bounds.y,
+    bottom: region.bounds.y + region.bounds.h - splitY.value,
+  };
+});
+
+// 覆盖所有退出路径：取消/Esc → cancelSplit() 把 mode 置回 idle；
+// commitSplit 成功也会把 mode 置回 idle；选中变化本身不会退出拆分模式
+// （beginSplit 要求先选中），因此只需监听 mode 一处即可覆盖全部路径。
+watch(splitting, active => { if (!active) { splitY.value = null; splitSnapped.value = false; } });
+
+function onStageMove(event: MouseEvent) {
+  if (!splitting.value) return;
+  const rect = stageEl.value?.getBoundingClientRect();
+  const raw = toImageY(event.clientY, rect?.top ?? 0, displayScale.value);
+  const result = snapToCandidates(raw, props.store.candidateLines.value, SNAP_THRESHOLD);
+  splitY.value = result.y;
+  splitSnapped.value = result.snapped;
+}
+
+function onStageClick() {
+  if (!splitting.value || splitY.value === null || !splitValid.value) return;
+  props.store.commitSplit(splitY.value);
 }
 </script>
 
 <template>
   <div class="canvas" data-test="backdrop" @click.self="props.store.clearSelection()">
-    <div v-if="image" class="stage">
+    <div
+      v-if="image"
+      ref="stageEl"
+      class="stage"
+      data-test="stage"
+      :class="{ splitting }"
+      @mousemove="onStageMove"
+      @click="onStageClick"
+    >
       <img ref="imgEl" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
       <div
         v-for="(region, index) in props.store.regions.value"
@@ -47,6 +96,22 @@ function onRegionClick(id: string, event: MouseEvent) {
       >
         <span class="label">{{ index + 1 }} {{ region.displayName }}</span>
       </div>
+
+      <template v-if="splitting && splitY !== null">
+        <div
+          data-test="split-line"
+          class="split-line"
+          :class="{ snapped: splitSnapped, invalid: !splitValid }"
+          :style="{ top: `${splitY * displayScale}px` }"
+        />
+        <span
+          data-test="split-info"
+          class="split-info"
+          :style="{ top: `${splitY * displayScale}px` }"
+        >
+          y {{ splitY }} · 上 {{ splitHalves?.top }} / 下 {{ splitHalves?.bottom }}
+        </span>
+      </template>
     </div>
     <p v-else class="empty">先选择一张 UI 效果图</p>
   </div>
@@ -69,4 +134,14 @@ function onRegionClick(id: string, event: MouseEvent) {
   padding: 0 4px; border-radius: 3px; background: #ffffffd9; color: #333; white-space: nowrap;
 }
 .empty { color: #888; align-self: center; }
+.stage.splitting { cursor: crosshair; }
+.stage.splitting .overlay { pointer-events: none; }
+.split-line { position: absolute; left: 0; right: 0; height: 2px; background: #2f6fed; pointer-events: none; }
+.split-line.snapped { height: 4px; }
+.split-line.invalid { background: #d0454c; }
+.split-info {
+  position: absolute; right: 4px; transform: translateY(-140%);
+  font-size: 12px; padding: 1px 5px; border-radius: 3px;
+  background: #2f6fedee; color: #fff; white-space: nowrap; pointer-events: none;
+}
 </style>

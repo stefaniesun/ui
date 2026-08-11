@@ -55,3 +55,54 @@ describe("ImageCanvas", () => {
     expect(wrapper.emitted("hover")?.at(-1)).toEqual([null]);
   });
 });
+
+async function mountedForSplit() {
+  const store = createStore(makeFakeApi(initial, [{ y: 260, strength: 0.9 }]));
+  await store.load("p1");
+  const wrapper = mount(ImageCanvas, { props: { store } });
+  store.select("b", false);
+  store.beginSplit();
+  await wrapper.vm.$nextTick();
+  return { store, wrapper };
+}
+
+describe("ImageCanvas split mode", () => {
+  it("shows no split line outside split mode", async () => {
+    const { wrapper } = await mounted();
+    expect(wrapper.find("[data-test=split-line]").exists()).toBe(false);
+  });
+
+  it("tracks the pointer and reports both halves", async () => {
+    const { wrapper } = await mountedForSplit();
+    await wrapper.find("[data-test=stage]").trigger("mousemove", { clientY: 300 });
+    expect(wrapper.find("[data-test=split-line]").exists()).toBe(true);
+    expect(wrapper.find("[data-test=split-info]").text()).toContain("上 100");
+    expect(wrapper.find("[data-test=split-info]").text()).toContain("下 300");
+  });
+
+  it("snaps onto a nearby candidate line", async () => {
+    const { wrapper } = await mountedForSplit();
+    await wrapper.find("[data-test=stage]").trigger("mousemove", { clientY: 255 });
+    expect(wrapper.find("[data-test=split-line]").classes()).toContain("snapped");
+    expect(wrapper.find("[data-test=split-info]").text()).toContain("y 260");
+  });
+
+  it("marks positions too close to an edge as invalid and ignores the click", async () => {
+    const { store, wrapper } = await mountedForSplit();
+    const stage = wrapper.find("[data-test=stage]");
+    await stage.trigger("mousemove", { clientY: 203 });
+    expect(wrapper.find("[data-test=split-line]").classes()).toContain("invalid");
+    await stage.trigger("click");
+    expect(store.regions.value).toHaveLength(2);
+    expect(store.mode.value).toBe("split");
+  });
+
+  it("commits the split on a valid click", async () => {
+    const { store, wrapper } = await mountedForSplit();
+    const stage = wrapper.find("[data-test=stage]");
+    await stage.trigger("mousemove", { clientY: 300 });
+    await stage.trigger("click");
+    expect(store.regions.value.map(r => r.id)).toEqual(["a", "b", "b-2"]);
+    expect(store.mode.value).toBe("idle");
+  });
+});
