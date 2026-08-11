@@ -24,6 +24,13 @@ function onKeydown(event: KeyboardEvent) {
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
   if (event.key === "ArrowUp") { event.preventDefault(); store.nudge(-1); return; }
   if (event.key === "ArrowDown") { event.preventDefault(); store.nudge(1); return; }
+  // Esc 先退出拆分模式，没在拆分才清空选中——否则拆到一半按 Esc 会连选中一起丢掉
+  if (event.key === "Escape") {
+    event.preventDefault();
+    if (store.mode.value === "split") store.cancelSplit();
+    else store.clearSelection();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) store.redo(); else store.undo();
