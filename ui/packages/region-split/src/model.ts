@@ -1,0 +1,121 @@
+import { z } from "zod";
+import { regionTypes, type RawSegment, type RegionType } from "./types.js";
+
+export interface RegionNaming { displayName: string; id: string; type: RegionType }
+
+export interface SegmentInput {
+  imageBase64: string;
+  width: number;    // 分析图宽
+  height: number;   // 分析图高
+  candidateYs: number[];
+}
+
+export interface SegmentModel {
+  segment(input: SegmentInput): Promise<RawSegment[]>;
+  nameRegion(input: { cropBase64: string }): Promise<RegionNaming>;
+}
+
+const segmentsSchema = z.object({
+  regions: z.array(z.object({
+    displayName: z.string().min(1),
+    id: z.string().min(1),
+    type: z.enum(regionTypes),
+    yStart: z.number(),
+    yEnd: z.number(),
+    confidence: z.number().min(0).max(1),
+  })).min(1),
+});
+
+const namingSchema = z.object({
+  displayName: z.string().min(1),
+  id: z.string().min(1),
+  type: z.enum(regionTypes),
+});
+
+const SEGMENT_PROMPT = [
+  "你在分析一张移动端 UI 效果图，需要把整页按视觉/功能单元从上到下切成若干模块。",
+  "只输出一个 JSON 对象，格式为 {\"regions\":[{\"displayName\":string,\"id\":string,\"type\":string,\"yStart\":number,\"yEnd\":number,\"confidence\":number}]}。",
+  "要求：模块数量 5 到 10 个；必须从 y=0 开始、到图片底部结束；每段 yEnd 等于下一段 yStart；",
+  "displayName 用简短中文，id 用 kebab-case 英文，confidence 取 0 到 1。",
+  `type 只能取以下之一：${regionTypes.join("、")}。`,
+  "参考给出的候选切分线：它们是图像分析得到的真实分割位置，优先在这些位置附近切分。",
+].join("\n");
+
+const NAMING_PROMPT = [
+  "这是一张移动端 UI 页面中某一个模块的裁图。给它命名并判断类型。",
+  "只输出一个 JSON 对象，格式为 {\"displayName\":string,\"id\":string,\"type\":string}。",
+  "displayName 用简短中文，id 用 kebab-case 英文。",
+  `type 只能取以下之一：${regionTypes.join("、")}。`,
+].join("\n");
+
+function extractJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const match = /\{[\s\S]*\}/.exec(raw);
+    if (!match) throw new Error("model returned unparsable content");
+    return JSON.parse(match[0]);
+  }
+}
+
+export function createOpenAiModel(cfg: {
+  baseUrl: string; apiKey: string; model: string; fetchImpl?: typeof fetch;
+}): SegmentModel {
+  const doFetch = cfg.fetchImpl ?? fetch;
+  const endpoint = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
+
+  async function ask(systemPrompt: string, userText: string, imageBase64: string): Promise<string> {
+    const res = await doFetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiKey}` },
+      body: JSON.stringify({
+        model: cfg.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: [
+            { type: "text", text: userText },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } },
+          ] },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`model http ${res.status}`);
+    const body = await res.json() as { choices?: { message?: { content?: string } }[] };
+    return body.choices?.[0]?.message?.content ?? "";
+  }
+
+  async function askParsed<T>(
+    systemPrompt: string, userText: string, imageBase64: string, schema: z.ZodType<T>,
+  ): Promise<T> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const raw = await ask(systemPrompt, userText, imageBase64);
+      try {
+        return schema.parse(extractJson(raw));
+      } catch (err) {
+        if (attempt === 1) {
+          throw err instanceof z.ZodError
+            ? new Error(`model returned invalid shape: ${err.message}`)
+            : new Error("model returned unparsable content");
+        }
+      }
+    }
+    throw new Error("model returned unparsable content");
+  }
+
+  return {
+    async segment(input) {
+      const userText = [
+        `图片尺寸：宽 ${input.width}，高 ${input.height}（像素）。`,
+        input.candidateYs.length > 0
+          ? `候选切分线 y 值：${input.candidateYs.join(", ")}`
+          : "本次没有候选切分线，请自行判断切分位置。",
+      ].join("\n");
+      const parsed = await askParsed(SEGMENT_PROMPT, userText, input.imageBase64, segmentsSchema);
+      return parsed.regions as RawSegment[];
+    },
+    async nameRegion(input) {
+      return askParsed(NAMING_PROMPT, "请命名这个模块。", input.cropBase64, namingSchema);
+    },
+  };
+}
