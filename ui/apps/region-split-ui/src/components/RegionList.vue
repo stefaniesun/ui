@@ -73,6 +73,15 @@ function close() {
   editingId.value = null;
   props.store.stopRename();
 }
+
+// 拆分模式下画布色块的 pointer-events 被禁掉了，但列表行本来还能点；
+// ctrl/shift 点第二行会把选中变成多选，selectedIndex 退化成 -1，操作条卡在
+// "拆分「undefined」"上、切分线恒红，只能按 Esc 脱困。拆分模式下列表本身也
+// 不可选中，逻辑与画布保持一致。
+function onRowClick(id: string, event: MouseEvent) {
+  if (props.store.mode.value === "split") return;
+  props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
+}
 </script>
 
 <template>
@@ -87,8 +96,9 @@ function close() {
       :class="{
         selected: props.store.selectedIds.value.includes(region.id),
         hovered: activeHoverId === region.id,
+        disabled: props.store.mode.value === 'split',
       }"
-      @click="props.store.select(region.id, $event.ctrlKey || $event.metaKey || $event.shiftKey)"
+      @click="onRowClick(region.id, $event)"
       @mouseenter="onHoverEnter(region.id)"
       @mouseleave="onHoverLeave"
     >
@@ -117,6 +127,7 @@ function close() {
 .row { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
 .row.hovered { background: #f0f4ff; }
 .row.selected { background: #e8f0fe; }
+.row.disabled { cursor: default; opacity: 0.6; }
 .index { width: 18px; color: #999; font-size: 12px; }
 .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .type { font-size: 11px; color: #888; }

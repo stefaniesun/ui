@@ -17,16 +17,16 @@ export function makeDoc(regions: Region[], candidateLines: CandidateLine[] = [])
 export function makeFakeApi(initial: () => Region[], candidateLines: CandidateLine[] = []): StoreApi {
   return {
     putRegions: vi.fn(async (_id: string, regions: Region[]) => ({ doc: makeDoc(regions, candidateLines) })),
-    upload: async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) }),
-    getProject: async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) }),
-    analyze: async () => ({ doc: makeDoc(initial(), candidateLines) }),
-    renameAi: async () => ({ doc: makeDoc(initial(), candidateLines) }),
-    getModelConfig: async () => ({
+    upload: vi.fn(async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) })),
+    getProject: vi.fn(async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) })),
+    analyze: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),
+    renameAi: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),
+    getModelConfig: vi.fn(async () => ({
       baseUrl: "http://local/v1", model: "test-model", hasApiKey: true, apiKeyMask: "sk-••••abcd",
-    }),
-    putModelConfig: async input => ({
+    })),
+    putModelConfig: vi.fn(async input => ({
       baseUrl: input.baseUrl, model: input.model, hasApiKey: true, apiKeyMask: "sk-••••abcd",
-    }),
-    testModelConfig: async () => ({ ok: true }),
+    })),
+    testModelConfig: vi.fn(async () => ({ ok: true })),
   };
 }

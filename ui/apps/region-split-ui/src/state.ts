@@ -80,9 +80,17 @@ export function createStore(api: StoreApi) {
       doc.value = result.doc;
     } catch (err) {
       error.value = (err as Error).message;
-      const fresh = await api.getProject(projectId.value);
-      doc.value = fresh.doc;
-      regions.value = fresh.doc.regions;
+      // 落盘失败后尝试用服务端当前状态纠正本地——但这个纠正本身也可能失败
+      // （网络仍然不通）。纠正失败时只报错，绝不能让本地飞行中的编辑被
+      // 一个半失败的回滚过程篡改成别的东西；调用方全是 `void persistNow()`，
+      // 这里也绝不能让异常逃出去变成 unhandled rejection。
+      try {
+        const fresh = await api.getProject(projectId.value);
+        doc.value = fresh.doc;
+        regions.value = fresh.doc.regions;
+      } catch (fetchErr) {
+        error.value = (fetchErr as Error).message;
+      }
     }
   }
 
@@ -97,6 +105,44 @@ export function createStore(api: StoreApi) {
     if (id) projectId.value = id;
     selectedIds.value = [];
     mode.value = "idle";
+  }
+
+  // 单次 AI 命名调用的裸操作：只管请求 + 应用结果，不管撤销栈也不管
+  // pendingRenameIds——这两件事在"手动重命名"和"拆分/合并后自动重命名"里
+  // 语义不同（前者压一步撤销、失败要报错；后者复用调用方已压的那一步、
+  // 失败要静默保留占位名），由各自的调用方处理。
+  async function applyAiRename(id: string): Promise<void> {
+    const result = await api.renameAi(projectId.value, id);
+    doc.value = result.doc;
+    regions.value = result.doc.regions;
+  }
+
+  // 拆分/合并后的自动重命名：模型未配置时直接跳过（不发请求也不报错，新块保持
+  // 占位名）。失败或超时也只是静默保留占位名——这是锦上添花的自动动作，不是
+  // 用户主动发起的操作，不该弹红字错误；人工仍可通过 [AI 重命名] 按钮重试。
+  // 所有目标 id 一次性标记为"命名中…"（哪怕请求是顺序发出的），符合规格里
+  // "新区域都显示命名中占位"的要求；顺序发请求是为了不让两个并发请求同时
+  // 读写服务端同一份磁盘文档，产生互相覆盖的竞态。
+  async function autoRenameStructuralResult(ids: string[]): Promise<void> {
+    if (!projectId.value || !isModelConfigured.value || ids.length === 0) return;
+    pendingRenameIds.value = [...pendingRenameIds.value, ...ids];
+    for (const id of ids) {
+      const indexBefore = regions.value.findIndex(region => region.id === id);
+      try {
+        await applyAiRename(id);
+        // AI 重命名会顺带重新分配 id（真实服务端如此，测试里的假 api 默认不会）。
+        // 这个区域如果当时被选中，选中态要跟着换成新 id——否则拆分自动重命名
+        // 一结束，刚拆出来的块会悄悄地从"已选中"变成"什么都没选中"。
+        const newId = indexBefore >= 0 ? regions.value[indexBefore]?.id : undefined;
+        if (newId && newId !== id && selectedIds.value.includes(id)) {
+          selectedIds.value = selectedIds.value.map(item => (item === id ? newId : item));
+        }
+      } catch {
+        // 静默保留占位名，见上方注释。
+      } finally {
+        pendingRenameIds.value = pendingRenameIds.value.filter(item => item !== id);
+      }
+    }
   }
 
   return {
@@ -145,10 +191,13 @@ export function createStore(api: StoreApi) {
     },
 
     async analyze() {
-      if (!projectId.value) return;
+      if (busy.value || !projectId.value) return;
       busy.value = true; error.value = "";
-      pushUndo();
       try {
+        // 先把待落盘的微调冲掉——服务端的分析流程从磁盘读文档，冲掉之前
+        // 分析完成后可能反而把用户刚做的微调覆盖回旧值。
+        await persistNow();
+        pushUndo();
         setDoc((await api.analyze(projectId.value)).doc);
       } catch (err) { error.value = (err as Error).message; dropLastUndo(); }
       finally { busy.value = false; }
@@ -164,6 +213,7 @@ export function createStore(api: StoreApi) {
     clearSelection() { selectedIds.value = []; mode.value = "idle"; },
 
     nudge(delta: number) {
+      if (busy.value) return;
       const index = selectedIndex.value;
       if (index < 0 || !canAdjustBoundary(regions.value, index)) return;
       const now = Date.now();
@@ -173,45 +223,57 @@ export function createStore(api: StoreApi) {
       schedulePersist();
     },
 
-    beginSplit() { if (selectedIndex.value >= 0) mode.value = "split"; },
+    beginSplit() { if (!busy.value && selectedIndex.value >= 0) mode.value = "split"; },
     cancelSplit() { mode.value = "idle"; },
 
-    commitSplit(y: number) {
+    async commitSplit(y: number) {
+      if (busy.value) return;
       const index = selectedIndex.value;
       if (index < 0 || !canSplitAt(regions.value, index, y)) return;
       pushUndo();
       const next = splitRegion(regions.value, index, y);
       regions.value = next;
       mode.value = "idle";
-      const lower = next[index + 1]!;
-      selectedIds.value = [lower.id];
-      void persistNow();
+      const upperId = next[index]!.id;
+      const lowerId = next[index + 1]!.id;
+      selectedIds.value = [lowerId];
+      await persistNow();
+      // 拆分产生的两个新块结构变了、原名不再准确——自动把裁图丢给模型重新
+      // 命名，不追加撤销步（上面 pushUndo() 已经压过这一次结构变化了）。
+      await autoRenameStructuralResult([upperId, lowerId]);
     },
 
-    merge() {
+    async merge() {
+      if (busy.value) return;
       if (!areAdjacent(regions.value, selectedIds.value)) return;
       pushUndo();
       const next = mergeRegions(regions.value, selectedIds.value);
       regions.value = next;
       const survivorIds = new Set(next.map(region => region.id));
       selectedIds.value = selectedIds.value.filter(id => survivorIds.has(id)).slice(0, 1);
-      void persistNow();
+      const mergedId = selectedIds.value[0];
+      await persistNow();
+      if (mergedId) await autoRenameStructuralResult([mergedId]);
     },
 
     rename(id: string, displayName: string) {
+      if (busy.value) return;
+      const current = regions.value.find(region => region.id === id);
+      if (!current || current.displayName === displayName) return;
       pushUndo();
       regions.value = renameRegion(regions.value, id, displayName);
       void persistNow();
     },
 
     async aiRename(id: string) {
-      if (!projectId.value) return;
+      if (busy.value || !projectId.value) return;
+      // 先冲掉待落盘的微调——服务端按 id 从磁盘读文档改名再写回，冲掉之前调用
+      // 会让服务端读到旧文档，把刚做的微调静默吞掉。
+      await persistNow();
       pendingRenameIds.value = [...pendingRenameIds.value, id];
       pushUndo();
       try {
-        const result = await api.renameAi(projectId.value, id);
-        doc.value = result.doc;
-        regions.value = result.doc.regions;
+        await applyAiRename(id);
       } catch (err) { error.value = (err as Error).message; dropLastUndo(); }
       finally { pendingRenameIds.value = pendingRenameIds.value.filter(item => item !== id); }
     },

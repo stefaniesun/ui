@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { createStore } from "./state.js";
-import { makeFakeApi, makeRegion } from "./test-helpers.js";
+import { makeDoc, makeFakeApi, makeRegion } from "./test-helpers.js";
 
 const initial = () => [makeRegion("a", 0, 200), makeRegion("b", 200, 200), makeRegion("c", 400, 200)];
 
@@ -160,5 +160,185 @@ describe("createStore", () => {
     await store.analyze();
     expect(store.error.value).toBe("model not configured");
     expect(store.canUndo.value).toBe(false);
+  });
+
+  // ⑧ 名字没变就不该产生撤销步或落盘请求
+  it("skips rename when the new name matches the current one", async () => {
+    const { store, putRegions } = await loadedStore();
+    store.select("b", false);
+    store.rename("b", "名-b");
+    expect(store.canUndo.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(putRegions).not.toHaveBeenCalled();
+  });
+
+  describe("auto AI rename after split/merge", () => {
+    // 这组用例只依赖真实 Promise 微任务链（受控 gate promise），不需要也不应该
+    // 被假定时器影响——用假定时器反而要手动推进才能让微任务队列前进，脆弱且没必要。
+    beforeEach(() => vi.useRealTimers());
+
+    async function configuredStore() {
+      const api = makeFakeApi(initial);
+      const store = createStore(api);
+      await store.load("p1");
+      await store.loadModelConfig();
+      return { store, api };
+    }
+
+    it("auto-renames both new blocks after a split, in order, once the model is configured", async () => {
+      const { store, api } = await configuredStore();
+      const seen: string[] = [];
+      (api.renameAi as Mock).mockImplementation(async (_pid: string, regionId: string) => {
+        seen.push(regionId);
+        return { doc: makeDoc(store.regions.value) };
+      });
+      store.select("b", false);
+      store.beginSplit();
+      await store.commitSplit(300);
+      expect(seen).toEqual(["b", "b-2"]);
+    });
+
+    it("shows a naming placeholder for both new blocks while the requests are in flight, then clears it", async () => {
+      const { store, api } = await configuredStore();
+      let releaseFirst!: () => void;
+      const gate = new Promise<void>(resolve => { releaseFirst = resolve; });
+      (api.renameAi as Mock).mockImplementation(async (_pid: string, regionId: string) => {
+        if (regionId === "b") await gate;
+        return { doc: makeDoc(store.regions.value) };
+      });
+      store.select("b", false);
+      store.beginSplit();
+      const done = store.commitSplit(300);
+      // 真实 setTimeout(0) 排在所有已入队微任务之后，足以让 commitSplit 跑到
+      // 卡在 gate 上的那次 renameAi 调用——此时两个新块都应该已经标记为待命名。
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(store.pendingRenameIds.value.slice().sort()).toEqual(["b", "b-2"]);
+      releaseFirst();
+      await done;
+      expect(store.pendingRenameIds.value).toEqual([]);
+    });
+
+    it("auto-renames the merged region after a merge", async () => {
+      const { store, api } = await configuredStore();
+      const seen: string[] = [];
+      (api.renameAi as Mock).mockImplementation(async (_pid: string, regionId: string) => {
+        seen.push(regionId);
+        return { doc: makeDoc(store.regions.value) };
+      });
+      store.select("a", false);
+      store.select("b", true);
+      await store.merge();
+      expect(seen).toEqual(["a"]);
+    });
+
+    it("skips auto rename entirely when the model is not configured", async () => {
+      const api = makeFakeApi(initial);
+      const store = createStore(api);
+      await store.load("p1");
+      store.select("b", false);
+      store.beginSplit();
+      await store.commitSplit(300);
+      expect(api.renameAi).not.toHaveBeenCalled();
+      // 上块沿用原区域的名字（只是边界变了），只有新拆出来的下块是占位名
+      expect(store.regions.value.map(r => r.displayName)).toEqual(["名-a", "名-b", "未命名区域", "名-c"]);
+    });
+
+    it("leaves the placeholder name and clears pending state when the model call fails, without surfacing an error", async () => {
+      const { store, api } = await configuredStore();
+      (api.renameAi as Mock).mockRejectedValue(new Error("model timed out"));
+      store.select("b", false);
+      store.beginSplit();
+      await store.commitSplit(300);
+      expect(store.pendingRenameIds.value).toEqual([]);
+      expect(store.error.value).toBe("");
+      expect(store.regions.value.map(r => r.displayName)).toContain("未命名区域");
+    });
+
+    it("does not push an extra undo step for the automatic rename — only the split itself", async () => {
+      const { store, api } = await configuredStore();
+      (api.renameAi as Mock).mockImplementation(async (_pid: string, regionId: string) => ({
+        doc: makeDoc(store.regions.value.map(r => (r.id === regionId ? { ...r, displayName: "AI 命名" } : r))),
+      }));
+      store.select("b", false);
+      store.beginSplit();
+      await store.commitSplit(300);
+      expect(store.regions.value.map(r => r.id)).toEqual(["a", "b", "b-2", "c"]);
+      store.undo();
+      expect(store.regions.value.map(r => r.id)).toEqual(["a", "b", "c"]);
+      expect(store.canUndo.value).toBe(false);
+    });
+
+    // ① commitSplit 里新块的 id 是本地算出来的（如 b-2），真实服务端的 AI 重命名
+    // 会给区域分配一个新 id——如果那个区域当时被选中，选中态必须跟着换成新 id，
+    // 否则拆完自动重命名一结束，刚拆出来的块会悄悄地失去选中。
+    it("follows the server-assigned id when the auto-renamed block was selected", async () => {
+      const { store, api } = await configuredStore();
+      (api.renameAi as Mock).mockImplementation(async (_pid: string, regionId: string) => ({
+        doc: makeDoc(store.regions.value.map(r =>
+          (r.id === regionId ? { ...r, id: `region-${regionId}`, displayName: "AI 命名" } : r))),
+      }));
+      store.select("b", false);
+      store.beginSplit();
+      await store.commitSplit(300);
+      expect(store.selectedIds.value).toEqual(["region-b-2"]);
+    });
+
+    it("still pushes one undo step for a manual AI rename via the toolbar button", async () => {
+      const { store } = await configuredStore();
+      store.select("b", false);
+      await store.aiRename("b");
+      expect(store.canUndo.value).toBe(true);
+      store.undo();
+      expect(store.regions.value.map(r => r.id)).toEqual(["a", "b", "c"]);
+      expect(store.canUndo.value).toBe(false);
+    });
+  });
+
+  // ② 未落盘的边界微调必须在 AI 重命名 / 重新分析前先冲掉，否则服务端会用磁盘上的
+  // 旧文档覆盖刚才的微调结果。
+  describe("flushing pending edits before model requests", () => {
+    beforeEach(() => vi.useRealTimers());
+
+    it("flushes a pending debounced nudge before sending an AI rename request", async () => {
+      const { store, putRegions } = await loadedStore();
+      store.select("a", false);
+      store.nudge(1);
+      expect(putRegions).not.toHaveBeenCalled();
+      await store.aiRename("a");
+      expect(putRegions).toHaveBeenCalledTimes(1);
+      expect(putRegions.mock.calls[0]![1][0].bounds.h).toBe(201);
+    });
+
+    it("flushes a pending debounced nudge before re-analyzing", async () => {
+      const { store, putRegions } = await loadedStore();
+      store.select("a", false);
+      store.nudge(1);
+      expect(putRegions).not.toHaveBeenCalled();
+      await store.analyze();
+      expect(putRegions).toHaveBeenCalledTimes(1);
+      expect(putRegions.mock.calls[0]![1][0].bounds.h).toBe(201);
+    });
+  });
+
+  // ④ persistNow 的失败回滚不能吞掉飞行中的编辑，也不能产生未捕获的 rejection
+  describe("persistNow failure handling", () => {
+    beforeEach(() => vi.useRealTimers());
+
+    it("does not throw when both the save and the fallback refetch fail", async () => {
+      const { store, api } = await (async () => {
+        const api = makeFakeApi(initial);
+        const store = createStore(api);
+        await store.load("p1");
+        return { store, api };
+      })();
+      (api.putRegions as Mock).mockRejectedValue(new Error("save failed"));
+      (api.getProject as Mock).mockRejectedValue(new Error("network down"));
+      store.select("a", false);
+      store.nudge(1);
+      await expect(store.flushPersist()).resolves.toBeUndefined();
+      expect(store.error.value).toBeTruthy();
+      // 本地编辑保留，不能被拉取失败的回滚逻辑覆盖成别的东西
+      expect(store.regions.value[0]!.bounds.h).toBe(201);
+    });
   });
 });

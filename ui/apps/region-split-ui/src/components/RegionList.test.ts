@@ -83,6 +83,21 @@ describe("RegionList", () => {
     expect(store.selectedIds.value).toEqual([]);
   });
 
+  // ⑥ 拆分模式下画布色块被禁用了点击（pointer-events: none），但列表行原本还能点，
+  // ctrl+点第二行会把 selectedIndex 变成 -1，操作条卡死显示"拆分「undefined」"。
+  it("ignores row clicks while in split mode so the selection can't drift out from under it", async () => {
+    const { store, wrapper } = await mounted();
+    store.select("a", false);
+    store.beginSplit();
+    expect(store.mode.value).toBe("split");
+    await wrapper.vm.$nextTick();
+
+    await wrapper.findAll("[data-test=row]")[1]!.trigger("click", { ctrlKey: true });
+
+    expect(store.selectedIds.value).toEqual(["a"]);
+    expect(store.mode.value).toBe("split");
+  });
+
   it("scrolls the newly selected row into view", async () => {
     Element.prototype.scrollIntoView = vi.fn();
     const { store, wrapper } = await mounted();

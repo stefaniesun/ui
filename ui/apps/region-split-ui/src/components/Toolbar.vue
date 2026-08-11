@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { MIN_REGION_HEIGHT } from "@region-split/core/browser";
 import type { Store } from "../state.js";
 
 const props = defineProps<{ store: Store }>();
@@ -8,6 +9,9 @@ const emit = defineEmits<{ pickFile: [file: File] }>();
 const selected = computed(() => props.store.selectedRegion.value);
 const multi = computed(() => props.store.selectedIds.value.length > 1);
 const splitting = computed(() => props.store.mode.value === "split");
+// 拆出两个块各自至少要 MIN_REGION_HEIGHT，否则进了拆分模式点哪都无效——
+// 和 [▲][▼] 一样，在选区不满足条件时直接禁用按钮。
+const canSplit = computed(() => (selected.value?.bounds.h ?? 0) >= MIN_REGION_HEIGHT * 2);
 
 function onFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
@@ -18,17 +22,56 @@ function onAnalyze() {
   if (!window.confirm("重新分析会覆盖当前所有人工调整，继续？")) return;
   void props.store.analyze();
 }
+
+// [▲][▼] 长按连续触发：mousedown 后延迟 400ms 开始，此后每 60ms 触发一次，
+// mouseup/mouseleave 停止。单击（未触发长按）仍只调整一次。因为 mousedown
+// 后浏览器必然还会补发一次 click，一旦长按已经至少重复过一次，要吞掉那次
+// 尾随的 click，否则会变成多调整一次。
+const REPEAT_DELAY_MS = 400;
+const REPEAT_INTERVAL_MS = 60;
+let repeatDelayTimer: ReturnType<typeof setTimeout> | null = null;
+let repeatIntervalTimer: ReturnType<typeof setInterval> | null = null;
+let suppressNextClick = false;
+
+function clearRepeatTimers() {
+  if (repeatDelayTimer) { clearTimeout(repeatDelayTimer); repeatDelayTimer = null; }
+  if (repeatIntervalTimer) { clearInterval(repeatIntervalTimer); repeatIntervalTimer = null; }
+}
+
+function startPress(delta: number) {
+  suppressNextClick = false;
+  clearRepeatTimers();
+  repeatDelayTimer = setTimeout(() => {
+    suppressNextClick = true;
+    props.store.nudge(delta);
+    repeatIntervalTimer = setInterval(() => props.store.nudge(delta), REPEAT_INTERVAL_MS);
+  }, REPEAT_DELAY_MS);
+}
+
+function endPress() {
+  clearRepeatTimers();
+}
+
+function onNudgeClick(delta: number) {
+  if (suppressNextClick) { suppressNextClick = false; return; }
+  props.store.nudge(delta);
+}
 </script>
 
 <template>
   <div class="toolbar">
     <div class="row global">
-      <input type="file" accept="image/*" data-test="file" @change="onFile" />
+      <input
+        type="file" accept="image/*" data-test="file"
+        :disabled="props.store.busy.value"
+        @change="onFile"
+      />
       <button
         data-test="analyze"
-        :disabled="!props.store.projectId.value || !props.store.isModelConfigured.value"
+        :disabled="!props.store.projectId.value || !props.store.isModelConfigured.value || props.store.busy.value"
         @click="onAnalyze"
-      >重新分析</button>
+      >{{ props.store.busy.value ? "分析中…" : "重新分析" }}</button>
+      <span v-if="props.store.busy.value" data-test="busy" class="busy">处理中…</span>
       <span class="spacer" />
       <button data-test="model-config" @click="props.store.openConfigDialog()">模型配置</button>
       <span v-if="!props.store.isModelConfigured.value" data-test="model-warning" class="warning">
@@ -47,21 +90,35 @@ function onAnalyze() {
         <span>已选 {{ props.store.selectedIds.value.length }} 个区域</span>
         <button
           data-test="merge"
-          :disabled="!props.store.canMerge.value"
+          :disabled="!props.store.canMerge.value || props.store.busy.value"
           :title="props.store.canMerge.value ? '' : '只能合并相邻区域'"
           @click="props.store.merge()"
         >合并</button>
       </template>
       <template v-else-if="selected">
         <span>已选：{{ selected.displayName }}</span>
-        <button data-test="nudge-up" :disabled="!props.store.canNudge.value" @click="props.store.nudge(-1)">▲</button>
-        <button data-test="nudge-down" :disabled="!props.store.canNudge.value" @click="props.store.nudge(1)">▼</button>
+        <button
+          data-test="nudge-up"
+          :disabled="!props.store.canNudge.value || props.store.busy.value"
+          @click="onNudgeClick(-1)"
+          @mousedown="startPress(-1)"
+          @mouseup="endPress"
+          @mouseleave="endPress"
+        >▲</button>
+        <button
+          data-test="nudge-down"
+          :disabled="!props.store.canNudge.value || props.store.busy.value"
+          @click="onNudgeClick(1)"
+          @mousedown="startPress(1)"
+          @mouseup="endPress"
+          @mouseleave="endPress"
+        >▼</button>
         <span class="hint">微调下边界</span>
-        <button data-test="split" @click="props.store.beginSplit()">拆分</button>
-        <button data-test="rename" @click="props.store.startRename(selected.id)">重命名</button>
+        <button data-test="split" :disabled="!canSplit || props.store.busy.value" @click="props.store.beginSplit()">拆分</button>
+        <button data-test="rename" :disabled="props.store.busy.value" @click="props.store.startRename(selected.id)">重命名</button>
         <button
           data-test="ai-rename"
-          :disabled="!props.store.isModelConfigured.value"
+          :disabled="!props.store.isModelConfigured.value || props.store.busy.value"
           @click="props.store.aiRename(selected.id)"
         >AI 重命名</button>
       </template>
@@ -86,6 +143,7 @@ function onAnalyze() {
 .spacer { flex: 1; }
 .hint { font-size: 12px; color: #888; }
 .warning { font-size: 12px; color: #e2a400; }
+.busy { font-size: 12px; color: #2f6fed; }
 .error { margin-left: 12px; color: #d0454c; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
