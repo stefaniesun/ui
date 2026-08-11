@@ -119,6 +119,27 @@ describe("region split server", () => {
     expect((await sharp(crop.rawPayload).metadata()).height).toBe(50);
   });
 
+  it("rejects a malformed rect with 400", async () => {
+    const { app } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    for (const rect of ["abc", "0,10,375", "0,10,375,50,7"]) {
+      const res = await app.inject({ method: "GET", url: `/api/projects/${projectId}/image?rect=${rect}` });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe("invalid rect");
+    }
+  });
+
+  it("rejects a rect outside the image with 400", async () => {
+    const { app } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    // 图片是 375x400
+    for (const rect of ["-1,0,10,10", "0,0,376,400", "0,300,375,200", "0,0,0,10"]) {
+      const res = await app.inject({ method: "GET", url: `/api/projects/${projectId}/image?rect=${rect}` });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe("rect out of bounds");
+    }
+  });
+
   it("refuses to analyze while the model is not configured", async () => {
     const { app } = makeApp(model(), false);
     const { projectId } = (await upload(app)).json();

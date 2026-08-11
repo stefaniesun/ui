@@ -80,7 +80,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       }
     });
 
-  app.get("/api/model-config", async () => deps.configStore.view());
+  app.get("/api/model-config", async () => configStore.view());
 
   app.put<{ Body: { baseUrl: string; model: string; apiKey?: string } }>(
     "/api/model-config", async (req) => {
@@ -110,8 +110,17 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       if (!existsSync(path)) return reply.code(404).send({ error: "image not found" });
       let image = sharp(path);
       if (req.query.rect) {
-        const [x, y, w, h] = req.query.rect.split(",").map(Number);
-        image = image.extract({ left: x ?? 0, top: y ?? 0, width: w ?? 1, height: h ?? 1 });
+        const parts = req.query.rect.split(",").map(Number);
+        if (parts.length !== 4 || parts.some(value => !Number.isInteger(value))) {
+          return reply.code(400).send({ error: "invalid rect" });
+        }
+        const [x, y, w, h] = parts as [number, number, number, number];
+        const meta = await image.metadata();
+        const withinImage =
+          x >= 0 && y >= 0 && w > 0 && h > 0 &&
+          x + w <= (meta.width ?? 0) && y + h <= (meta.height ?? 0);
+        if (!withinImage) return reply.code(400).send({ error: "rect out of bounds" });
+        image = image.extract({ left: x, top: y, width: w, height: h });
       }
       reply.type("image/png");
       return reply.send(await image.png().toBuffer());
