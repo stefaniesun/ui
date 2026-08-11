@@ -43,6 +43,15 @@ export const regionSplitDocSchema = z.object({
 });
 export type RegionSplitDoc = z.infer<typeof regionSplitDocSchema>;
 
+export interface RawSegment {
+  displayName: string;
+  id: string;
+  type: RegionType;
+  yStart: number;   // 分析图坐标
+  yEnd: number;     // 分析图坐标
+  confidence: number;
+}
+
 export interface InvariantViolation { code: string; message: string }
 
 export function checkInvariants(
