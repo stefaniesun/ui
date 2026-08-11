@@ -1,0 +1,121 @@
+import { existsSync } from "node:fs";
+import multipart from "@fastify/multipart";
+import Fastify, { type FastifyInstance } from "fastify";
+import sharp from "sharp";
+import { analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
+import type { SegmentModel } from "./model.js";
+import type { ModelConfig, ModelConfigStore } from "./model-config.js";
+import type { ProjectStore } from "./store.js";
+import type { CandidateLine, Region } from "./types.js";
+
+export interface ServerDeps {
+  store: ProjectStore;
+  configStore: ModelConfigStore;
+  createModel: (config: ModelConfig) => SegmentModel;
+  detectLines?: (analyzedPath: string) => Promise<CandidateLine[]>;
+}
+
+type ProjectParams = { projectId: string };
+
+// 1×1 透明 PNG，仅用于连通性测试
+const TINY_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+export function buildServer(deps: ServerDeps): FastifyInstance {
+  const app = Fastify({ bodyLimit: 32 * 1024 * 1024 });
+  app.register(multipart, { limits: { fileSize: 32 * 1024 * 1024 } });
+  const { store, configStore } = deps;
+  const currentModel = () => deps.createModel(configStore.read());
+
+  app.post("/api/projects", async (req, reply) => {
+    const file = await req.file();
+    if (!file) return reply.code(400).send({ error: "file field is required" });
+    const buffer = await file.toBuffer();
+    const { projectId, doc } = await createProject({ store }, { fileName: file.filename, buffer });
+    return reply.code(201).send({ projectId, doc });
+  });
+
+  app.get<{ Params: ProjectParams }>("/api/projects/:projectId", async (req, reply) => {
+    const { projectId } = req.params;
+    if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+    return { projectId, doc: store.readDoc(projectId) };
+  });
+
+  app.post<{ Params: ProjectParams }>("/api/projects/:projectId/analyze", async (req, reply) => {
+    const { projectId } = req.params;
+    if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+    if (!configStore.isConfigured()) return reply.code(400).send({ error: "model not configured" });
+    try {
+      return {
+        doc: await analyzeProject({ store, model: currentModel(), detectLines: deps.detectLines }, projectId),
+      };
+    } catch (err) {
+      return reply.code(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.put<{ Params: ProjectParams; Body: { regions: Region[] } }>(
+    "/api/projects/:projectId/regions", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      try {
+        return { doc: store.writeRegions(projectId, req.body.regions) };
+      } catch (err) {
+        return reply.code(422).send({ error: (err as Error).message });
+      }
+    });
+
+  app.post<{ Params: ProjectParams & { regionId: string } }>(
+    "/api/projects/:projectId/regions/:regionId/rename-ai", async (req, reply) => {
+      const { projectId, regionId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      if (!configStore.isConfigured()) return reply.code(400).send({ error: "model not configured" });
+      if (!store.readDoc(projectId).regions.some(region => region.id === regionId)) {
+        return reply.code(404).send({ error: "region not found" });
+      }
+      try {
+        return { doc: await renameRegionWithModel({ store, model: currentModel() }, projectId, regionId) };
+      } catch (err) {
+        return reply.code(502).send({ error: (err as Error).message });
+      }
+    });
+
+  app.get("/api/model-config", async () => deps.configStore.view());
+
+  app.put<{ Body: { baseUrl: string; model: string; apiKey?: string } }>(
+    "/api/model-config", async (req) => {
+      configStore.write(req.body);
+      return configStore.view();
+    });
+
+  app.post<{ Body: { baseUrl: string; model: string; apiKey?: string } }>(
+    "/api/model-config/test", async (req) => {
+      const saved = configStore.read();
+      const config: ModelConfig = {
+        baseUrl: req.body.baseUrl,
+        model: req.body.model,
+        apiKey: req.body.apiKey && req.body.apiKey !== "" ? req.body.apiKey : saved.apiKey,
+      };
+      try {
+        await deps.createModel(config).nameRegion({ cropBase64: TINY_PNG_BASE64 });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: (err as Error).message };
+      }
+    });
+
+  app.get<{ Params: ProjectParams; Querystring: { rect?: string } }>(
+    "/api/projects/:projectId/image", async (req, reply) => {
+      const path = store.imagePath(req.params.projectId);
+      if (!existsSync(path)) return reply.code(404).send({ error: "image not found" });
+      let image = sharp(path);
+      if (req.query.rect) {
+        const [x, y, w, h] = req.query.rect.split(",").map(Number);
+        image = image.extract({ left: x ?? 0, top: y ?? 0, width: w ?? 1, height: h ?? 1 });
+      }
+      reply.type("image/png");
+      return reply.send(await image.png().toBuffer());
+    });
+
+  return app;
+}
