@@ -58,28 +58,44 @@ function extractJson(raw: string): unknown {
   }
 }
 
+const DEFAULT_TIMEOUT_MS = 15000;
+
 export function createOpenAiModel(cfg: {
-  baseUrl: string; apiKey: string; model: string; fetchImpl?: typeof fetch;
+  baseUrl: string; apiKey: string; model: string; fetchImpl?: typeof fetch; timeoutMs?: number;
 }): SegmentModel {
   const doFetch = cfg.fetchImpl ?? fetch;
   const endpoint = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  const timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   async function ask(systemPrompt: string, userText: string, imageBase64: string): Promise<string> {
-    const res = await doFetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiKey}` },
-      body: JSON.stringify({
-        model: cfg.model,
-        temperature: 0,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: [
-            { type: "text", text: userText },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } },
-          ] },
-        ],
-      }),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Awaited<ReturnType<typeof doFetch>>;
+    try {
+      res = await doFetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${cfg.apiKey}` },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: cfg.model,
+          temperature: 0,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: [
+              { type: "text", text: userText },
+              { type: "image_url", image_url: { url: `data:image/png;base64,${imageBase64}` } },
+            ] },
+          ],
+        }),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error(`model request timed out after ${timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) throw new Error(`model http ${res.status}`);
     const body = await res.json() as { choices?: { message?: { content?: string } }[] };
     return body.choices?.[0]?.message?.content ?? "";

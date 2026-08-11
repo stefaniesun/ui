@@ -11,7 +11,7 @@ export type RegionType = (typeof regionTypes)[number];
 export interface Rect { x: number; y: number; w: number; h: number }
 
 export const rectSchema = z.object({
-  x: z.number(), y: z.number(), w: z.number().positive(), h: z.number().positive(),
+  x: z.number().int(), y: z.number().int(), w: z.number().int().positive(), h: z.number().int().positive(),
 });
 
 export const regionSchema = z.object({

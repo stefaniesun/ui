@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkInvariants, type Region } from "./types.js";
+import { checkInvariants, rectSchema, type Region } from "./types.js";
 
 const image = { width: 375, height: 300 };
 const r = (id: string, y: number, h: number): Region => ({
@@ -37,5 +37,20 @@ describe("checkInvariants", () => {
   it("rejects duplicate ids", () => {
     const codes = checkInvariants([r("a", 0, 100), r("a", 100, 200)], image).map(v => v.code);
     expect(codes).toContain("duplicate-id");
+  });
+});
+
+describe("rectSchema", () => {
+  it("accepts integer bounds", () => {
+    expect(rectSchema.safeParse({ x: 0, y: 100, w: 375, h: 100 }).success).toBe(true);
+  });
+
+  it("rejects fractional coordinates even when they are self-consistent", () => {
+    // 两个相邻矩形 {y:0,h:100.5} 和 {y:100.5,...} 相加仍自洽，能骗过 checkInvariants，
+    // 但 sharp.extract 不接受小数 top/height，会在 analyze 阶段抛错。
+    expect(rectSchema.safeParse({ x: 0, y: 0, w: 375, h: 100.5 }).success).toBe(false);
+    expect(rectSchema.safeParse({ x: 0, y: 100.5, w: 375, h: 200 }).success).toBe(false);
+    expect(rectSchema.safeParse({ x: 0.5, y: 0, w: 375, h: 100 }).success).toBe(false);
+    expect(rectSchema.safeParse({ x: 0, y: 0, w: 375.5, h: 100 }).success).toBe(false);
   });
 });

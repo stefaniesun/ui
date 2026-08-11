@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import sharp from "sharp";
-import { analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
+import { InvalidImageError, analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
 import type { SegmentModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
 import type { ProjectStore } from "./store.js";
@@ -31,9 +31,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "file field is required" });
     const buffer = await file.toBuffer();
-    const { projectId, doc } = await createProject(
-      { store, detectLines: deps.detectLines }, { fileName: file.filename, buffer });
-    return reply.code(201).send({ projectId, doc });
+    try {
+      const { projectId, doc } = await createProject(
+        { store, detectLines: deps.detectLines }, { fileName: file.filename, buffer });
+      return reply.code(201).send({ projectId, doc });
+    } catch (err) {
+      if (err instanceof InvalidImageError) {
+        return reply.code(400).send({ error: err.message });
+      }
+      throw err;
+    }
   });
 
   app.get<{ Params: ProjectParams }>("/api/projects/:projectId", async (req, reply) => {
@@ -92,10 +99,15 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.post<{ Body: { baseUrl: string; model: string; apiKey?: string } }>(
     "/api/model-config/test", async (req) => {
       const saved = configStore.read();
+      // 只有在测试的 baseUrl 与已保存的 baseUrl 相同时才回落到已保存的 key，
+      // 否则任何能 POST 到本服务的调用方都能把明文 key 引到任意 baseUrl。
+      const savedKeyApplies = req.body.baseUrl === saved.baseUrl;
       const config: ModelConfig = {
         baseUrl: req.body.baseUrl,
         model: req.body.model,
-        apiKey: req.body.apiKey && req.body.apiKey !== "" ? req.body.apiKey : saved.apiKey,
+        apiKey: req.body.apiKey && req.body.apiKey !== ""
+          ? req.body.apiKey
+          : (savedKeyApplies ? saved.apiKey : ""),
       };
       try {
         await deps.createModel(config).nameRegion({ cropBase64: TINY_PNG_BASE64 });

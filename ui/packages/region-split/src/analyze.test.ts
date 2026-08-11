@@ -1,13 +1,14 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
-import { analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
+import { InvalidImageError, analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
 import { ProjectStore } from "./store.js";
 import type { SegmentModel } from "./model.js";
 
-const freshStore = () => new ProjectStore(mkdtempSync(join(tmpdir(), "rs-")));
+const freshRoot = () => mkdtempSync(join(tmpdir(), "rs-"));
+const freshStore = () => new ProjectStore(freshRoot());
 
 async function png(width: number, height: number): Promise<Buffer> {
   return sharp({ create: { width, height, channels: 3, background: "#ffffff" } }).png().toBuffer();
@@ -50,6 +51,15 @@ describe("createProject", () => {
     expect(doc.image.analyzedScale).toBeCloseTo(0.4, 5);
     expect((await sharp(store.analyzedImagePath(projectId)).metadata()).height).toBe(2000);
   });
+
+  it("rejects a non-image upload with a specific error and leaves no empty project directory", async () => {
+    const root = freshRoot();
+    const store = new ProjectStore(root);
+    const notImage = Buffer.from("this is definitely not a png file");
+    await expect(createProject({ store }, { fileName: "note.txt", buffer: notImage }))
+      .rejects.toThrow(InvalidImageError);
+    expect(readdirSync(root)).toEqual([]); // 校验失败前不应该建目录
+  });
 });
 
 describe("analyzeProject", () => {
@@ -79,12 +89,45 @@ describe("analyzeProject", () => {
     expect(stored.regions[0]!.bounds.h).toBe(100);
   });
 
+  it("keeps the candidate lines computed at upload time when analyze is not given detectLines", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject(
+      { store, detectLines: async () => [{ y: 40, strength: 0.8 }] },
+      { fileName: "long.png", buffer: await png(750, 5000) },
+    );
+    const before = store.readDoc(projectId).candidateLines;
+    expect(before).toEqual([{ y: 100, strength: 0.8 }]); // 上传时已按 analyzedScale=0.4 换算好
+
+    const doc = await analyzeProject({ store, model: model() }, projectId); // 不传 detectLines
+    expect(doc.candidateLines).toEqual(before);
+    expect(store.readDoc(projectId).candidateLines).toEqual(before);
+  });
+
   it("keeps the existing document when the model fails", async () => {
     const store = freshStore();
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
     const failing = model({ segment: async () => { throw new Error("llm down"); } });
     await expect(analyzeProject({ store, model: failing }, projectId)).rejects.toThrow(/llm down/);
     expect(store.readDoc(projectId).regions).toHaveLength(1);
+  });
+
+  it("passes through the model-layer error message unchanged", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
+    const failing = model({ segment: async () => { throw new Error("model http 500"); } });
+    await expect(analyzeProject({ store, model: failing }, projectId)).rejects.toThrow("model http 500");
+  });
+
+  it("hides the filesystem path when the analyzed image cannot be read from disk", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
+    rmSync(store.analyzedImagePath(projectId));
+    const err: Error = await analyzeProject({ store, model: model() }, projectId).catch(e => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).not.toContain(store.analyzedImagePath(projectId));
+    expect(err.message).not.toMatch(/[a-zA-Z]:[\\/]/); // 不含盘符路径
+    expect(err.message).not.toMatch(/\/tmp\//); // 不含 posix 绝对路径
+    expect(err.message.length).toBeGreaterThan(0);
   });
 });
 
@@ -95,5 +138,18 @@ describe("renameRegionWithModel", () => {
     await analyzeProject({ store, model: model() }, projectId);
     const doc = await renameRegionWithModel({ store, model: model() }, projectId, "body");
     expect(doc.regions[1]!).toMatchObject({ id: "benefits", displayName: "权益表", type: "grid" });
+  });
+
+  it("hides the filesystem path when the source image cannot be read from disk", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
+    await analyzeProject({ store, model: model() }, projectId);
+    rmSync(store.imagePath(projectId));
+    const err: Error = await renameRegionWithModel({ store, model: model() }, projectId, "body").catch(e => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).not.toContain(store.imagePath(projectId));
+    expect(err.message).not.toMatch(/[a-zA-Z]:[\\/]/);
+    expect(err.message).not.toMatch(/\/tmp\//);
+    expect(err.message.length).toBeGreaterThan(0);
   });
 });

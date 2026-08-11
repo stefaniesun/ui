@@ -62,6 +62,17 @@ describe("createOpenAiModel.segment", () => {
     const model = createOpenAiModel(cfg(fakeFetch(bad, bad)));
     await expect(model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [] })).rejects.toThrow();
   });
+
+  it("times out and throws a readable error instead of hanging forever, without retrying", async () => {
+    const fetchImpl = vi.fn((_url: unknown, init: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      })) as unknown as typeof fetch;
+    const model = createOpenAiModel({ ...cfg(fetchImpl), timeoutMs: 20 });
+    await expect(model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [] }))
+      .rejects.toThrow(/model request timed out after 20ms/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("createOpenAiModel.nameRegion", () => {

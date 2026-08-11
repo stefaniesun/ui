@@ -53,6 +53,16 @@ describe("region split server", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("rejects a non-image upload with 400 and a readable message instead of crashing with 500", async () => {
+    const { app } = makeApp();
+    const form = new FormData();
+    form.append("file", Buffer.from("not an image at all"), { filename: "note.txt", contentType: "text/plain" });
+    const res = await app.inject({ method: "POST", url: "/api/projects", payload: form, headers: form.getHeaders() });
+    expect(res.statusCode).toBe(400);
+    expect(typeof res.json().error).toBe("string");
+    expect(res.json().error.length).toBeGreaterThan(0);
+  });
+
   it("returns 404 for an unknown project", async () => {
     const { app } = makeApp();
     expect((await app.inject({ method: "GET", url: "/api/projects/20260811-aaaaaa" })).statusCode).toBe(404);
@@ -194,5 +204,36 @@ describe("model config routes", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: false, error: "connect ECONNREFUSED" });
+  });
+
+  it("falls back to the saved key only when the tested baseUrl matches the saved baseUrl", async () => {
+    const seenConfigs: { baseUrl: string; apiKey: string }[] = [];
+    const recordingModel = (): SegmentModel => ({
+      segment: async () => [],
+      nameRegion: async () => ({ displayName: "x", id: "x", type: "other" }),
+    });
+    const root = mkdtempSync(join(tmpdir(), "rs-"));
+    const store = new ProjectStore(join(root, "projects"));
+    const configStore = new ModelConfigStore(join(root, "model-config.json"), {});
+    configStore.write({ baseUrl: "http://saved/v1", model: "saved-model", apiKey: "sk-savedkey123" });
+    const app = buildServer({
+      store, configStore,
+      createModel: (config) => {
+        seenConfigs.push({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+        return recordingModel();
+      },
+    });
+
+    await app.inject({
+      method: "POST", url: "/api/model-config/test",
+      payload: { baseUrl: "http://saved/v1", model: "saved-model" },
+    });
+    expect(seenConfigs[0]).toEqual({ baseUrl: "http://saved/v1", apiKey: "sk-savedkey123" });
+
+    await app.inject({
+      method: "POST", url: "/api/model-config/test",
+      payload: { baseUrl: "http://attacker.example/v1", model: "saved-model" },
+    });
+    expect(seenConfigs[1]).toEqual({ baseUrl: "http://attacker.example/v1", apiKey: "" });
   });
 });

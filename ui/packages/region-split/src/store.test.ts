@@ -69,4 +69,15 @@ describe("ProjectStore", () => {
   it("generates dated project ids", () => {
     expect(freshStore().newProjectId()).toMatch(/^\d{8}-[a-z0-9]{6}$/);
   });
+
+  it("rejects fractional bounds even when they are internally consistent", () => {
+    const store = freshStore();
+    store.writeDoc("p1", doc());
+    // y:0,h:100.5 与 y:100.5,h:499.5 相加仍自洽，能骗过 checkInvariants，
+    // 但落盘后会在 analyze.ts 的 sharp.extract 中因非整数 top/height 抛错。
+    expect(() => store.writeRegions("p1", [
+      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 100.5 }, confidence: 1 },
+      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 100.5, w: 375, h: 499.5 }, confidence: 1 },
+    ])).toThrow();
+  });
 });
