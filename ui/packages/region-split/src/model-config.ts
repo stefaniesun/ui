@@ -25,8 +25,23 @@ export class ModelConfigStore {
 
   read(): ModelConfig {
     if (existsSync(this.filePath)) {
-      return modelConfigSchema.parse(JSON.parse(readFileSync(this.filePath, "utf8")));
+      const raw = readFileSync(this.filePath, "utf8");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return this.envDefaults();
+      }
+      const result = modelConfigSchema.safeParse(parsed);
+      if (!result.success) {
+        return this.envDefaults();
+      }
+      return result.data;
     }
+    return this.envDefaults();
+  }
+
+  private envDefaults(): ModelConfig {
     return {
       baseUrl: this.env.UIR_MODEL_BASE_URL ?? "",
       apiKey: this.env.UIR_MODEL_API_KEY ?? "",
