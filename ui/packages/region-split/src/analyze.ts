@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
 import { applyNaming } from "./operations.js";
-import { fullPageRegions, reconcile } from "./reconcile.js";
+import { initialRegionsFromCandidateLines, reconcile } from "./reconcile.js";
 import type { SegmentModel } from "./model.js";
 import type { ProjectStore } from "./store.js";
 import type { CandidateLine, RegionSplitDoc } from "./types.js";
@@ -78,7 +78,10 @@ export async function createProject(
   const doc: RegionSplitDoc = {
     schemaVersion: "1",
     image: { fileName: input.fileName, width: meta.width, height: meta.height, analyzedScale },
-    regions: fullPageRegions({ width: meta.width, height: meta.height }),
+    regions: initialRegionsFromCandidateLines(
+      { width: meta.width, height: meta.height },
+      candidateLines,
+    ),
     candidateLines,
     updatedAt: new Date().toISOString(),
   };

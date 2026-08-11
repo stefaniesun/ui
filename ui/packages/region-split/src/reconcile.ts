@@ -20,6 +20,45 @@ export function fullPageRegions(image: { width: number; height: number }): Regio
   }];
 }
 
+const MAX_INITIAL_REGIONS = 10;
+const MIN_INITIAL_REGION_RATIO = 0.06;
+
+/**
+ * 在模型分析前，使用图像算法发现的水平分隔线生成可编辑的初始区域。
+ * 候选线可能很密集，因此优先保留强线，并限制最小区块高度和区域总数。
+ */
+export function initialRegionsFromCandidateLines(
+  image: { width: number; height: number },
+  candidateLines: CandidateLine[],
+): Region[] {
+  const minHeight = Math.max(MIN_REGION_HEIGHT, Math.round(image.height * MIN_INITIAL_REGION_RATIO));
+  const eligible = candidateLines
+    .filter(line => line.y >= minHeight && line.y <= image.height - minHeight)
+    .sort((a, b) => b.strength - a.strength || a.y - b.y);
+  const boundaries: CandidateLine[] = [];
+
+  for (const line of eligible) {
+    if (boundaries.length >= MAX_INITIAL_REGIONS - 1) break;
+    if (boundaries.some(existing => Math.abs(existing.y - line.y) < minHeight)) continue;
+    boundaries.push(line);
+  }
+
+  if (boundaries.length === 0) return fullPageRegions(image);
+
+  boundaries.sort((a, b) => a.y - b.y);
+  const starts = [0, ...boundaries.map(line => Math.round(line.y))];
+  return starts.map((start, index) => {
+    const end = index + 1 < starts.length ? starts[index + 1]! : image.height;
+    return {
+      id: `region-${index + 1}`,
+      displayName: `区域 ${index + 1}`,
+      type: "other",
+      bounds: { x: 0, y: start, w: image.width, h: end - start },
+      confidence: index === 0 ? boundaries[0]!.strength : boundaries[index - 1]!.strength,
+    };
+  });
+}
+
 function snap(y: number, lines: CandidateLine[], threshold: number): number {
   let best: CandidateLine | null = null;
   for (const line of lines) {

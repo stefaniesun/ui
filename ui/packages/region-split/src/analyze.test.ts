@@ -34,14 +34,25 @@ describe("createProject", () => {
     expect(doc.candidateLines).toEqual([]);   // 没传 detectLines 时为空
   });
 
-  it("stores candidate lines at upload time so manual splitting can snap before any analysis", async () => {
+  it("stores candidate lines and creates initial regions before model analysis", async () => {
     const store = freshStore();
     const { doc } = await createProject(
-      { store, detectLines: async () => [{ y: 40, strength: 0.8 }] },
+      { store, detectLines: async () => [
+        { y: 40, strength: 0.8 },
+        { y: 800, strength: 0.9 },
+      ] },
       { fileName: "long.png", buffer: await png(750, 5000) },
     );
-    // 分析图 y=40 对应原图 y=100（analyzedScale = 0.4）
-    expect(doc.candidateLines).toEqual([{ y: 100, strength: 0.8 }]);
+    // 分析图坐标按 analyzedScale = 0.4 换回原图坐标。
+    expect(doc.candidateLines).toEqual([
+      { y: 100, strength: 0.8 },
+      { y: 2000, strength: 0.9 },
+    ]);
+    // 距离边缘太近的 y=100 被过滤，内部强分隔线直接生成初始区域。
+    expect(doc.regions.map(region => region.bounds)).toEqual([
+      { x: 0, y: 0, w: 750, h: 2000 },
+      { x: 0, y: 2000, w: 750, h: 3000 },
+    ]);
   });
 
   it("downscales tall images and records the scale", async () => {
@@ -97,6 +108,7 @@ describe("analyzeProject", () => {
     );
     const before = store.readDoc(projectId).candidateLines;
     expect(before).toEqual([{ y: 100, strength: 0.8 }]); // 上传时已按 analyzedScale=0.4 换算好
+    expect(store.readDoc(projectId).regions).toHaveLength(1); // 过于靠近边缘，不作为初始分区线
 
     const doc = await analyzeProject({ store, model: model() }, projectId); // 不传 detectLines
     expect(doc.candidateLines).toEqual(before);
