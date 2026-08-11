@@ -3,7 +3,8 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { imageUrl } from "../api.js";
 import type { Store } from "../state.js";
 
-const props = defineProps<{ store: Store }>();
+const props = defineProps<{ store: Store; hoveredId?: string | null }>();
+const emit = defineEmits<{ hover: [id: string | null] }>();
 
 const imgEl = ref<HTMLImageElement>();
 const displayWidth = ref(0);
@@ -31,13 +32,18 @@ function onRegionClick(id: string, event: MouseEvent) {
         v-for="(region, index) in props.store.regions.value"
         :key="region.id"
         class="overlay"
-        :class="{ selected: props.store.selectedIds.value.includes(region.id) }"
+        :class="{
+          selected: props.store.selectedIds.value.includes(region.id),
+          hovered: props.hoveredId === region.id,
+        }"
         :data-region-id="region.id"
         :style="{
           top: `${region.bounds.y * displayScale}px`,
           height: `${region.bounds.h * displayScale}px`,
         }"
         @click.stop="onRegionClick(region.id, $event)"
+        @mouseenter="emit('hover', region.id)"
+        @mouseleave="emit('hover', null)"
       >
         <span class="label">{{ index + 1 }} {{ region.displayName }}</span>
       </div>
@@ -57,6 +63,7 @@ function onRegionClick(id: string, event: MouseEvent) {
 .overlay:nth-of-type(odd) { background: #00000008; }
 .overlay:nth-of-type(even) { background: #00000014; }
 .overlay.selected { background: #2f6fed1a; outline: 1px solid #2f6fed; border-bottom: 3px solid #2f6fed; }
+.overlay.hovered:not(.selected) { background: #2f6fed0d; outline: 1px dashed #2f6fed80; }
 .label {
   position: absolute; top: 2px; left: 4px; font-size: 12px; line-height: 16px;
   padding: 0 4px; border-radius: 3px; background: #ffffffd9; color: #333; white-space: nowrap;

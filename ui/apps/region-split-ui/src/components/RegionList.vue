@@ -1,0 +1,125 @@
+<script setup lang="ts">
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
+import type { Store } from "../state.js";
+
+const props = defineProps<{ store: Store; hoveredId?: string | null }>();
+const emit = defineEmits<{ hover: [id: string | null] }>();
+
+const editingId = ref<string | null>(null);
+const draft = ref("");
+const inputEl = ref<HTMLInputElement>();
+// 不能用字符串 ref="inputEl"：这个 <input> 嵌在 v-for 的 <li> 里，字符串 ref
+// 在 v-for 作用域内会被 Vue 收集成数组，inputEl.value 就成了数组而不是元素，
+// .focus() 会直接抛错。函数 ref 没有这个数组聚合行为，按需手动赋值即可。
+function setInputRef(el: Element | ComponentPublicInstance | null) {
+  inputEl.value = (el instanceof HTMLInputElement ? el : undefined);
+}
+
+// 内部（列表自身鼠标悬停）状态优先；未悬停时回退到外部（画布）传入的 hoveredId，
+// 这样列表可以同时响应"悬停自己"和"悬停画布对应色块"两种来源。
+const internalHoverId = ref<string | null>(null);
+const activeHoverId = computed(() => internalHoverId.value ?? props.hoveredId ?? null);
+
+const rowRefs = new Map<string, HTMLElement>();
+function setRowRef(id: string, el: Element | ComponentPublicInstance | null) {
+  if (el instanceof HTMLElement) rowRefs.set(id, el);
+  else rowRefs.delete(id);
+}
+
+const singleSelectedId = computed(() =>
+  props.store.selectedIds.value.length === 1 ? props.store.selectedIds.value[0]! : null);
+
+// 选中项变为单选时，把对应行滚动进可视区域。用 flush: "post" 而不是在回调里
+// 再套一层 nextTick——嵌套 nextTick 注册的 .then 排在测试里 await 的
+// wrapper.vm.$nextTick() 之后，断言会先于滚动调用执行；post watcher 本身就在
+// DOM patch 之后、flush 完成前同步运行，时序才是对的。
+watch(singleSelectedId, id => {
+  if (!id) return;
+  const el = rowRefs.get(id);
+  // jsdom（测试环境）默认不实现 scrollIntoView；不加这层保护的话，某个未打桩的
+  // 测试触发一次选中就会在 post-flush watcher 里抛出未捕获异常，进而污染 Vue
+  // 全局调度器，让同一测试文件里后续所有用例的挂载都跟着崩掉。
+  if (typeof el?.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
+}, { flush: "post" });
+
+watch(() => props.store.renamingId.value, id => { if (id) beginEdit(id); });
+
+function onHoverEnter(id: string) {
+  internalHoverId.value = id;
+  emit("hover", id);
+}
+
+function onHoverLeave() {
+  internalHoverId.value = null;
+  emit("hover", null);
+}
+
+function beginEdit(id: string) {
+  const region = props.store.regions.value.find(item => item.id === id);
+  if (!region) return;
+  editingId.value = id;
+  draft.value = region.displayName;
+  void nextTick(() => inputEl.value?.focus());
+}
+
+function commit() {
+  if (editingId.value && draft.value.trim()) {
+    props.store.rename(editingId.value, draft.value.trim());
+  }
+  close();
+}
+
+function close() {
+  editingId.value = null;
+  props.store.stopRename();
+}
+</script>
+
+<template>
+  <ul class="list">
+    <li
+      v-for="(region, index) in props.store.regions.value"
+      :key="region.id"
+      :ref="el => setRowRef(region.id, el)"
+      data-test="row"
+      :data-region-id="region.id"
+      class="row"
+      :class="{
+        selected: props.store.selectedIds.value.includes(region.id),
+        hovered: activeHoverId === region.id,
+      }"
+      @click="props.store.select(region.id, $event.ctrlKey || $event.metaKey || $event.shiftKey)"
+      @mouseenter="onHoverEnter(region.id)"
+      @mouseleave="onHoverLeave"
+    >
+      <span class="index">{{ index + 1 }}</span>
+      <input
+        v-if="editingId === region.id"
+        :ref="setInputRef"
+        v-model="draft"
+        data-test="rename-input"
+        @click.stop
+        @keydown.enter="commit"
+        @keydown.esc="close"
+        @blur="commit"
+      />
+      <span v-else data-test="name" class="name" @dblclick.stop="beginEdit(region.id)">
+        {{ props.store.pendingRenameIds.value.includes(region.id) ? "命名中…" : region.displayName }}
+      </span>
+      <span class="type">{{ region.type }}</span>
+      <span class="confidence">{{ Math.round(region.confidence * 100) }}%</span>
+    </li>
+  </ul>
+</template>
+
+<style scoped>
+.list { list-style: none; margin: 0; padding: 4px; }
+.row { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
+.row.hovered { background: #f0f4ff; }
+.row.selected { background: #e8f0fe; }
+.index { width: 18px; color: #999; font-size: 12px; }
+.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.type { font-size: 11px; color: #888; }
+.confidence { font-size: 11px; color: #666; width: 34px; text-align: right; }
+input { flex: 1; min-width: 0; }
+</style>

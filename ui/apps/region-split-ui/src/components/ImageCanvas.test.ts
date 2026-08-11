@@ -42,4 +42,16 @@ describe("ImageCanvas", () => {
     await wrapper.find("[data-test=backdrop]").trigger("click");
     expect(store.selectedIds.value).toEqual([]);
   });
+
+  it("emits hover on mouseenter/mouseleave and highlights the hovered overlay distinctly from selection", async () => {
+    const { wrapper } = await mounted();
+    const overlays = wrapper.findAll("[data-region-id]");
+    await overlays[0]!.trigger("mouseenter");
+    expect(wrapper.emitted("hover")?.at(-1)).toEqual(["a"]);
+    await wrapper.setProps({ hoveredId: "a" });
+    expect(wrapper.findAll("[data-region-id]")[0]!.classes()).toContain("hovered");
+    expect(wrapper.findAll("[data-region-id]")[0]!.classes()).not.toContain("selected");
+    await overlays[0]!.trigger("mouseleave");
+    expect(wrapper.emitted("hover")?.at(-1)).toEqual([null]);
+  });
 });
