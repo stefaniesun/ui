@@ -129,4 +129,36 @@ describe("createStore", () => {
     while (store.canUndo.value) { store.undo(); depth++; }
     expect(depth).toBe(50);
   });
+
+  // canUndo/canRedo 必须是响应式的：界面的撤销/重做按钮靠它们启用。
+  // 先读一次再操作，能抓住"computed 无响应式依赖、首次求值后永远缓存"的退化。
+  it("keeps canUndo and canRedo reactive after they are first read", async () => {
+    const { store } = await loadedStore();
+    expect(store.canUndo.value).toBe(false);
+    expect(store.canRedo.value).toBe(false);
+
+    store.select("b", false);
+    store.rename("b", "会员卡");
+    expect(store.canUndo.value).toBe(true);
+    expect(store.canRedo.value).toBe(false);
+
+    store.undo();
+    expect(store.canUndo.value).toBe(false);
+    expect(store.canRedo.value).toBe(true);
+
+    store.redo();
+    expect(store.canUndo.value).toBe(true);
+    expect(store.canRedo.value).toBe(false);
+  });
+
+  // 分析失败必须把刚压入的快照丢掉，否则会留下一个"什么都没变"的撤销步
+  it("drops the undo snapshot when analysis fails", async () => {
+    const api = makeFakeApi(initial);
+    api.analyze = async () => { throw new Error("model not configured"); };
+    const store = createStore(api);
+    await store.load("p1");
+    await store.analyze();
+    expect(store.error.value).toBe("model not configured");
+    expect(store.canUndo.value).toBe(false);
+  });
 });

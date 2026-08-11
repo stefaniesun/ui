@@ -26,10 +26,23 @@ export function createStore(api: StoreApi) {
   const configDialogOpen = ref(false);
   const configTestResult = ref<{ ok: boolean; error?: string } | null>(null);
 
+  // 栈本身用普通数组（快照不需要响应式），深度单独用 ref 暴露，
+  // 否则 canUndo/canRedo 这类 computed 没有响应式依赖，首次求值后就再也不会失效。
   const undoStack: Region[][] = [];
   const redoStack: Region[][] = [];
+  const undoDepth = ref(0);
+  const redoDepth = ref(0);
   let lastNudgeAt = 0;
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function syncDepths() {
+    undoDepth.value = undoStack.length;
+    redoDepth.value = redoStack.length;
+  }
+
+  function snapshot(): Region[] {
+    return regions.value.map(region => ({ ...region, bounds: { ...region.bounds } }));
+  }
 
   const selectedIndex = computed(() =>
     selectedIds.value.length === 1
@@ -40,16 +53,23 @@ export function createStore(api: StoreApi) {
   const canNudge = computed(() =>
     selectedIndex.value >= 0 && canAdjustBoundary(regions.value, selectedIndex.value));
   const canMerge = computed(() => areAdjacent(regions.value, selectedIds.value));
-  const canUndo = computed(() => undoStack.length > 0);
-  const canRedo = computed(() => redoStack.length > 0);
+  const canUndo = computed(() => undoDepth.value > 0);
+  const canRedo = computed(() => redoDepth.value > 0);
   const isModelConfigured = computed(() =>
     Boolean(modelConfig.value?.baseUrl) && Boolean(modelConfig.value?.model));
   const candidateLines = computed(() => doc.value?.candidateLines ?? []);
 
   function pushUndo() {
-    undoStack.push(regions.value.map(region => ({ ...region, bounds: { ...region.bounds } })));
+    undoStack.push(snapshot());
     if (undoStack.length > UNDO_STACK_LIMIT) undoStack.shift();
     redoStack.length = 0;
+    syncDepths();
+  }
+
+  // 结构性操作失败时回滚刚压入的快照
+  function dropLastUndo() {
+    undoStack.pop();
+    syncDepths();
   }
 
   async function persistNow() {
@@ -109,7 +129,7 @@ export function createStore(api: StoreApi) {
       try {
         const result = await api.upload(file);
         setDoc(result.doc, result.projectId);
-        undoStack.length = 0; redoStack.length = 0;
+        undoStack.length = 0; redoStack.length = 0; syncDepths();
       } catch (err) { error.value = (err as Error).message; }
       finally { busy.value = false; }
     },
@@ -119,7 +139,7 @@ export function createStore(api: StoreApi) {
       try {
         const result = await api.getProject(id);
         setDoc(result.doc, result.projectId);
-        undoStack.length = 0; redoStack.length = 0;
+        undoStack.length = 0; redoStack.length = 0; syncDepths();
       } catch (err) { error.value = (err as Error).message; }
       finally { busy.value = false; }
     },
@@ -130,7 +150,7 @@ export function createStore(api: StoreApi) {
       pushUndo();
       try {
         setDoc((await api.analyze(projectId.value)).doc);
-      } catch (err) { error.value = (err as Error).message; undoStack.pop(); }
+      } catch (err) { error.value = (err as Error).message; dropLastUndo(); }
       finally { busy.value = false; }
     },
 
@@ -192,24 +212,26 @@ export function createStore(api: StoreApi) {
         const result = await api.renameAi(projectId.value, id);
         doc.value = result.doc;
         regions.value = result.doc.regions;
-      } catch (err) { error.value = (err as Error).message; undoStack.pop(); }
+      } catch (err) { error.value = (err as Error).message; dropLastUndo(); }
       finally { pendingRenameIds.value = pendingRenameIds.value.filter(item => item !== id); }
     },
 
     undo() {
-      const snapshot = undoStack.pop();
-      if (!snapshot) return;
-      redoStack.push(regions.value.map(region => ({ ...region, bounds: { ...region.bounds } })));
-      regions.value = snapshot;
+      const previous = undoStack.pop();
+      if (!previous) return;
+      redoStack.push(snapshot());
+      syncDepths();
+      regions.value = previous;
       lastNudgeAt = 0;
       void persistNow();
     },
 
     redo() {
-      const snapshot = redoStack.pop();
-      if (!snapshot) return;
-      undoStack.push(regions.value.map(region => ({ ...region, bounds: { ...region.bounds } })));
-      regions.value = snapshot;
+      const next = redoStack.pop();
+      if (!next) return;
+      undoStack.push(snapshot());
+      syncDepths();
+      regions.value = next;
       lastNudgeAt = 0;
       void persistNow();
     },
