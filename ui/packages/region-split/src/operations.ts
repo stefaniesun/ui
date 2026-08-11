@@ -95,6 +95,7 @@ export function mergeRegions(regions: Region[], ids: string[]): Region[] {
 }
 
 export function renameRegion(regions: Region[], id: string, displayName: string): Region[] {
+  if (!regions.some(region => region.id === id)) return regions;
   return regions.map(region => (region.id === id ? { ...region, displayName } : region));
 }
 
@@ -103,6 +104,7 @@ export function applyNaming(
   id: string,
   naming: { displayName: string; id: string; type: RegionType },
 ): Region[] {
+  if (!regions.some(region => region.id === id)) return regions;
   const taken = new Set(regions.filter(region => region.id !== id).map(region => region.id));
   const nextId = uniqueId(naming.id, taken);
   return regions.map(region =>

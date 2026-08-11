@@ -77,4 +77,12 @@ describe("renameRegion and applyNaming", () => {
     const out = applyNaming(base(), "b", { displayName: "权益表", id: "a", type: "grid" });
     expect(out[1]!).toMatchObject({ id: "a-2", displayName: "权益表", type: "grid" });
   });
+  it("returns the same array reference when the rename target is missing", () => {
+    const input = base();
+    expect(renameRegion(input, "missing", "会员卡")).toBe(input);
+  });
+  it("returns the same array reference when the naming target is missing", () => {
+    const input = base();
+    expect(applyNaming(input, "missing", { displayName: "权益表", id: "a", type: "grid" })).toBe(input);
+  });
 });
