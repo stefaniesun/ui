@@ -1,5 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "composite": true, "noEmit": true },
-  "include": ["src", "../workbench-contracts/src", "../workbench-measurement/src"]
-}
