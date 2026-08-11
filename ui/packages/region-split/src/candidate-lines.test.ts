@@ -78,4 +78,23 @@ describe("rowStats and detectCandidateLines", () => {
     const lines = await detectCandidateLines(path);
     expect(lines.some(line => Math.abs(line.y - 30) <= 1)).toBe(true);
   });
+
+  // 真实页面的典型形态：大面积彩色页头 + 白色正文 + 一条浅灰分隔带。
+  // 页头会把"所有行均值的中位色"拽偏，所以留白带判据不能依赖全局背景色，
+  // 否则这条最显眼的分隔带反而检不出来。
+  it("finds a faint separator band on a page with a large colored header", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rs-cl-"));
+    const path = join(dir, "header-page.png");
+    await sharp({ create: { width: 60, height: 200, channels: 3, background: "#f0c040" } })
+      .composite([
+        // 白色正文
+        { input: { create: { width: 60, height: 120, channels: 3, background: "#ffffff" } }, top: 80, left: 0 },
+        // 浅灰分隔带，与白色只差 ΔE≈3.5，够不上突变阈值，只能靠留白带规则捡到
+        { input: { create: { width: 60, height: 16, channels: 3, background: "#f6f6f6" } }, top: 130, left: 0 },
+      ])
+      .png().toFile(path);
+
+    const lines = await detectCandidateLines(path);
+    expect(lines.some(line => Math.abs(line.y - 138) <= 3)).toBe(true);
+  });
 });

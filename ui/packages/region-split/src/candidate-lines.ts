@@ -4,6 +4,8 @@ import type { CandidateLine } from "./types.js";
 export interface RowStat { mean: [number, number, number]; variance: number }
 
 const MERGE_DISTANCE = 4;
+// 少于这么多行的纯色段视为噪声，不作为候选切分线
+const MIN_BAND_HEIGHT = 3;
 
 function rgbToLab(r: number, g: number, b: number): [number, number, number] {
   const f = (v: number) => { v /= 255; return v > 0.04045 ? ((v + 0.055) / 1.055) ** 2.4 : v / 12.92; };
@@ -22,44 +24,51 @@ function deltaE(a: [number, number, number], b: [number, number, number]): numbe
   return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
 }
 
-function medianColor(rows: RowStat[]): [number, number, number] {
-  const channel = (index: 0 | 1 | 2) => {
-    const values = rows.map(row => row.mean[index]).sort((a, b) => a - b);
-    return values[Math.floor(values.length / 2)] ?? 0;
-  };
-  return [channel(0), channel(1), channel(2)];
-}
-
 export function candidatesFromRows(
   rows: RowStat[],
-  opts: { uniformVariance?: number; transitionDeltaE?: number } = {},
+  opts: { uniformVariance?: number; transitionDeltaE?: number; bandColorTolerance?: number } = {},
 ): CandidateLine[] {
   if (rows.length === 0) return [];
   const uniformVariance = opts.uniformVariance ?? 10;
   const transitionDeltaE = opts.transitionDeltaE ?? 12;
-  const background = medianColor(rows);
+  // 容差要小于"浅灰分隔带 vs 白底"的 ΔE（约 3.5），否则分隔带会被并进白底；
+  // 行均值是整行宽度上的平均，压缩噪声已被大幅抹平，1.5 足够稳。
+  const bandColorTolerance = opts.bandColorTolerance ?? 1.5;
   const found: CandidateLine[] = [];
 
-  // ① 留白带：连续的"纯色且等于页面背景色"的行
+  // ① 留白带：连续的纯色行，且**整段颜色自洽**。
+  //
+  // 这里刻意不要求留白带等于"页面背景色（全行均值的中位数）"。实测发现，
+  // 页面顶部有大面积彩色页头时（例如会员页的黄色渐变头），中位色会被拽成
+  // 一个偏黄的奶油色，白色正文和灰色分隔带与它的 ΔE 都在 8 以上，
+  // 结果全页最显眼的那条灰色分隔带反而检不出来。
+  // 带内自洽同样能挡住照片内部的伪留白——照片很难连续多行既低方差、
+  // 颜色又完全一致。
   let bandStart: number | null = null;
+  let bandColor: [number, number, number] | null = null;
   const closeBand = (endExclusive: number) => {
     if (bandStart === null) return;
     const start = bandStart;
     const height = endExclusive - start;
-    // 顶到图片边缘的留白不是模块边界
-    if (start > 0 && endExclusive < rows.length) {
+    // 顶到图片边缘的留白不是模块边界；单行噪声也不算
+    if (start > 0 && endExclusive < rows.length && height >= MIN_BAND_HEIGHT) {
       found.push({
         y: Math.floor(start + height / 2),
         strength: Math.min(1, height / 24),
       });
     }
     bandStart = null;
+    bandColor = null;
   };
   for (let y = 0; y < rows.length; y++) {
     const row = rows[y]!;
-    const blank = row.variance < uniformVariance && deltaE(row.mean, background) < 6;
-    if (blank && bandStart === null) bandStart = y;
-    if (!blank) closeBand(y);
+    const uniform = row.variance < uniformVariance;
+    if (!uniform) { closeBand(y); continue; }
+    if (bandColor !== null && deltaE(row.mean, bandColor) >= bandColorTolerance) {
+      // 颜色变了：上一段到此为止，本行作为新一段的开头
+      closeBand(y);
+    }
+    if (bandStart === null) { bandStart = y; bandColor = row.mean; }
   }
   closeBand(rows.length);
 
