@@ -3,7 +3,7 @@ import {
   adjustBoundary, areAdjacent, canAdjustBoundary, canSplitAt,
   mergeRegions, renameRegion, splitRegion,
   type ModelConfigView, type Region, type RegionSplitDoc,
-} from "@region-split/core";
+} from "@region-split/core/browser";
 import type { ModelConfigInput, StoreApi } from "./api.js";
 
 export type { ModelConfigInput, StoreApi };

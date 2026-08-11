@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { CandidateLine, Region, RegionSplitDoc } from "@region-split/core";
+import type { CandidateLine, Region, RegionSplitDoc } from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
 
 export function makeRegion(id: string, y: number, h: number): Region {

@@ -1,4 +1,4 @@
-import type { ModelConfigView, Region, RegionSplitDoc } from "@region-split/core";
+import type { ModelConfigView, Region, RegionSplitDoc } from "@region-split/core/browser";
 
 export interface ModelConfigInput { baseUrl: string; model: string; apiKey?: string }
 

@@ -1,4 +1,4 @@
-import type { CandidateLine } from "@region-split/core";
+import type { CandidateLine } from "@region-split/core/browser";
 
 export function toImageY(clientY: number, rectTop: number, displayScale: number): number {
   return Math.round((clientY - rectTop) / displayScale);
