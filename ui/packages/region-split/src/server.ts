@@ -31,7 +31,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "file field is required" });
     const buffer = await file.toBuffer();
-    const { projectId, doc } = await createProject({ store }, { fileName: file.filename, buffer });
+    const { projectId, doc } = await createProject(
+      { store, detectLines: deps.detectLines }, { fileName: file.filename, buffer });
     return reply.code(201).send({ projectId, doc });
   });
 

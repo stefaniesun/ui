@@ -9,7 +9,7 @@ import type { CandidateLine, RegionSplitDoc } from "./types.js";
 export const MAX_ANALYZED_HEIGHT = 2000;
 
 export async function createProject(
-  deps: { store: ProjectStore },
+  deps: { store: ProjectStore; detectLines?: (analyzedPath: string) => Promise<CandidateLine[]> },
   input: { fileName: string; buffer: Buffer },
 ): Promise<{ projectId: string; doc: RegionSplitDoc }> {
   const { store } = deps;
@@ -30,11 +30,21 @@ export async function createProject(
     writeFileSync(store.analyzedImagePath(projectId), readFileSync(store.imagePath(projectId)));
   }
 
+  // 候选线是纯图像分析，不需要模型，所以上传时就算好——
+  // 这样即使还没配模型，人工拆分也能吸附到真实分割位置。
+  const analyzedLines = deps.detectLines
+    ? await deps.detectLines(store.analyzedImagePath(projectId))
+    : [];
+  const candidateLines: CandidateLine[] = analyzedLines.map(line => ({
+    y: Math.round(line.y / analyzedScale),
+    strength: line.strength,
+  }));
+
   const doc: RegionSplitDoc = {
     schemaVersion: "1",
     image: { fileName: input.fileName, width: meta.width, height: meta.height, analyzedScale },
     regions: fullPageRegions({ width: meta.width, height: meta.height }),
-    candidateLines: [],
+    candidateLines,
     updatedAt: new Date().toISOString(),
   };
   store.writeDoc(projectId, doc);

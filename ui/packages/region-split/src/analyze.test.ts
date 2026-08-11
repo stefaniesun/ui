@@ -30,7 +30,17 @@ describe("createProject", () => {
     expect(doc.image).toMatchObject({ width: 375, height: 400, analyzedScale: 1 });
     expect(doc.regions).toHaveLength(1);
     expect(doc.regions[0]!.bounds).toEqual({ x: 0, y: 0, w: 375, h: 400 });
-    expect(doc.candidateLines).toEqual([]);
+    expect(doc.candidateLines).toEqual([]);   // 没传 detectLines 时为空
+  });
+
+  it("stores candidate lines at upload time so manual splitting can snap before any analysis", async () => {
+    const store = freshStore();
+    const { doc } = await createProject(
+      { store, detectLines: async () => [{ y: 40, strength: 0.8 }] },
+      { fileName: "long.png", buffer: await png(750, 5000) },
+    );
+    // 分析图 y=40 对应原图 y=100（analyzedScale = 0.4）
+    expect(doc.candidateLines).toEqual([{ y: 100, strength: 0.8 }]);
   });
 
   it("downscales tall images and records the scale", async () => {

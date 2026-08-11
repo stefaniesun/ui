@@ -1,0 +1,89 @@
+# UI 效果图区域拆分工具
+
+把一张移动端 UI 效果图拆成 5–10 个粗粒度模块并自动命名，人工可微调边界、拆分、合并、重命名。产物是一份稳定的区域划分 JSON，作为后续还原工作的输入。
+
+设计文档：[docs/superpowers/specs/2026-08-11-region-split-design.md](docs/superpowers/specs/2026-08-11-region-split-design.md)
+
+## 它为什么这么做
+
+移动端页面绝大多数垂直堆叠，所以粗粒度模块边界本质上是**一组水平切分线**，而不是任意矩形。这带来三个好处：
+
+- 不要求多模态模型输出 `(x, y, w, h)`，只要它说"在哪几个 Y 位置切开"——绕开了模型坐标精度不足的老问题；
+- 区域天然首尾相接，不会重叠、不会有缝隙、不会漏掉页面的任何一块；
+- 图像水平投影分析能找出**真实的**分割位置（留白带、色彩突变行），把模型给的粗略 Y 值吸附上去，精度从"大概"变成"贴合"。
+
+工具负责给出精确的候选位置，模型负责判断哪些候选是真正的模块边界——两者互补。
+
+## 启动
+
+需要 Node ≥ 22 和 pnpm。两个终端：
+
+```bash
+pnpm -C ui install && pnpm -C ui/packages/region-split dev
+```
+
+```bash
+pnpm -C ui/apps/region-split-ui dev
+```
+
+服务端默认 `127.0.0.1:4800`，前端默认 `127.0.0.1:5180`（已配 `/api` 代理）。打开 http://127.0.0.1:5180 。
+
+## 配置模型
+
+点工具栏的「模型配置」，填：
+
+- **Base URL**：OpenAI 兼容端点，例如本地 Ollama 的 `http://127.0.0.1:11434/v1`
+- **模型名**：需要支持图片输入的多模态模型
+- **API Key**：本地模型可留空
+
+点「测试连接」确认通了再保存。已保存的 Key 不会回传前端，输入框留空表示保持不变。
+
+也可以用环境变量提供默认值：`UIR_MODEL_BASE_URL` / `UIR_MODEL_API_KEY` / `UIR_MODEL_NAME`。界面保存过一次后以界面配置为准。
+
+未配置模型时，「重新分析」和「AI 重命名」会禁用，其余功能（上传、手动拆分/合并/微调/重命名、撤销）全部照常可用。
+
+## 操作
+
+| 操作 | 方式 |
+|------|------|
+| 选中区域 | 点图上色块或右侧列表；`Ctrl` / `Shift` 加选 |
+| 微调下边界 | 选中后点 `▲` `▼`，或按 `↑` `↓` |
+| 拆分 | 选中后点「拆分」→ 移动鼠标（会吸附到检测出的真实分割线）→ 点击确认 |
+| 合并 | 选中多个**相邻**区域 → 点「合并」 |
+| 重命名 | 点「重命名」或双击列表里的名字 |
+| AI 重命名 | 选中后点「AI 重命名」 |
+| 撤销 / 重做 | 工具栏按钮，或 `Ctrl+Z` / `Ctrl+Shift+Z` |
+| 退出拆分模式 / 清空选中 | `Esc` |
+
+拆分和合并后，新区域会自动交给模型重新命名（结构变了原名字就不准了）。所有改动实时落盘，URL 带 `#<projectId>`，刷新页面可恢复现场。
+
+## 数据
+
+写在 `ui/data/`（已 gitignore）：
+
+```text
+data/
+  model-config.json          模型配置（含 API Key）
+  projects/<projectId>/
+    image.png                上传的原图
+    image.analyzed.png       缩放后的分析图（长图会被等比缩到 2000px 高）
+    regions.json             区域划分结果
+```
+
+`regions.json` 的坐标一律是**原图像素**。服务端在每次写入前校验不变量（升序、首尾相接、覆盖全图、每块 ≥ 8px、id 唯一），违反直接拒绝，不做静默修正。
+
+## 开发
+
+```bash
+pnpm -C ui test         # 两个包的全部测试
+pnpm -C ui -r typecheck # 类型检查
+```
+
+代码分两个单元：
+
+- `packages/region-split`（`@region-split/core`）——图像分析、模型调用、融合修正、文件存储、HTTP 服务
+- `apps/region-split-ui`（`@region-split/ui`）——Vue 3 界面
+
+前端只能从 `@region-split/core/browser` 导入（只含纯逻辑和类型）。根入口 `@region-split/core` 会带进 `node:fs` / `sharp` / `fastify`，在浏览器里构建不了。
+
+核心算法都是纯函数，测试主要压在这几处：`operations.ts`（编辑操作）、`reconcile.ts`（融合修正）、`candidate-lines.ts` 的 `candidatesFromRows`（切分线检测）。模型调用在测试里一律注入 fake，不打真实网络。
