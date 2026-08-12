@@ -1,25 +1,38 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import PipelineCanvas from "./canvas/PipelineCanvas.vue";
-import RegionsNode from "./canvas/nodes/RegionsNode.vue";
+import RegionsNode, { type RegionNodeError } from "./canvas/nodes/RegionsNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
+import ErrorDialog from "./components/ErrorDialog.vue";
 import { httpApi } from "./api.js";
 import { createStore } from "./state.js";
 
 const store = createStore(httpApi);
 const hoveredId = ref<string | null>(null);
+const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
+const dialogError = ref<RegionNodeError | null>(null);
 const showCandidateLines = ref(true);
 const showPanels = ref(true);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
 const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
+const analyzing = computed(() => store.busy.value && store.busyLabel.value === "AI 分析中…");
 
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
 function isEditingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
   return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA" || element?.isContentEditable;
 }
+async function retryAnalysis() {
+  dialogError.value = null;
+  await regionsNode.value?.retryAnalysis();
+}
+
 function onKeydown(event: KeyboardEvent) {
+  if (dialogError.value) {
+    if (event.key === "Escape") dialogError.value = null;
+    return;
+  }
   if (store.busy.value || isEditingTarget(event.target)) return;
   const mod = event.ctrlKey || event.metaKey;
   if (store.mode.value === "split" && event.key !== "Escape") return;
@@ -54,15 +67,26 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
     <PipelineCanvas :status="workspaceStatus">
       <template #status>{{ analyzed ? `${store.regions.value.length} 个区域` : hasImage ? "自动分析中" : "等待上传" }}</template>
       <RegionsNode
+        ref="regionsNode"
         :store="store"
         :hovered-id="hoveredId"
         :show-candidate-lines="showCandidateLines"
         :show-panels="showPanels"
         @hover="hoveredId = $event"
         @uploaded="store.projectId.value && syncHash(store.projectId.value)"
+        @error="dialogError = $event"
       />
     </PipelineCanvas>
-    <BusyOverlay v-if="store.busy.value" :label="store.busyLabel.value" />
+    <BusyOverlay v-if="store.busy.value && !analyzing" :label="store.busyLabel.value" />
+    <ErrorDialog
+      v-if="dialogError"
+      :title="dialogError.title"
+      :message="dialogError.message"
+      :config-path="dialogError.configPath"
+      :retryable="dialogError.retryable"
+      @close="dialogError = null"
+      @retry="retryAnalysis"
+    />
   </main>
 </template>
 

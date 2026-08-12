@@ -46,4 +46,19 @@ describe("App pipeline workspace", () => {
     wrapper.unmount();
     expect(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))).not.toThrow();
   });
+
+  it("closes an error dialog with Escape before changing region state", async () => {
+    const wrapper = await mounted();
+    wrapper.getComponent({ name: "RegionsNode" }).vm.$emit("error", {
+      title: "AI 模型未配置", message: "必须配置模型", configPath: "config.json", retryable: false,
+    });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
 });
