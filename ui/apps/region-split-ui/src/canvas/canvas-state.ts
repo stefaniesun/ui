@@ -17,7 +17,7 @@ export interface ViewportSize {
   height: number;
 }
 
-export type NodeId = "source" | "surface" | "analyze" | "regions";
+export type NodeId = "workspace";
 export type NodePositions = Record<NodeId, Point>;
 
 export interface StorageReader {
@@ -30,13 +30,10 @@ export interface StorageWriter {
 
 export const MIN_ZOOM = 0.2;
 export const MAX_ZOOM = 3;
-export const NODE_POSITIONS_STORAGE_KEY = "region-split:canvas-node-positions:v1";
+export const NODE_POSITIONS_STORAGE_KEY = "region-split:canvas-node-positions:v2";
 
 export const DEFAULT_NODE_POSITIONS: NodePositions = {
-  source: { x: 80, y: 120 },
-  surface: { x: 600, y: 120 },
-  analyze: { x: 1120, y: 120 },
-  regions: { x: 1640, y: 80 },
+  workspace: { x: 120, y: 80 },
 };
 
 export function clampZoom(zoom: number): number {

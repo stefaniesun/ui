@@ -26,8 +26,8 @@ describe("canvas state", () => {
   });
 
   it("loads persisted positions and safely falls back on malformed storage", () => {
-    const good = { getItem: () => JSON.stringify({ source: { x: 10, y: 20 } }) };
-    expect(loadNodePositions(good, "nodes", DEFAULT_NODE_POSITIONS).source).toEqual({ x: 10, y: 20 });
+    const good = { getItem: () => JSON.stringify({ workspace: { x: 10, y: 20 } }) };
+    expect(loadNodePositions(good, "nodes", DEFAULT_NODE_POSITIONS).workspace).toEqual({ x: 10, y: 20 });
     const bad = { getItem: () => "{" };
     expect(loadNodePositions(bad, "nodes", DEFAULT_NODE_POSITIONS)).toEqual(DEFAULT_NODE_POSITIONS);
   });

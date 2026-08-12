@@ -11,7 +11,7 @@ vi.mock("./api.js", async () => {
 async function mounted() {
   const wrapper = mount(App, {
     attachTo: document.body,
-    global: { stubs: { SourceNode: true, SurfaceNode: true, AnalyzeNode: true, RegionsNode: true } },
+    global: { stubs: { RegionsNode: true } },
   });
   await new Promise(resolve => setTimeout(resolve, 0));
   return wrapper;
@@ -28,11 +28,13 @@ describe("App pipeline workspace", () => {
     });
   });
 
-  it("renders the fixed four-node pipeline and three data edges", async () => {
+  it("renders one comparison workspace without intermediate nodes or edges", async () => {
     const wrapper = await mounted();
     expect(wrapper.findAll("[data-node-id]").map(node => node.attributes("data-node-id")))
-      .toEqual(["source", "surface", "analyze", "regions"]);
-    expect(wrapper.findAll(".edges path")).toHaveLength(3);
+      .toEqual(["workspace"]);
+    expect(wrapper.findAll(".edges path")).toHaveLength(0);
+    expect(wrapper.text()).not.toContain("表面分析");
+    expect(wrapper.text()).not.toContain("AI 分段");
     wrapper.unmount();
   });
 

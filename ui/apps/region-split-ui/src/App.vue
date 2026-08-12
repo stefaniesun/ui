@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import PipelineCanvas from "./canvas/PipelineCanvas.vue";
-import AnalyzeNode from "./canvas/nodes/AnalyzeNode.vue";
 import RegionsNode from "./canvas/nodes/RegionsNode.vue";
-import SourceNode from "./canvas/nodes/SourceNode.vue";
-import SurfaceNode from "./canvas/nodes/SurfaceNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
 import { httpApi } from "./api.js";
 import { createStore } from "./state.js";
@@ -15,7 +12,7 @@ const showCandidateLines = ref(true);
 const showPanels = ref(true);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
-const hasRegions = computed(() => store.regions.value.length > 0);
+const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
 
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
 function isEditingTarget(target: EventTarget | null) {
@@ -25,6 +22,7 @@ function isEditingTarget(target: EventTarget | null) {
 function onKeydown(event: KeyboardEvent) {
   if (store.busy.value || isEditingTarget(event.target)) return;
   const mod = event.ctrlKey || event.metaKey;
+  if (store.mode.value === "split" && event.key !== "Escape") return;
   if (mod && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) void store.redo(); else void store.undo();
@@ -53,35 +51,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       <span class="brand-mark">RS</span>
       <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
     </div>
-    <PipelineCanvas
-      :source-status="hasImage ? 'done' : 'active'"
-      :surface-status="hasImage ? 'done' : 'idle'"
-      :analyze-status="analyzed ? 'done' : hasImage ? 'active' : 'idle'"
-      :regions-status="hasRegions ? 'active' : 'idle'"
-      :edge-active="{ 'source-surface': hasImage, 'surface-analyze': hasImage, 'analyze-regions': hasRegions }"
-    >
-      <template #source-status>{{ hasImage ? "已载入" : "等待输入" }}</template>
-      <template #surface-status>{{ store.candidateLines.value.length }} 条线索</template>
-      <template #analyze-status>{{ analyzed ? "已完成" : "待处理" }}</template>
-      <template #regions-status>{{ store.regions.value.length }} 个区域</template>
-      <template #source><SourceNode :store="store" @uploaded="syncHash" /></template>
-      <template #surface>
-        <SurfaceNode
-          v-model:show-candidate-lines="showCandidateLines"
-          v-model:show-panels="showPanels"
-          :store="store"
-        />
-      </template>
-      <template #analyze><AnalyzeNode :store="store" /></template>
-      <template #regions>
-        <RegionsNode
-          :store="store"
-          :hovered-id="hoveredId"
-          :show-candidate-lines="showCandidateLines"
-          :show-panels="showPanels"
-          @hover="hoveredId = $event"
-        />
-      </template>
+    <PipelineCanvas :status="workspaceStatus">
+      <template #status>{{ analyzed ? `${store.regions.value.length} 个区域` : hasImage ? "自动分析中" : "等待上传" }}</template>
+      <RegionsNode
+        :store="store"
+        :hovered-id="hoveredId"
+        :show-candidate-lines="showCandidateLines"
+        :show-panels="showPanels"
+        @hover="hoveredId = $event"
+        @uploaded="store.projectId.value && syncHash(store.projectId.value)"
+      />
     </PipelineCanvas>
     <BusyOverlay v-if="store.busy.value" :label="store.busyLabel.value" />
   </main>
