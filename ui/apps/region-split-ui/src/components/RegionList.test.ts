@@ -37,6 +37,22 @@ describe("RegionList", () => {
     expect(rows[1]!.find("[data-test=scroll]").exists()).toBe(false);
   });
 
+  it("warns that an un-analysed document is only the initial split", async () => {
+    const { store, wrapper } = await mounted();
+    const notice = wrapper.find("[data-test=needs-analysis]");
+    expect(notice.exists()).toBe(true);
+    expect(notice.text()).toContain("初始划分");
+    expect(notice.text()).toContain("重新分析");
+  });
+
+  it("drops the warning once the document has been analysed", async () => {
+    const store = createStore(makeFakeApi(initial));
+    await store.load("p1");
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-12T00:00:00.000Z" };
+    const wrapper = mount(RegionList, { props: { store } });
+    expect(wrapper.find("[data-test=needs-analysis]").exists()).toBe(false);
+  });
+
   it("selects on click and adds with ctrl-click", async () => {
     const { store, wrapper } = await mounted();
     await wrapper.findAll("[data-test=row]")[1]!.trigger("click");

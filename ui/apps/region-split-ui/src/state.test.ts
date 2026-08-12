@@ -175,6 +175,21 @@ describe("createStore", () => {
     expect(putRegions).not.toHaveBeenCalled();
   });
 
+  // "上传后的初始划分"和"AI 分析结果"在界面上长得一模一样（都是编号色块），
+  // 靠 analyzedAt 区分。缺了它，用户会把候选线的原始输出当成模型的判断。
+  it("flags a document that has never been analysed", async () => {
+    const api = makeFakeApi(initial);
+    const store = createStore(api);
+    expect(store.needsAnalysis.value).toBe(false);   // 还没有文档
+
+    await store.load("p1");
+    expect(store.needsAnalysis.value).toBe(true);    // 有文档但没 analyzedAt
+
+    api.analyze = async () => ({ doc: { ...makeDoc(initial()), analyzedAt: "2026-08-12T00:00:00.000Z" } });
+    await store.analyze();
+    expect(store.needsAnalysis.value).toBe(false);
+  });
+
   // 遮罩层只是视觉拦截，真正保证"分析期间改不动"的是这些守卫。
   // 遮罩在真实浏览器里挡住指针，但它不该是唯一防线——键盘、程序化调用都绕得过。
   describe("busy guards", () => {

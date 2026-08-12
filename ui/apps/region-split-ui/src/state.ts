@@ -63,6 +63,10 @@ export function createStore(api: StoreApi) {
   const isModelConfigured = computed(() =>
     Boolean(modelConfig.value?.baseUrl) && Boolean(modelConfig.value?.model));
   const candidateLines = computed(() => doc.value?.candidateLines ?? []);
+  // 有文档但从没跑过模型分析——此时 regions 是候选切分线直接切出来的，
+  // 名字是"区域 1..N"、类型全是 other，看起来和分析结果一模一样。
+  // 界面必须把这个状态说清楚，否则用户会把原始信号当成 AI 的输出。
+  const needsAnalysis = computed(() => Boolean(doc.value) && !doc.value?.analyzedAt);
 
   function pushUndo() {
     undoStack.push(snapshot());
@@ -154,7 +158,7 @@ export function createStore(api: StoreApi) {
     projectId, doc, regions, selectedIds, mode, busy, busyLabel, error, pendingRenameIds, renamingId,
     modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
-    isModelConfigured, candidateLines,
+    isModelConfigured, candidateLines, needsAnalysis,
 
     startRename(id: string) { renamingId.value = id; },
     stopRename() { renamingId.value = null; },

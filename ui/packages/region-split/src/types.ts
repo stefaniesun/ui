@@ -58,6 +58,10 @@ export const regionSplitDocSchema = z.object({
   // 检测到的卡片/面板（原图坐标）。模块边界不该横穿面板——这是候选线
   // 一维分析看不出来的信息，也一并送给模型作为约束。
   panels: z.array(panelSchema).default([]),
+  // 最近一次模型分析的时间。缺省表示"从没分析过"——此时 regions 是候选切分线
+  // 直接切出来的初始划分，没有任何语义判断参与。界面靠它区分两种状态，
+  // 不然"区域 1..N"看起来和分析结果一模一样，很容易被当成 AI 的输出。
+  analyzedAt: z.string().optional(),
   updatedAt: z.string(),
 });
 export type RegionSplitDoc = z.infer<typeof regionSplitDocSchema>;

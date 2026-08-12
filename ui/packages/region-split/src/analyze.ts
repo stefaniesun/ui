@@ -183,8 +183,9 @@ export async function analyzeProject(
     analyzedScale: doc.image.analyzedScale,
     candidateLines,
   });
+  const now = new Date().toISOString();
   const next: RegionSplitDoc = {
-    ...doc, regions, candidateLines, panels, updatedAt: new Date().toISOString(),
+    ...doc, regions, candidateLines, panels, analyzedAt: now, updatedAt: now,
   };
   store.writeDoc(projectId, next);
   return next;

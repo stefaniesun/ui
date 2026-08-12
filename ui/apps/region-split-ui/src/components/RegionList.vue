@@ -85,6 +85,14 @@ function onRowClick(id: string, event: MouseEvent) {
 </script>
 
 <template>
+  <div
+    v-if="props.store.needsAnalysis.value"
+    data-test="needs-analysis"
+    class="notice"
+  >
+    这是按视觉分割线生成的<strong>初始划分</strong>，还没经过 AI 判断。<br />
+    点工具栏的「重新分析」获得语义命名的模块。
+  </div>
   <ul class="list">
     <li
       v-for="(region, index) in props.store.regions.value"
@@ -129,6 +137,11 @@ function onRowClick(id: string, event: MouseEvent) {
 </template>
 
 <style scoped>
+.notice {
+  margin: 6px; padding: 8px 10px; border-radius: 6px;
+  background: #fff8e1; border: 1px solid #f0d492; color: #7a5c12;
+  font-size: 12px; line-height: 1.6;
+}
 .list { list-style: none; margin: 0; padding: 4px; }
 .row { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
 .row.hovered { background: #f0f4ff; }
