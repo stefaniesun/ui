@@ -34,6 +34,7 @@ describe("ProjectStore", () => {
     broken.regions = [{
       id: "x", displayName: "x", type: "other",
       bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1,
+      scrollX: false, scrollY: false,
     }];
     expect(() => store.writeDoc("p1", broken)).toThrow(/invariant violated/);
     expect(store.readDoc("p1").regions[0]!.bounds.h).toBe(600);
@@ -43,8 +44,8 @@ describe("ProjectStore", () => {
     const store = freshStore();
     store.writeDoc("p1", { ...doc(), updatedAt: "2020-01-01T00:00:00.000Z" });
     const next = store.writeRegions("p1", [
-      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1 },
-      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 200, w: 375, h: 400 }, confidence: 1 },
+      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 200, w: 375, h: 400 }, confidence: 1, scrollX: false, scrollY: false },
     ]);
     expect(next.regions).toHaveLength(2);
     expect(next.updatedAt).not.toBe("2020-01-01T00:00:00.000Z");
@@ -60,8 +61,8 @@ describe("ProjectStore", () => {
     const store = freshStore();
     store.writeDoc("p1", { ...doc(), candidateLines: [{ y: 120, strength: 0.8 }] });
     const next = store.writeRegions("p1", [
-      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1 },
-      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 200, w: 375, h: 400 }, confidence: 1 },
+      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 200, w: 375, h: 400 }, confidence: 1, scrollX: false, scrollY: false },
     ]);
     expect(next.candidateLines).toEqual([{ y: 120, strength: 0.8 }]);
   });
@@ -76,8 +77,8 @@ describe("ProjectStore", () => {
     // y:0,h:100.5 与 y:100.5,h:499.5 相加仍自洽，能骗过 checkInvariants，
     // 但落盘后会在 analyze.ts 的 sharp.extract 中因非整数 top/height 抛错。
     expect(() => store.writeRegions("p1", [
-      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 100.5 }, confidence: 1 },
-      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 100.5, w: 375, h: 499.5 }, confidence: 1 },
+      { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 100.5 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 100.5, w: 375, h: 499.5 }, confidence: 1, scrollX: false, scrollY: false },
     ])).toThrow();
   });
 });

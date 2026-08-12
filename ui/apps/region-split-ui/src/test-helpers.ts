@@ -2,8 +2,13 @@ import { vi } from "vitest";
 import type { CandidateLine, Region, RegionSplitDoc } from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
 
-export function makeRegion(id: string, y: number, h: number): Region {
-  return { id, displayName: `名-${id}`, type: "card", bounds: { x: 0, y, w: 375, h }, confidence: 0.87 };
+export function makeRegion(
+  id: string, y: number, h: number, scroll: { x?: boolean; y?: boolean } = {},
+): Region {
+  return {
+    id, displayName: `名-${id}`, type: "card", bounds: { x: 0, y, w: 375, h }, confidence: 0.87,
+    scrollX: scroll.x ?? false, scrollY: scroll.y ?? false,
+  };
 }
 
 export function makeDoc(regions: Region[], candidateLines: CandidateLine[] = []): RegionSplitDoc {

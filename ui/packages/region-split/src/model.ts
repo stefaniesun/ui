@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { regionTypes, type RawSegment, type RegionType } from "./types.js";
 
-export interface RegionNaming { displayName: string; id: string; type: RegionType }
+export interface RegionNaming {
+  displayName: string; id: string; type: RegionType; scrollX: boolean; scrollY: boolean;
+}
 
 export interface SegmentInput {
   imageBase64: string;
@@ -23,6 +25,8 @@ const segmentsSchema = z.object({
     yStart: z.number(),
     yEnd: z.number(),
     confidence: z.number().min(0).max(1),
+    scrollX: z.boolean().default(false),
+    scrollY: z.boolean().default(false),
   })).min(1),
 });
 
@@ -30,22 +34,35 @@ const namingSchema = z.object({
   displayName: z.string().min(1),
   id: z.string().min(1),
   type: z.enum(regionTypes),
+  scrollX: z.boolean().default(false),
+  scrollY: z.boolean().default(false),
 });
+
+const SCROLL_RULES = [
+  "另外判断每个模块整体是否可滚动，输出 scrollX 和 scrollY 两个布尔值：",
+  "scrollX（横向滚动）：内容在模块左右边缘被切断时为 true——典型证据是最右侧的卡片/图标只露出一半、",
+  "  一行等宽卡片明显放不下、或带有分页圆点的轮播。没有这类证据就是 false。",
+  "scrollY（纵向滚动）：**页面自身能上下滚动不算**，那是整页的属性不是模块的属性，绝大多数模块都应该是 false。",
+  "  只有当模块是固定高度的内嵌滚动面板时才为 true——证据是模块内出现独立滚动条，",
+  "  或内容明确在模块下边缘被裁断而模块本身有边框/背景界定出固定高度。拿不准就填 false。",
+].join("\n");
 
 const SEGMENT_PROMPT = [
   "你在分析一张移动端 UI 效果图，需要把整页按视觉/功能单元从上到下切成若干模块。",
-  "只输出一个 JSON 对象，格式为 {\"regions\":[{\"displayName\":string,\"id\":string,\"type\":string,\"yStart\":number,\"yEnd\":number,\"confidence\":number}]}。",
+  "只输出一个 JSON 对象，格式为 {\"regions\":[{\"displayName\":string,\"id\":string,\"type\":string,\"yStart\":number,\"yEnd\":number,\"confidence\":number,\"scrollX\":boolean,\"scrollY\":boolean}]}。",
   "要求：模块数量 5 到 10 个；必须从 y=0 开始、到图片底部结束；每段 yEnd 等于下一段 yStart；",
   "displayName 用简短中文，id 用 kebab-case 英文，confidence 取 0 到 1。",
   `type 只能取以下之一：${regionTypes.join("、")}。`,
   "参考给出的候选切分线：它们是图像分析得到的真实分割位置，优先在这些位置附近切分。",
+  SCROLL_RULES,
 ].join("\n");
 
 const NAMING_PROMPT = [
   "这是一张移动端 UI 页面中某一个模块的裁图。给它命名并判断类型。",
-  "只输出一个 JSON 对象，格式为 {\"displayName\":string,\"id\":string,\"type\":string}。",
+  "只输出一个 JSON 对象，格式为 {\"displayName\":string,\"id\":string,\"type\":string,\"scrollX\":boolean,\"scrollY\":boolean}。",
   "displayName 用简短中文，id 用 kebab-case 英文。",
   `type 只能取以下之一：${regionTypes.join("、")}。`,
+  SCROLL_RULES,
 ].join("\n");
 
 function extractJson(raw: string): unknown {
@@ -58,7 +75,10 @@ function extractJson(raw: string): unknown {
   }
 }
 
-const DEFAULT_TIMEOUT_MS = 15000;
+// 超时是为了兜住"连得上但永远不回包"的挂起，不是用来约束响应速度的。
+// 实测一次整页分段（2000px 高的图 + 十来段结构化输出）在中转站端点上要 15 秒上下，
+// 设成 15 秒会时好时坏地误杀正常请求，所以留足余量；慢端点可在配置文件里调大。
+const DEFAULT_TIMEOUT_MS = 120000;
 
 export function createOpenAiModel(cfg: {
   baseUrl: string; apiKey: string; model: string; fetchImpl?: typeof fetch; timeoutMs?: number;
@@ -131,7 +151,11 @@ export function createOpenAiModel(cfg: {
       return parsed.regions as RawSegment[];
     },
     async nameRegion(input) {
-      return askParsed(NAMING_PROMPT, "请命名这个模块。", input.cropBase64, namingSchema);
+      // 断言到 RegionNaming：zod 的 .default() 让推断出的类型把这两个字段标成可选，
+      // 但解析后它们必定有值。
+      return await askParsed(
+        NAMING_PROMPT, "请命名这个模块。", input.cropBase64, namingSchema,
+      ) as RegionNaming;
     },
   };
 }

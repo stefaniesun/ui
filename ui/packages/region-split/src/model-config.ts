@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 
-export interface ModelConfig { baseUrl: string; apiKey: string; model: string }
+export interface ModelConfig { baseUrl: string; apiKey: string; model: string; timeoutMs?: number }
 
 /** 给前端看的只读状态，永不含明文 apiKey。 */
 export interface ModelConfigView {
@@ -12,6 +12,8 @@ const modelConfigSchema = z.object({
   baseUrl: z.string(),
   apiKey: z.string().optional().default(""),
   model: z.string(),
+  // 慢端点可以调大；缺省用 model.ts 里的默认值
+  timeoutMs: z.number().positive().optional(),
 });
 
 /**

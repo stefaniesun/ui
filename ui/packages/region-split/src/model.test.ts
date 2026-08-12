@@ -15,8 +15,8 @@ const cfg = (fetchImpl: typeof fetch) =>
 
 const segmentsJson = JSON.stringify({
   regions: [
-    { displayName: "状态栏", id: "status-bar", type: "status-bar", yStart: 0, yEnd: 44, confidence: 0.96 },
-    { displayName: "会员卡", id: "member-card", type: "card", yStart: 44, yEnd: 300, confidence: 0.88 },
+    { displayName: "状态栏", id: "status-bar", type: "status-bar", yStart: 0, yEnd: 44, confidence: 0.96, scrollX: false, scrollY: false },
+    { displayName: "会员卡", id: "member-card", type: "card", yStart: 44, yEnd: 300, confidence: 0.88, scrollX: false, scrollY: false },
   ],
 });
 
@@ -26,7 +26,7 @@ describe("createOpenAiModel.segment", () => {
     const out = await model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [44, 300] });
     expect(out).toHaveLength(2);
     expect(out[1]).toEqual({
-      displayName: "会员卡", id: "member-card", type: "card", yStart: 44, yEnd: 300, confidence: 0.88,
+      displayName: "会员卡", id: "member-card", type: "card", yStart: 44, yEnd: 300, confidence: 0.88, scrollX: false, scrollY: false,
     });
   });
 
@@ -79,8 +79,18 @@ describe("createOpenAiModel.nameRegion", () => {
   it("parses a naming response", async () => {
     const json = JSON.stringify({ displayName: "权益对比表", id: "benefits-comparison", type: "grid" });
     const model = createOpenAiModel(cfg(fakeFetch(json)));
+    // 模型没给滚动字段时补默认 false，老模型/老提示词的响应仍然可用
     expect(await model.nameRegion({ cropBase64: "BB" })).toEqual({
       displayName: "权益对比表", id: "benefits-comparison", type: "grid",
+      scrollX: false, scrollY: false,
     });
+  });
+
+  it("keeps the scroll flags the model reports", async () => {
+    const json = JSON.stringify({
+      displayName: "套餐横滑", id: "plan-carousel", type: "card", scrollX: true, scrollY: false,
+    });
+    const model = createOpenAiModel(cfg(fakeFetch(json)));
+    expect(await model.nameRegion({ cropBase64: "BB" })).toMatchObject({ scrollX: true, scrollY: false });
   });
 });

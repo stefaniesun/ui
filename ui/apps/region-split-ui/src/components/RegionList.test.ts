@@ -22,6 +22,21 @@ describe("RegionList", () => {
     expect(rows[0]!.text()).toContain("87%");
   });
 
+  it("badges regions that scroll, and leaves static ones unmarked", async () => {
+    const store = createStore(makeFakeApi(() => [
+      makeRegion("a", 0, 300, { x: true }),
+      makeRegion("b", 300, 300),
+    ]));
+    await store.load("p1");
+    const wrapper = mount(RegionList, { props: { store } });
+    const rows = wrapper.findAll("[data-test=row]");
+    const badge = rows[0]!.find("[data-test=scroll]");
+    expect(badge.exists()).toBe(true);
+    expect(badge.text()).toBe("↔");
+    expect(badge.attributes("title")).toBe("可横向滑动");
+    expect(rows[1]!.find("[data-test=scroll]").exists()).toBe(false);
+  });
+
   it("selects on click and adds with ctrl-click", async () => {
     const { store, wrapper } = await mounted();
     await wrapper.findAll("[data-test=row]")[1]!.trigger("click");

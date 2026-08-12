@@ -117,6 +117,12 @@ function onRowClick(id: string, event: MouseEvent) {
         {{ props.store.pendingRenameIds.value.includes(region.id) ? "命名中…" : region.displayName }}
       </span>
       <span class="type">{{ region.type }}</span>
+      <span
+        v-if="region.scrollX || region.scrollY"
+        data-test="scroll"
+        class="scroll"
+        :title="[region.scrollX ? '可横向滑动' : '', region.scrollY ? '可纵向滑动' : ''].filter(Boolean).join(' · ')"
+      >{{ region.scrollX ? "↔" : "" }}{{ region.scrollY ? "↕" : "" }}</span>
       <span class="confidence">{{ Math.round(region.confidence * 100) }}%</span>
     </li>
   </ul>
@@ -132,5 +138,6 @@ function onRowClick(id: string, event: MouseEvent) {
 .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .type { font-size: 11px; color: #888; }
 .confidence { font-size: 11px; color: #666; width: 34px; text-align: right; }
+.scroll { font-size: 12px; color: #2f6fed; cursor: help; }
 input { flex: 1; min-width: 0; }
 </style>

@@ -20,6 +20,11 @@ export const regionSchema = z.object({
   type: z.enum(regionTypes),
   bounds: rectSchema,
   confidence: z.number().min(0).max(1),
+  // 区域整体是否可滚动。直接对应 CSS 的 overflow-x / overflow-y，
+  // 下游生成代码时是机械映射（scrollX -> 横向滚动容器 + 子项不换行）。
+  // 旧文档没有这两个字段，用 default 保证仍可读入。
+  scrollX: z.boolean().default(false),
+  scrollY: z.boolean().default(false),
 });
 export type Region = z.infer<typeof regionSchema>;
 
@@ -50,6 +55,8 @@ export interface RawSegment {
   yStart: number;   // 分析图坐标
   yEnd: number;     // 分析图坐标
   confidence: number;
+  scrollX: boolean;
+  scrollY: boolean;
 }
 
 export interface InvariantViolation { code: string; message: string }

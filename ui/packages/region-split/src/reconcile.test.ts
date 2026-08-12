@@ -4,7 +4,7 @@ import { checkInvariants, type RawSegment } from "./types.js";
 
 const image = { width: 375, height: 600 };
 const seg = (id: string, yStart: number, yEnd: number): RawSegment => ({
-  id, displayName: `名-${id}`, type: "card", yStart, yEnd, confidence: 0.9,
+  id, displayName: `名-${id}`, type: "card", yStart, yEnd, confidence: 0.9, scrollX: false, scrollY: false,
 });
 
 describe("reconcile", () => {

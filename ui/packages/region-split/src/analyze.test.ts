@@ -16,10 +16,10 @@ async function png(width: number, height: number): Promise<Buffer> {
 
 const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
   segment: async () => [
-    { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9 },
-    { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8 },
+    { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
+    { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
-  nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid" }),
+  nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   ...overrides,
 });
 
@@ -87,8 +87,8 @@ describe("analyzeProject", () => {
     const store = freshStore();
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(750, 5000) });
     const segment = vi.fn(async () => [
-      { displayName: "顶部", id: "top", type: "nav-bar" as const, yStart: 0, yEnd: 40, confidence: 0.9 },
-      { displayName: "内容", id: "body", type: "card" as const, yStart: 40, yEnd: 2000, confidence: 0.8 },
+      { displayName: "顶部", id: "top", type: "nav-bar" as const, yStart: 0, yEnd: 40, confidence: 0.9, scrollX: false, scrollY: false },
+      { displayName: "内容", id: "body", type: "card" as const, yStart: 40, yEnd: 2000, confidence: 0.8, scrollX: false, scrollY: false },
     ]);
     await analyzeProject(
       { store, model: model({ segment }), detectLines: async () => [{ y: 40, strength: 1 }] },
@@ -113,6 +113,25 @@ describe("analyzeProject", () => {
     const doc = await analyzeProject({ store, model: model() }, projectId); // 不传 detectLines
     expect(doc.candidateLines).toEqual(before);
     expect(store.readDoc(projectId).candidateLines).toEqual(before);
+  });
+
+  // scrollX/scrollY 是给下游代码生成用的（横滑容器 / 内嵌滚动面板），
+  // 必须原样从模型输出穿过 reconcile 落到存储里，不能在中途被丢掉。
+  it("carries the model's scroll flags through to the stored regions", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
+    const scrolling = model({
+      segment: async () => [
+        { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9,
+          scrollX: false, scrollY: false },
+        { displayName: "套餐横滑", id: "plans", type: "card", yStart: 100, yEnd: 400, confidence: 0.9,
+          scrollX: true, scrollY: false },
+      ],
+    });
+    const doc = await analyzeProject({ store, model: scrolling }, projectId);
+    expect(doc.regions.map(r => [r.id, r.scrollX, r.scrollY]))
+      .toEqual([["top", false, false], ["plans", true, false]]);
+    expect(store.readDoc(projectId).regions[1]!.scrollX).toBe(true);
   });
 
   it("keeps the existing document when the model fails", async () => {

@@ -47,6 +47,7 @@ cp ui/region-split.config.example.json ui/region-split.config.json
 - **baseUrl**：OpenAI 兼容端点，例如本地 Ollama 的 `http://127.0.0.1:11434/v1`
 - **model**：需要支持图片输入的多模态模型
 - **apiKey**：本地模型留空即可
+- **timeoutMs**（可选）：单次模型请求超时，缺省 120000。整页分段实测要十几到几十秒，端点慢就调大
 
 配置每次请求都重读，**改完文件立即生效，不用重启服务**。服务启动时会打印它读的是哪个文件、当前配到了哪个模型。
 
@@ -91,6 +92,8 @@ ui/
       image.analyzed.png           缩放后的分析图（长图会被等比缩到 2000px 高）
       regions.json                 区域划分结果
 ```
+
+每个区域除了名称、类型和边界，还带 `scrollX` / `scrollY` 两个布尔值，标记这块是否整体可横向/纵向滑动——直接对应 CSS 的 `overflow-x` / `overflow-y`，供后续还原时生成横滑容器。列表里可滚动的区域会显示 `↔` / `↕` 徽章。
 
 `regions.json` 的坐标一律是**原图像素**。服务端在每次写入前校验不变量（升序、首尾相接、覆盖全图、每块 ≥ 8px、id 唯一），违反直接拒绝，不做静默修正。
 

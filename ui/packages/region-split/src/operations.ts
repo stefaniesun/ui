@@ -58,6 +58,9 @@ export function splitRegion(regions: Region[], index: number, y: number): Region
     type: "other",
     bounds: { x: region.bounds.x, y, w: region.bounds.w, h: region.bounds.y + region.bounds.h - y },
     confidence: 0,
+    // 与 displayName/type 一致：下块是占位，滚动标记也重置，交给随后的自动 AI 重命名重新判断
+    scrollX: false,
+    scrollY: false,
   };
   const out = regions.slice();
   out.splice(index, 1, withBounds(region, region.bounds.y, y - region.bounds.y), lower);
@@ -88,6 +91,8 @@ export function mergeRegions(regions: Region[], ids: string[]): Region[] {
       h: tail.bounds.y + tail.bounds.h - head.bounds.y,
     },
     confidence: 0,
+    scrollX: false,
+    scrollY: false,
   };
   const out = regions.slice();
   out.splice(start, end - start + 1, merged);
@@ -102,13 +107,21 @@ export function renameRegion(regions: Region[], id: string, displayName: string)
 export function applyNaming(
   regions: Region[],
   id: string,
-  naming: { displayName: string; id: string; type: RegionType },
+  naming: { displayName: string; id: string; type: RegionType; scrollX?: boolean; scrollY?: boolean },
 ): Region[] {
   if (!regions.some(region => region.id === id)) return regions;
   const taken = new Set(regions.filter(region => region.id !== id).map(region => region.id));
   const nextId = uniqueId(naming.id, taken);
   return regions.map(region =>
     region.id === id
-      ? { ...region, id: nextId, displayName: naming.displayName, type: naming.type }
+      ? {
+          ...region,
+          id: nextId,
+          displayName: naming.displayName,
+          type: naming.type,
+          // 模型重新看了这块裁图，滚动判断一并采纳；没给就保持原值
+          scrollX: naming.scrollX ?? region.scrollX,
+          scrollY: naming.scrollY ?? region.scrollY,
+        }
       : region);
 }

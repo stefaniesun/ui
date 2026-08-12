@@ -69,6 +69,17 @@ UI 效果图直接交给多模态 AI 生成代码，保真度只有约 50%，字
 
 模型输出经 Schema 校验；失败时重试一次，再失败则报错并保留原图供人工从零手动拆分。
 
+单次模型请求默认 120 秒超时（配置文件可用 `timeoutMs` 覆盖）。这个值不是用来约束响应速度的，只是兜住"连得上但永远不回包"的挂起——实测整页分段要十几到几十秒，设得太紧会时好时坏地误杀正常请求。
+
+### 3.5 滚动属性推断
+
+每个模块附带 `scrollX` / `scrollY`，直接对应 CSS 的 `overflow-x` / `overflow-y`，下游生成代码时是机械映射。两者的可推断性差别很大，提示词里分开约束：
+
+- **`scrollX` 可以从单张截图取证**：最右侧卡片只露出一半、一行等宽卡片明显放不下、带分页圆点的轮播。没有这类证据就是 `false`。
+- **`scrollY` 几乎无法取证，且有个陷阱**：移动端页面整体都能上下滚，模型很容易把每个模块都标成 `true`。提示词明确写死"页面自身的滚动不是模块属性"，只有模块是固定高度的内嵌滚动面板（有独立滚动条、内容在模块下边缘被裁断）才为 `true`，拿不准填 `false`。
+
+模型未给这两个字段时按 `false` 处理，旧文档同样可读。拆分/合并产生的新块把它们重置为 `false`（与 `displayName`/`type` 一致），交给随后的自动 AI 重命名重新判断。
+
 ### 3.4 融合与修正
 
 按顺序执行，保证输出必定合法：
@@ -96,6 +107,8 @@ interface Region {
   type: RegionType;     // 模块类型，决定后续阶段的内部工作流
   bounds: Rect;         // 原图像素；x 恒为 0，w 恒为图宽
   confidence: number;   // 0–1
+  scrollX: boolean;     // 区域整体可横向滑动，对应 overflow-x
+  scrollY: boolean;     // 区域整体可纵向滑动，对应 overflow-y
 }
 
 interface RegionSplitDoc {
@@ -114,9 +127,10 @@ interface RegionSplitDoc {
 interface CandidateLine { y: number; strength: number }  // y 为原图坐标
 
 interface ModelConfig {
-  baseUrl: string;   // OpenAI 兼容端点，如 http://127.0.0.1:11434/v1
-  apiKey: string;    // 本地模型可留空
-  model: string;     // 模型名
+  baseUrl: string;    // OpenAI 兼容端点，如 http://127.0.0.1:11434/v1
+  apiKey: string;     // 本地模型可留空
+  model: string;      // 模型名
+  timeoutMs?: number; // 单次模型请求超时，缺省 120000
 }
 ```
 
@@ -190,7 +204,7 @@ interface ModelConfig {
 
 **合并**：选中多个相邻区域后点 `[合并]`，立即合并为一个区域，`bounds` 取并集。
 
-**拆分/合并后自动重新命名**：结构变化后原名称不再准确，系统自动将新区域的裁图发给模型，重新获取 `displayName`、`id` 和 `type`。请求期间新区域显示"命名中…"占位；失败或超时（默认 15s）回退为占位名 `未命名区域 N`，`id` 为 `region-<序号>`，`type` 为 `other`，并提示人工可点 `[AI 重命名]` 重试。
+**拆分/合并后自动重新命名**：结构变化后原名称不再准确，系统自动将新区域的裁图发给模型，重新获取 `displayName`、`id`、`type` 和滚动标记。请求期间新区域显示"命名中…"占位；模型未配置时直接跳过（新块保持占位名，不发请求也不报错）；失败或超时则静默保留占位名 `未命名区域`、`type` 为 `other`，人工可点 `[AI 重命名]` 重试——这是自动的锦上添花，不该弹错误打断用户。
 
 **重命名**：点 `[重命名]` 或双击列表项名称，就地变为输入框；`Enter` 或失焦提交，`Esc` 取消。仅修改 `displayName`，`id` 保持不变。
 

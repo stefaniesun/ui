@@ -3,7 +3,7 @@ import { checkInvariants, rectSchema, type Region } from "./types.js";
 
 const image = { width: 375, height: 300 };
 const r = (id: string, y: number, h: number): Region => ({
-  id, displayName: id, type: "other", bounds: { x: 0, y, w: 375, h }, confidence: 0.9,
+  id, displayName: id, type: "other", bounds: { x: 0, y, w: 375, h }, confidence: 0.9, scrollX: false, scrollY: false,
 });
 
 describe("checkInvariants", () => {

@@ -6,7 +6,7 @@ import {
 import type { Region } from "./types.js";
 
 const r = (id: string, y: number, h: number): Region => ({
-  id, displayName: `名-${id}`, type: "card", bounds: { x: 0, y, w: 375, h }, confidence: 0.9,
+  id, displayName: `名-${id}`, type: "card", bounds: { x: 0, y, w: 375, h }, confidence: 0.9, scrollX: false, scrollY: false,
 });
 const base = () => [r("a", 0, 100), r("b", 100, 100), r("c", 200, 100)];
 

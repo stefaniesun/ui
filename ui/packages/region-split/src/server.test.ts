@@ -11,10 +11,10 @@ import type { SegmentModel } from "./model.js";
 
 const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
   segment: async () => [
-    { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9 },
-    { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8 },
+    { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
+    { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
-  nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid" }),
+  nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   ...overrides,
 });
 
@@ -95,15 +95,15 @@ describe("region split server", () => {
     const ok = await app.inject({
       method: "PUT", url: `/api/projects/${projectId}/regions`,
       payload: { regions: [
-        { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 150 }, confidence: 1 },
-        { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 150, w: 375, h: 250 }, confidence: 1 },
+        { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 150 }, confidence: 1, scrollX: false, scrollY: false },
+        { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 150, w: 375, h: 250 }, confidence: 1, scrollX: false, scrollY: false },
       ] },
     });
     expect(ok.statusCode).toBe(200);
     const bad = await app.inject({
       method: "PUT", url: `/api/projects/${projectId}/regions`,
       payload: { regions: [
-        { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1 },
+        { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
       ] },
     });
     expect(bad.statusCode).toBe(422);

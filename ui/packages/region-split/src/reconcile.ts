@@ -17,6 +17,8 @@ export function fullPageRegions(image: { width: number; height: number }): Regio
     type: "other",
     bounds: { x: 0, y: 0, w: image.width, h: image.height },
     confidence: 0,
+    scrollX: false,
+    scrollY: false,
   }];
 }
 
@@ -55,6 +57,9 @@ export function initialRegionsFromCandidateLines(
       type: "other",
       bounds: { x: 0, y: start, w: image.width, h: end - start },
       confidence: index === 0 ? boundaries[0]!.strength : boundaries[index - 1]!.strength,
+      // 纯图像分析看不出滚动行为，交给模型判断
+      scrollX: false,
+      scrollY: false,
     };
   });
 }
@@ -118,6 +123,8 @@ export function reconcile(segments: RawSegment[], opts: ReconcileOptions): Regio
       type: meta.type,
       bounds: { x: 0, y: start, w: image.width, h: end - start },
       confidence: meta.confidence,
+      scrollX: meta.scrollX,
+      scrollY: meta.scrollY,
     };
   });
 }

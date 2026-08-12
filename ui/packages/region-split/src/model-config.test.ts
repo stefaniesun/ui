@@ -68,6 +68,15 @@ describe("ModelConfigStore", () => {
     expect(JSON.stringify(view)).not.toContain("abcdefgh");
   });
 
+  it("carries an optional timeout override through to the model client", () => {
+    const store = withFile(JSON.stringify({
+      baseUrl: "http://slow/v1", model: "m", timeoutMs: 300000,
+    }));
+    expect(store.read().timeoutMs).toBe(300000);
+    // 没写就交给 model.ts 的默认值决定
+    expect(withFile(JSON.stringify({ baseUrl: "http://a/v1", model: "m" })).read().timeoutMs).toBeUndefined();
+  });
+
   it("picks up edits to the file without restarting", () => {
     const path = freshPath();
     writeFileSync(path, JSON.stringify({ baseUrl: "http://a/v1", model: "m1" }), "utf8");
