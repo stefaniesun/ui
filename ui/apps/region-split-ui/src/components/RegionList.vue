@@ -137,20 +137,10 @@ function onRowClick(id: string, event: MouseEvent) {
 </template>
 
 <style scoped>
-.notice {
-  margin: 6px; padding: 8px 10px; border-radius: 6px;
-  background: #fff8e1; border: 1px solid #f0d492; color: #7a5c12;
-  font-size: 12px; line-height: 1.6;
-}
-.list { list-style: none; margin: 0; padding: 4px; }
-.row { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
-.row.hovered { background: #f0f4ff; }
-.row.selected { background: #e8f0fe; }
-.row.disabled { cursor: default; opacity: 0.6; }
-.index { width: 18px; color: #999; font-size: 12px; }
-.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.type { font-size: 11px; color: #888; }
-.confidence { font-size: 11px; color: #666; width: 34px; text-align: right; }
-.scroll { font-size: 12px; color: #2f6fed; cursor: help; }
-input { flex: 1; min-width: 0; }
+.notice { margin: 6px; padding: 8px; border: 1px solid #e2a40066; border-radius: 6px; background: #e2a40012; color: var(--warn); font-size: 10px; line-height: 1.5; }
+.list { min-width: 0; height: 100%; margin: 0; padding: 7px; overflow: auto; list-style: none; background: var(--bg-node); }
+.row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
+.row.hovered { border-color: var(--border-strong); background: #303540; }.row.selected { border-color: var(--accent); background: var(--accent-soft); }.row.disabled { cursor: default; opacity: .6; }
+.index { width: 18px; color: var(--text-faint); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type,.confidence { color: var(--text-faint); font-size: 9px; }.confidence { width: 28px; text-align: right; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
+input { flex: 1; min-width: 0; height: 25px; min-height: 25px; font-size: 10px; }
 </style>

@@ -1,0 +1,90 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import type { UiStore } from "../state.js";
+import { imageUrl } from "../api.js";
+import { canSplitAt, clampImageY, snapToCandidates, splitHalves, toImageY } from "../coords.js";
+
+const props = defineProps<{
+  store: UiStore;
+  hoveredId: string | null;
+  splitting: boolean;
+  showCandidateLines: boolean;
+  showPanels: boolean;
+}>();
+const emit = defineEmits<{ hover: [id: string | null]; "update:splitting": [value: boolean] }>();
+const stageEl = ref<HTMLElement | null>(null);
+const imgEl = ref<HTMLImageElement | null>(null);
+const displayScale = ref(1);
+const splitY = ref<number | null>(null);
+const splitValid = ref(false);
+const splitSnapped = ref(false);
+const image = computed(() => props.store.image.value);
+const selectedRegion = computed(() => props.store.regions.value.find(region => props.store.selectedIds.value.includes(region.id)) ?? null);
+const splitHalvesValue = computed(() => selectedRegion.value && splitY.value !== null ? splitHalves(selectedRegion.value, splitY.value) : null);
+
+function measure() {
+  if (imgEl.value && image.value) displayScale.value = imgEl.value.clientWidth / image.value.width;
+}
+function onMove(event: MouseEvent) {
+  if (!props.splitting || !image.value) return;
+  const rect = stageEl.value!.getBoundingClientRect();
+  const rawY = clampImageY(toImageY(event.clientY, rect.top, displayScale.value), image.value.height);
+  const snappedY = snapToCandidates(rawY, props.store.candidateLines.value);
+  splitY.value = snappedY.y;
+  splitSnapped.value = snappedY.snapped;
+  splitValid.value = selectedRegion.value ? canSplitAt(selectedRegion.value, snappedY.y) : false;
+}
+async function onStageClick() {
+  if (!props.splitting || splitY.value === null || !splitValid.value) return;
+  await props.store.split(splitY.value);
+  emit("update:splitting", false);
+  splitY.value = null;
+}
+function onRegionClick(id: string, event: MouseEvent) {
+  if (props.splitting) return;
+  if (event.ctrlKey || event.metaKey) props.store.toggleSelected(id);
+  else props.store.selectOnly(id);
+}
+</script>
+
+<template>
+  <div class="region-canvas" @click.self="props.store.clearSelection()">
+    <div v-if="image" ref="stageEl" class="stage" :class="{ splitting: props.splitting }" @mousemove="onMove" @click="onStageClick">
+      <img ref="imgEl" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
+      <div v-if="props.showPanels" class="panel-tint" />
+      <span
+        v-for="line in props.showCandidateLines ? props.store.candidateLines.value : []"
+        :key="`candidate-${line.y}`"
+        class="candidate-line"
+        :style="{ top: `${line.y * displayScale}px`, opacity: Math.max(.35, line.strength) }"
+      />
+      <div
+        v-for="(region, index) in props.store.regions.value"
+        :key="region.id"
+        class="overlay"
+        :class="{ selected: props.store.selectedIds.value.includes(region.id), hovered: props.hoveredId === region.id }"
+        :style="{ top: `${region.bounds.y * displayScale}px`, height: `${region.bounds.h * displayScale}px` }"
+        @click.stop="onRegionClick(region.id, $event)"
+        @mouseenter="emit('hover', region.id)"
+        @mouseleave="emit('hover', null)"
+      >
+        <span>{{ index + 1 }} · {{ region.displayName }}</span>
+      </div>
+      <template v-if="props.splitting && splitY !== null">
+        <div class="split-line" :class="{ snapped: splitSnapped, invalid: !splitValid }" :style="{ top: `${splitY * displayScale}px` }" />
+        <span class="split-info" :style="{ top: `${splitY * displayScale}px` }">y {{ splitY }} · {{ splitHalvesValue?.top }} / {{ splitHalvesValue?.bottom }}</span>
+      </template>
+    </div>
+    <div v-else class="empty-state">等待图片源输入</div>
+  </div>
+</template>
+
+<style scoped>
+.region-canvas { min-width: 0; min-height: 540px; display: flex; justify-content: center; padding: 12px; overflow: auto; background: var(--bg-inset); }
+.stage { position: relative; width: min(100%, 430px); align-self: flex-start; overflow: hidden; border: 1px solid var(--border); background: #111318; }
+.stage img { display: block; width: 100%; height: auto; }.stage.splitting { cursor: crosshair; }.panel-tint { position: absolute; inset: 0; background: repeating-linear-gradient(180deg, transparent 0 19%, #4c8dff12 19% 20%); pointer-events: none; }
+.candidate-line { position: absolute; z-index: 2; left: 0; right: 0; height: 1px; background: var(--warn); pointer-events: none; }
+.overlay { position: absolute; z-index: 3; left: 0; right: 0; border: 1px solid #4c8dff66; background: #4c8dff08; cursor: pointer; }.overlay:hover,.overlay.hovered { background: #4c8dff22; }.overlay.selected { z-index: 4; border: 2px solid var(--accent); background: #4c8dff28; box-shadow: inset 0 0 0 1px #ffffff22; }.overlay span { position: absolute; left: 5px; top: 4px; max-width: calc(100% - 10px); overflow: hidden; padding: 2px 5px; border-radius: 4px; color: white; background: #16181dcc; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.split-line { position: absolute; z-index: 8; left: 0; right: 0; height: 2px; background: var(--accent); box-shadow: 0 0 6px var(--accent); pointer-events: none; }.split-line.snapped { background: var(--ok); }.split-line.invalid { background: var(--danger); }.split-info { position: absolute; z-index: 9; right: 5px; transform: translateY(-130%); padding: 2px 5px; border-radius: 4px; color: white; background: #16181dee; font-size: 10px; pointer-events: none; }
+.empty-state { min-height: 520px; display: grid; place-items: center; color: var(--text-faint); }
+</style>
