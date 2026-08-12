@@ -71,13 +71,21 @@ async function retryAnalysis() {
 
 async function uploadAndAnalyze(file: File | undefined) {
   if (!file || props.store.busy.value) return;
+  if (!props.store.modelConfig.value) await props.store.loadModelConfig();
   if (!configured.value) {
     reportConfigurationError();
     return;
   }
   analysisFailed.value = false;
   await props.store.uploadImage(file);
-  if (!props.store.projectId.value || !props.store.doc.value?.image || props.store.error.value) return;
+  if (props.store.error.value || !props.store.projectId.value || !props.store.doc.value?.image) {
+    emit("error", {
+      title: "图片上传失败",
+      message: props.store.error.value || "图片上传或预处理失败，请重新选择图片。",
+      retryable: false,
+    });
+    return;
+  }
   emit("uploaded");
   await props.store.analyze();
   if (props.store.error.value || !analyzed.value) reportAnalysisError();

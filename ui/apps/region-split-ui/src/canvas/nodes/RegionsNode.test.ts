@@ -51,6 +51,20 @@ describe("RegionsNode upload and analysis orchestration", () => {
     });
   });
 
+  it("reports upload failures instead of failing silently", async () => {
+    const { wrapper } = await mountNode({
+      upload: vi.fn(async () => { throw new Error("unsupported image"); }),
+    });
+
+    await chooseFile(wrapper);
+
+    expect(wrapper.emitted("error")?.at(-1)?.[0]).toMatchObject({
+      title: "图片上传失败",
+      message: "unsupported image",
+      retryable: false,
+    });
+  });
+
   it("refreshes model configuration without uploading", async () => {
     const getModelConfig = vi.fn(async () => ({
       baseUrl: "", model: "", hasApiKey: false, configPath: "config.json",
