@@ -83,6 +83,22 @@ describe("RegionsNode upload and analysis orchestration", () => {
     expect(analyze).toHaveBeenCalledTimes(1);
     expect(wrapper.emitted("uploaded")).toHaveLength(1);
     expect(wrapper.find('[data-test="analysis-result"]').exists()).toBe(true);
+    expect(wrapper.find(".comparison-images").exists()).toBe(true);
+    expect(wrapper.find('[data-test="original-image"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="analysis-image"]').exists()).toBe(true);
+    expect(wrapper.find(".region-list-column").exists()).toBe(true);
+  });
+
+  it("uses one zero-gap size for both complete images", async () => {
+    const { wrapper } = await mountNode();
+    await chooseFile(wrapper);
+
+    const comparison = wrapper.get(".comparison-images");
+    const original = wrapper.get('[data-test="original-image"]');
+    const analysis = wrapper.get('[data-test="analysis-image"]');
+    expect(comparison.attributes("style")).toContain("--image-aspect: 375 / 600");
+    expect(original.classes()).toContain("comparison-image");
+    expect(analysis.classes()).toContain("comparison-image");
   });
 
   it("ignores duplicate uploads while busy", async () => {
@@ -99,6 +115,32 @@ describe("RegionsNode upload and analysis orchestration", () => {
 
     resolveUpload({ projectId: "p1", doc: makeDoc([makeRegion("a", 0, 600)]) });
     await first;
+  });
+
+  it("hides old interactive results while re-analyzing and after re-analysis fails", async () => {
+    let rejectAnalysis!: (reason: Error) => void;
+    const analyze: StoreApi["analyze"] = vi.fn(() => new Promise<Awaited<ReturnType<StoreApi["analyze"]>>>((_, reject) => {
+      rejectAnalysis = reject;
+    }));
+    const { store, wrapper } = await mountNode({ analyze });
+    store.projectId.value = "p1";
+    store.doc.value = makeDoc([makeRegion("old", 0, 600)], [], true);
+    store.regions.value = store.doc.value.regions;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="analysis-result"]').exists()).toBe(true);
+
+    const retry = (wrapper.vm as unknown as { retryAnalysis: () => Promise<void> }).retryAnalysis();
+    await flushPromises();
+    await nextTick();
+    expect(wrapper.find('[data-test="analysis-result"]').exists()).toBe(false);
+    expect(wrapper.find(".action-bar").exists()).toBe(false);
+    expect(wrapper.find(".list").exists()).toBe(false);
+
+    rejectAnalysis(new Error("retry failed"));
+    await retry;
+    await nextTick();
+    expect(wrapper.find('[data-test="analysis-failed"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="analysis-result"]').exists()).toBe(false);
   });
 
   it("keeps the original image locked after failure and retries analysis", async () => {

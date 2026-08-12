@@ -9,6 +9,7 @@ const initial = () => [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
 async function mounted() {
   const store = createStore(makeFakeApi(initial));
   await store.load("p1");
+  store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-12T00:00:00.000Z" };
   return { store, wrapper: mount(RegionList, { props: { store } }) };
 }
 
@@ -39,6 +40,8 @@ describe("RegionList", () => {
 
   it("warns that an un-analysed document is only the initial split", async () => {
     const { store, wrapper } = await mounted();
+    store.doc.value = { ...store.doc.value!, analyzedAt: undefined };
+    await wrapper.vm.$nextTick();
     const notice = wrapper.find("[data-test=needs-analysis]");
     expect(notice.exists()).toBe(true);
     expect(notice.text()).toContain("初始划分");
@@ -59,6 +62,19 @@ describe("RegionList", () => {
     expect(store.selectedIds.value).toEqual(["b"]);
     await wrapper.findAll("[data-test=row]")[0]!.trigger("click", { ctrlKey: true });
     expect(store.selectedIds.value).toEqual(["b", "a"]);
+  });
+
+  it("locks selection and inline editing until AI analysis succeeds", async () => {
+    const { store, wrapper } = await mounted();
+    store.doc.value = { ...store.doc.value!, analyzedAt: undefined };
+    await wrapper.vm.$nextTick();
+
+    await wrapper.findAll("[data-test=row]")[0]!.trigger("click");
+    await wrapper.findAll("[data-test=name]")[0]!.trigger("dblclick");
+
+    expect(store.selectedIds.value).toEqual([]);
+    expect(wrapper.find("[data-test=rename-input]").exists()).toBe(false);
+    expect(wrapper.findAll("[data-test=row]")[0]!.classes()).toContain("disabled");
   });
 
   it("renames inline on double click", async () => {

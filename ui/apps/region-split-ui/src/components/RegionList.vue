@@ -28,6 +28,8 @@ function setRowRef(id: string, el: Element | ComponentPublicInstance | null) {
 
 const singleSelectedId = computed(() =>
   props.store.selectedIds.value.length === 1 ? props.store.selectedIds.value[0]! : null);
+const locked = computed(() =>
+  props.store.busy.value || props.store.needsAnalysis.value || props.store.mode.value === "split");
 
 // 选中项变为单选时，把对应行滚动进可视区域。用 flush: "post" 而不是在回调里
 // 再套一层 nextTick——嵌套 nextTick 注册的 .then 排在测试里 await 的
@@ -55,6 +57,7 @@ function onHoverLeave() {
 }
 
 function beginEdit(id: string) {
+  if (locked.value) return;
   const region = props.store.regions.value.find(item => item.id === id);
   if (!region) return;
   editingId.value = id;
@@ -63,7 +66,7 @@ function beginEdit(id: string) {
 }
 
 function commit() {
-  if (editingId.value && draft.value.trim()) {
+  if (!locked.value && editingId.value && draft.value.trim()) {
     props.store.rename(editingId.value, draft.value.trim());
   }
   close();
@@ -79,7 +82,7 @@ function close() {
 // "拆分「undefined」"上、切分线恒红，只能按 Esc 脱困。拆分模式下列表本身也
 // 不可选中，逻辑与画布保持一致。
 function onRowClick(id: string, event: MouseEvent) {
-  if (props.store.mode.value === "split") return;
+  if (locked.value) return;
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
 </script>
@@ -104,7 +107,7 @@ function onRowClick(id: string, event: MouseEvent) {
       :class="{
         selected: props.store.selectedIds.value.includes(region.id),
         hovered: activeHoverId === region.id,
-        disabled: props.store.mode.value === 'split',
+        disabled: locked,
       }"
       @click="onRowClick(region.id, $event)"
       @mouseenter="onHoverEnter(region.id)"
@@ -116,6 +119,7 @@ function onRowClick(id: string, event: MouseEvent) {
         :ref="setInputRef"
         v-model="draft"
         data-test="rename-input"
+        :disabled="locked"
         @click.stop
         @keydown.enter="commit"
         @keydown.esc="close"

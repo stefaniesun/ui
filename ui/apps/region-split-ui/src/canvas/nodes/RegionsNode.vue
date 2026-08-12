@@ -32,7 +32,12 @@ const configured = computed(() => Boolean(
   && props.store.modelConfig.value?.hasApiKey,
 ));
 const analyzed = computed(() => Boolean(props.store.doc.value?.analyzedAt));
+const resultReady = computed(() => analyzed.value && !props.store.busy.value && !analysisFailed.value);
 const sourceUrl = computed(() => props.store.projectId.value ? imageUrl(props.store.projectId.value) : "");
+const imageAspect = computed(() => {
+  const image = props.store.doc.value?.image;
+  return image ? `${image.width} / ${image.height}` : "1 / 1";
+});
 
 function reportConfigurationError() {
   emit("error", {
@@ -61,7 +66,7 @@ async function retryAnalysis() {
   }
   analysisFailed.value = false;
   await props.store.analyze();
-  if (!analyzed.value) reportAnalysisError();
+  if (props.store.error.value || !analyzed.value) reportAnalysisError();
 }
 
 async function uploadAndAnalyze(file: File | undefined) {
@@ -75,7 +80,7 @@ async function uploadAndAnalyze(file: File | undefined) {
   if (!props.store.projectId.value || !props.store.doc.value?.image || props.store.error.value) return;
   emit("uploaded");
   await props.store.analyze();
-  if (!analyzed.value) reportAnalysisError();
+  if (props.store.error.value || !analyzed.value) reportAnalysisError();
 }
 
 async function onFile(event: Event) {
@@ -102,30 +107,47 @@ defineExpose({ retryAnalysis });
     </div>
 
     <template v-else>
-      <div class="source-preview">
-        <img data-test="original-image" :src="sourceUrl" alt="原始效果图" />
-      </div>
-      <div v-if="props.store.busy.value && !analyzed" data-test="analysis-loading" class="analysis-state">
-        AI 正在解析区域
-      </div>
-      <div v-else-if="analysisFailed" data-test="analysis-failed" class="analysis-state analysis-error">
-        <strong>AI 区域分析失败</strong>
-        <button @click="retryAnalysis">重新分析</button>
-      </div>
-      <div v-else-if="analyzed" data-test="analysis-result">
-        <ActionBar :store="props.store" />
-        <div class="regions-workspace">
-          <RegionCanvas
+      <ActionBar v-if="resultReady" :store="props.store" />
+      <div data-test="comparison-workspace" class="comparison-workspace">
+        <div class="comparison-images" :style="{ '--image-aspect': imageAspect }">
+          <section class="image-panel">
+            <header>原始效果图</header>
+            <div class="image-frame">
+              <img data-test="original-image" class="comparison-image" :src="sourceUrl" alt="原始效果图" />
+            </div>
+          </section>
+          <section class="image-panel analysis-panel">
+            <header>区域分析图</header>
+            <RegionCanvas
+              v-if="resultReady"
+              data-test="analysis-result"
+              :store="props.store"
+              :hovered-id="props.hoveredId"
+              :show-candidate-lines="props.showCandidateLines"
+              :show-panels="props.showPanels"
+              @hover="emit('hover', $event)"
+            />
+            <div v-else class="image-frame analysis-placeholder">
+              <img data-test="analysis-image" class="comparison-image placeholder-image" :src="sourceUrl" alt="区域分析底图" />
+              <div v-if="props.store.busy.value" data-test="analysis-loading" class="analysis-state">AI 正在解析区域</div>
+              <div v-else-if="analysisFailed" data-test="analysis-failed" class="analysis-state analysis-error">
+                <strong>AI 区域分析失败</strong>
+                <button @click="retryAnalysis">重新分析</button>
+              </div>
+              <div v-else class="analysis-state">等待 AI 区域分析</div>
+            </div>
+          </section>
+        </div>
+        <aside class="region-list-column">
+          <RegionList
+            v-if="resultReady"
             :store="props.store"
             :hovered-id="props.hoveredId"
-            :show-candidate-lines="props.showCandidateLines"
-            :show-panels="props.showPanels"
             @hover="emit('hover', $event)"
           />
-          <RegionList :store="props.store" :hovered-id="props.hoveredId" @hover="emit('hover', $event)" />
-        </div>
+          <div v-else class="list-placeholder">分析完成后显示区域列表</div>
+        </aside>
       </div>
-      <div v-else class="analysis-state">等待 AI 区域分析</div>
     </template>
   </div>
 </template>
@@ -133,14 +155,23 @@ defineExpose({ retryAnalysis });
 <style scoped>
 .regions-node { margin: -14px; overflow: hidden; border-radius: 0 0 9px 9px; }
 .file-input { display: none; }
-.upload-state,
-.analysis-state { min-height: 540px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118; }
+.upload-state { min-height: 540px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118; }
 .upload-button,
 .analysis-state button { border: 1px solid var(--accent); border-radius: 6px; padding: 9px 16px; color: white; background: var(--accent); cursor: pointer; }
 .text-button { border: 0; color: var(--accent); background: transparent; cursor: pointer; }
-.source-preview { max-height: 180px; overflow: hidden; border-bottom: 1px solid var(--border); background: #0a0d13; }
-.source-preview img { display: block; width: 100%; height: auto; }
+.comparison-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 245px; align-items: start; background: var(--bg-inset); }
+.comparison-images { display: grid; grid-template-columns: repeat(2, minmax(0, 430px)); gap: 0; align-items: start; }
+.image-panel { min-width: 0; margin: 0; padding: 0; overflow: hidden; background: #0a0d13; }
+.image-panel + .image-panel { box-shadow: inset 1px 0 var(--border); }
+.image-panel header { height: 28px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
+.image-frame { position: relative; width: 100%; aspect-ratio: var(--image-aspect); margin: 0; padding: 0; overflow: hidden; background: #0a0d13; }
+.comparison-image { display: block; width: 100%; height: auto; }
+.analysis-placeholder { display: grid; }
+.analysis-placeholder > * { grid-area: 1 / 1; }
+.placeholder-image { opacity: .2; }
+.analysis-state { z-index: 1; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118cc; }
 .analysis-error { color: #ffb4b4; }
-.regions-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 245px; min-height: 560px; }
-.regions-workspace :deep(.list) { border-left: 1px solid var(--border); }
+.region-list-column { min-height: 100%; border-left: 1px solid var(--border); background: var(--bg-node); }
+.list-placeholder { min-height: 420px; display: grid; place-items: center; padding: 20px; color: var(--text-faint); font-size: 10px; text-align: center; }
+.region-list-column :deep(.list) { min-height: 100%; }
 </style>

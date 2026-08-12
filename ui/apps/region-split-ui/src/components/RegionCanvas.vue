@@ -57,7 +57,7 @@ function onRegionClick(id: string, event: MouseEvent) {
 <template>
   <div class="region-canvas" @click.self="props.store.clearSelection()">
     <div v-if="image" ref="stageEl" class="stage" :class="{ splitting: props.store.mode.value === 'split' }" @mousemove="onMove" @click="onStageClick">
-      <img ref="imgEl" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
+      <img ref="imgEl" data-test="analysis-image" class="comparison-image" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
       <div v-if="props.showPanels" class="panel-tint" />
       <span
         v-for="line in props.showCandidateLines ? props.store.candidateLines.value : []"
@@ -87,8 +87,8 @@ function onRegionClick(id: string, event: MouseEvent) {
 </template>
 
 <style scoped>
-.region-canvas { min-width: 0; min-height: 540px; display: flex; justify-content: center; padding: 12px; overflow: auto; background: var(--bg-inset); }
-.stage { position: relative; width: min(100%, 430px); align-self: flex-start; overflow: hidden; border: 1px solid var(--border); background: #111318; }
+.region-canvas { min-width: 0; min-height: 0; display: block; margin: 0; padding: 0; overflow: hidden; background: var(--bg-inset); }
+.stage { position: relative; width: 100%; aspect-ratio: var(--image-aspect); margin: 0; padding: 0; overflow: hidden; background: #111318; }
 .stage img { display: block; width: 100%; height: auto; }.stage.splitting { cursor: crosshair; }.panel-tint { position: absolute; inset: 0; background: repeating-linear-gradient(180deg, transparent 0 19%, #4c8dff12 19% 20%); pointer-events: none; }
 .candidate-line { position: absolute; z-index: 2; left: 0; right: 0; height: 1px; background: var(--warn); pointer-events: none; }
 .overlay { position: absolute; z-index: 3; left: 0; right: 0; border: 1px solid #4c8dff66; background: #4c8dff08; cursor: pointer; }.overlay:hover,.overlay.hovered { background: #4c8dff22; }.overlay.selected { z-index: 4; border: 2px solid var(--accent); background: #4c8dff28; box-shadow: inset 0 0 0 1px #ffffff22; }.overlay span { position: absolute; left: 5px; top: 4px; max-width: calc(100% - 10px); overflow: hidden; padding: 2px 5px; border-radius: 4px; color: white; background: #16181dcc; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
