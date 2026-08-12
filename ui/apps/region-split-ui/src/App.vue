@@ -1,76 +1,93 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
-import { httpApi } from "./api.js";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import PipelineCanvas from "./canvas/PipelineCanvas.vue";
+import AnalyzeNode from "./canvas/nodes/AnalyzeNode.vue";
+import RegionsNode from "./canvas/nodes/RegionsNode.vue";
+import SourceNode from "./canvas/nodes/SourceNode.vue";
+import SurfaceNode from "./canvas/nodes/SurfaceNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
-import ImageCanvas from "./components/ImageCanvas.vue";
-import RegionList from "./components/RegionList.vue";
-import Toolbar from "./components/Toolbar.vue";
+import { httpApi } from "./api.js";
 import { createStore } from "./state.js";
 
 const store = createStore(httpApi);
-
-// hover 联动状态放在 App 层（不进 store）：列表 hover 一行 -> 画布对应色块高亮，
-// 画布 hover 一个色块 -> 列表对应行高亮。两个组件各自也响应自己的鼠标事件，
-// 互相之间只通过这一个 ref 同步。
 const hoveredId = ref<string | null>(null);
+const showCandidateLines = ref(true);
+const showPanels = ref(true);
+const hasImage = computed(() => store.doc.value?.image !== undefined);
+const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
+const hasRegions = computed(() => store.regions.value.length > 0);
 
-async function onPickFile(file: File) {
-  await store.uploadImage(file);
-  if (store.projectId.value) location.hash = store.projectId.value;
+function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
+function isEditingTarget(target: EventTarget | null) {
+  const element = target as HTMLElement | null;
+  return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA" || element?.isContentEditable;
 }
-
 function onKeydown(event: KeyboardEvent) {
-  const target = event.target;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
-  if (event.key === "ArrowUp") { event.preventDefault(); store.nudge(-1); return; }
-  if (event.key === "ArrowDown") { event.preventDefault(); store.nudge(1); return; }
-  // Esc 先退出拆分模式，没在拆分才清空选中——否则拆到一半按 Esc 会连选中一起丢掉
-  if (event.key === "Escape") {
+  if (store.busy.value || isEditingTarget(event.target)) return;
+  const mod = event.ctrlKey || event.metaKey;
+  if (mod && event.key.toLowerCase() === "z") {
     event.preventDefault();
-    if (store.mode.value === "split") store.cancelSplit();
-    else store.clearSelection();
-    return;
-  }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
-    event.preventDefault();
-    if (event.shiftKey) store.redo(); else store.undo();
+    if (event.shiftKey) void store.redo(); else void store.undo();
+  } else if (event.key === "Escape") {
+    store.clearSelection();
+  } else if (event.key === "ArrowUp" && store.selectedIds.value.length === 1) {
+    event.preventDefault(); void store.nudge(-1);
+  } else if (event.key === "ArrowDown" && store.selectedIds.value.length === 1) {
+    event.preventDefault(); void store.nudge(1);
   }
 }
 
 onMounted(() => {
   window.addEventListener("keydown", onKeydown);
-  window.addEventListener("beforeunload", store.flushPersist);
+  const match = window.location.hash.match(/project=([^&]+)/);
   void store.loadModelConfig();
-  const hash = location.hash.slice(1);
-  if (hash) void store.load(hash);
+  if (match?.[1]) void store.load(match[1]);
 });
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown);
-  window.removeEventListener("beforeunload", store.flushPersist);
-});
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 </script>
 
 <template>
-  <div class="layout">
-    <header><Toolbar :store="store" @pick-file="onPickFile" /></header>
-    <main>
-      <ImageCanvas :store="store" :hovered-id="hoveredId" @hover="id => (hoveredId = id)" />
-    </main>
-    <aside>
-      <RegionList :store="store" :hovered-id="hoveredId" @hover="id => (hoveredId = id)" />
-    </aside>
-    <BusyOverlay :store="store" />
-  </div>
+  <main class="app-shell">
+    <div class="brand">
+      <span class="brand-mark">RS</span>
+      <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
+    </div>
+    <PipelineCanvas
+      :source-status="hasImage ? 'done' : 'active'"
+      :surface-status="hasImage ? 'done' : 'idle'"
+      :analyze-status="analyzed ? 'done' : hasImage ? 'active' : 'idle'"
+      :regions-status="hasRegions ? 'active' : 'idle'"
+      :edge-active="{ 'source-surface': hasImage, 'surface-analyze': hasImage, 'analyze-regions': hasRegions }"
+    >
+      <template #source-status>{{ hasImage ? "已载入" : "等待输入" }}</template>
+      <template #surface-status>{{ store.candidateLines.value.length }} 条线索</template>
+      <template #analyze-status>{{ analyzed ? "已完成" : "待处理" }}</template>
+      <template #regions-status>{{ store.regions.value.length }} 个区域</template>
+      <template #source><SourceNode :store="store" @uploaded="syncHash" /></template>
+      <template #surface>
+        <SurfaceNode
+          v-model:show-candidate-lines="showCandidateLines"
+          v-model:show-panels="showPanels"
+          :store="store"
+        />
+      </template>
+      <template #analyze><AnalyzeNode :store="store" /></template>
+      <template #regions>
+        <RegionsNode
+          :store="store"
+          :hovered-id="hoveredId"
+          :show-candidate-lines="showCandidateLines"
+          :show-panels="showPanels"
+          @hover="hoveredId = $event"
+        />
+      </template>
+    </PipelineCanvas>
+    <BusyOverlay v-if="store.busy.value" :label="store.busyLabel.value" />
+  </main>
 </template>
 
-<style>
-html, body, #app { height: 100%; margin: 0; font-family: system-ui, sans-serif; font-size: 13px; }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
-header { grid-column: 1 / -1; border-bottom: 1px solid #ddd; }
-main { min-width: 0; overflow: auto; background: #f0f1f3; }
-aside { border-left: 1px solid #ddd; overflow: auto; background: #fff; }
-
-@media (max-width: 900px) {
-  .layout { grid-template-columns: minmax(0, 1fr) 220px; }
-}
+<style scoped>
+.app-shell { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.brand { position: absolute; z-index: 30; left: 16px; top: 14px; display: flex; align-items: center; gap: 9px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: #24272eee; box-shadow: 0 8px 20px #0007; pointer-events: none; }
+.brand-mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 7px; color: white; background: var(--accent); font-size: 10px; font-weight: 800; }.brand strong,.brand small { display: block; }.brand strong { font-size: 12px; }.brand small { margin-top: 2px; color: var(--text-faint); font-size: 9px; }
 </style>

@@ -65,6 +65,12 @@ export function fitBounds(bounds: Bounds, viewport: ViewportSize, padding = 48):
   };
 }
 
+function clonePositions(positions: NodePositions): NodePositions {
+  return Object.fromEntries(
+    (Object.keys(positions) as NodeId[]).map(id => [id, { ...positions[id] }]),
+  ) as NodePositions;
+}
+
 function isPoint(value: unknown): value is Point {
   if (!value || typeof value !== "object") return false;
   const point = value as Partial<Point>;
@@ -78,13 +84,13 @@ export function loadNodePositions(
 ): NodePositions {
   try {
     const raw = storage?.getItem(key);
-    if (!raw) return structuredClone(fallback);
+    if (!raw) return clonePositions(fallback);
     const parsed = JSON.parse(raw) as Partial<NodePositions>;
     return Object.fromEntries(
       (Object.keys(fallback) as NodeId[]).map(id => [id, isPoint(parsed[id]) ? parsed[id] : fallback[id]]),
     ) as NodePositions;
   } catch {
-    return structuredClone(fallback);
+    return clonePositions(fallback);
   }
 }
 

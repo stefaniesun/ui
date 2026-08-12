@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { UiStore } from "../../state.js";
+import type { Store } from "../../state.js";
 import ActionBar from "../../components/ActionBar.vue";
 import RegionCanvas from "../../components/RegionCanvas.vue";
 import RegionList from "../../components/RegionList.vue";
 
 const props = defineProps<{
-  store: UiStore;
+  store: Store;
   hoveredId: string | null;
   showCandidateLines: boolean;
   showPanels: boolean;

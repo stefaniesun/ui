@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { UiStore } from "../../state.js";
+import type { Store } from "../../state.js";
 import { imageUrl } from "../../api.js";
 
 const props = defineProps<{
-  store: UiStore;
+  store: Store;
   showCandidateLines: boolean;
   showPanels: boolean;
 }>();
@@ -14,15 +14,15 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div v-if="props.store.image.value" class="surface-node">
+  <div v-if="props.store.doc.value?.image" class="surface-node">
     <div class="preview">
-      <img :src="imageUrl(props.store.projectId.value)" :alt="props.store.image.value.fileName" />
+      <img :src="imageUrl(props.store.projectId.value)" :alt="props.store.doc.value!.image.fileName" />
       <div v-if="props.showPanels" class="panel-tint" />
       <span
         v-for="line in props.showCandidateLines ? props.store.candidateLines.value : []"
         :key="line.y"
         class="candidate-line"
-        :style="{ top: `${line.y / props.store.image.value.height * 100}%`, opacity: Math.max(.32, line.strength) }"
+        :style="{ top: `${line.y / props.store.doc.value!.image.height * 100}%`, opacity: Math.max(.32, line.strength) }"
       />
     </div>
     <div class="surface-stats">

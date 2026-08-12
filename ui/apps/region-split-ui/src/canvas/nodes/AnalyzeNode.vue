@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { UiStore } from "../../state.js";
+import type { Store } from "../../state.js";
 
-const props = defineProps<{ store: UiStore }>();
+const props = defineProps<{ store: Store }>();
 const configured = computed(() => props.store.modelConfig.value !== null);
-const analyzed = computed(() => props.store.document.value?.analysisState === "analyzed");
+const analyzed = computed(() => Boolean(props.store.doc.value?.analyzedAt));
 
 async function analyze() {
-  if (!props.store.image.value || props.store.busy.value) return;
+  if (!props.store.doc.value?.image || props.store.busy.value) return;
   if (props.store.regions.value.length > 0 && analyzed.value && !confirm("重新分析会覆盖当前区域，是否继续？")) return;
   await props.store.analyze();
 }
@@ -24,18 +24,18 @@ async function analyze() {
       <span class="state-dot" />
     </div>
 
-    <button v-if="!configured" class="configure" :disabled="props.store.busy.value" @click="props.store.openModelConfig()">配置模型</button>
-    <button v-else class="analyze" :disabled="!props.store.image.value || props.store.busy.value" @click="analyze">
+    <button v-if="!configured" class="configure" :disabled="props.store.busy.value" @click="props.store.loadModelConfig()">刷新模型配置</button>
+    <button v-else class="analyze" :disabled="!props.store.doc.value?.image || props.store.busy.value" @click="analyze">
       {{ props.store.busy.value ? props.store.busyLabel.value : analyzed ? "重新分析" : "开始 AI 分段" }}
     </button>
 
     <div class="flow-status">
-      <div :class="{ done: props.store.image.value }"><i />接收图片</div>
+      <div :class="{ done: props.store.doc.value?.image }"><i />接收图片</div>
       <div :class="{ done: props.store.candidateLines.value.length }"><i />读取表面线索</div>
       <div :class="{ done: analyzed }"><i />生成区域文档</div>
     </div>
 
-    <div v-if="props.store.image.value" class="result-summary">
+    <div v-if="props.store.doc.value?.image" class="result-summary">
       <span>当前区域</span><strong>{{ props.store.regions.value.length }}</strong>
       <span>分析状态</span><strong :class="{ warning: props.store.needsAnalysis.value }">{{ analyzed ? "已分析" : "待分析" }}</strong>
     </div>

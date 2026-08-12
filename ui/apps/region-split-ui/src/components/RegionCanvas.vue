@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { UiStore } from "../state.js";
+import { canSplitAt } from "@region-split/core/browser";
+import type { Store } from "../state.js";
 import { imageUrl } from "../api.js";
-import { canSplitAt, clampImageY, snapToCandidates, splitHalves, toImageY } from "../coords.js";
+import { snapToCandidates, toImageY } from "../coords.js";
 
 const props = defineProps<{
-  store: UiStore;
+  store: Store;
   hoveredId: string | null;
   splitting: boolean;
   showCandidateLines: boolean;
@@ -18,9 +19,15 @@ const displayScale = ref(1);
 const splitY = ref<number | null>(null);
 const splitValid = ref(false);
 const splitSnapped = ref(false);
-const image = computed(() => props.store.image.value);
+const image = computed(() => props.store.doc.value?.image ?? null);
 const selectedRegion = computed(() => props.store.regions.value.find(region => props.store.selectedIds.value.includes(region.id)) ?? null);
-const splitHalvesValue = computed(() => selectedRegion.value && splitY.value !== null ? splitHalves(selectedRegion.value, splitY.value) : null);
+const splitHalvesValue = computed(() => {
+  if (!selectedRegion.value || splitY.value === null) return null;
+  return {
+    top: splitY.value - selectedRegion.value.bounds.y,
+    bottom: selectedRegion.value.bounds.y + selectedRegion.value.bounds.h - splitY.value,
+  };
+});
 
 function measure() {
   if (imgEl.value && image.value) displayScale.value = imgEl.value.clientWidth / image.value.width;
@@ -28,22 +35,21 @@ function measure() {
 function onMove(event: MouseEvent) {
   if (!props.splitting || !image.value) return;
   const rect = stageEl.value!.getBoundingClientRect();
-  const rawY = clampImageY(toImageY(event.clientY, rect.top, displayScale.value), image.value.height);
-  const snappedY = snapToCandidates(rawY, props.store.candidateLines.value);
+  const rawY = Math.max(0, Math.min(image.value.height, toImageY(event.clientY, rect.top, displayScale.value)));
+  const snappedY = snapToCandidates(rawY, props.store.candidateLines.value, 12);
   splitY.value = snappedY.y;
   splitSnapped.value = snappedY.snapped;
-  splitValid.value = selectedRegion.value ? canSplitAt(selectedRegion.value, snappedY.y) : false;
+  splitValid.value = canSplitAt(props.store.regions.value, props.store.selectedIndex.value, snappedY.y);
 }
 async function onStageClick() {
   if (!props.splitting || splitY.value === null || !splitValid.value) return;
-  await props.store.split(splitY.value);
+  await props.store.commitSplit(splitY.value);
   emit("update:splitting", false);
   splitY.value = null;
 }
 function onRegionClick(id: string, event: MouseEvent) {
   if (props.splitting) return;
-  if (event.ctrlKey || event.metaKey) props.store.toggleSelected(id);
-  else props.store.selectOnly(id);
+  props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
 </script>
 

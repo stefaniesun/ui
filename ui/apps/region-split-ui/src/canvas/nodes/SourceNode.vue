@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { UiStore } from "../../state.js";
+import type { Store } from "../../state.js";
 import { imageUrl } from "../../api.js";
 
-const props = defineProps<{ store: UiStore }>();
+const props = defineProps<{ store: Store }>();
 const emit = defineEmits<{ uploaded: [projectId: string] }>();
 const dragging = ref(false);
 
 async function upload(file?: File) {
   if (!file || props.store.busy.value) return;
-  const projectId = await props.store.uploadImage(file);
-  emit("uploaded", projectId);
+  await props.store.uploadImage(file);
+  if (props.store.projectId.value) emit("uploaded", props.store.projectId.value);
 }
 function onInput(event: Event) { void upload((event.target as HTMLInputElement).files?.[0]); }
 function onDrop(event: DragEvent) {
@@ -23,15 +23,15 @@ function onDrop(event: DragEvent) {
   <div class="source-node">
     <label
       class="drop-zone"
-      :class="{ dragging, populated: props.store.image.value }"
+      :class="{ dragging, populated: props.store.doc.value?.image }"
       @dragenter.prevent="dragging = true"
       @dragover.prevent
       @dragleave.prevent="dragging = false"
       @drop.prevent="onDrop"
     >
       <input type="file" accept="image/*" :disabled="props.store.busy.value" @change="onInput" />
-      <template v-if="props.store.image.value">
-        <img :src="imageUrl(props.store.projectId.value)" :alt="props.store.image.value.fileName" />
+      <template v-if="props.store.doc.value?.image">
+        <img :src="imageUrl(props.store.projectId.value)" :alt="props.store.doc.value.image.fileName" />
         <span class="replace-hint">拖入或点击替换图片</span>
       </template>
       <template v-else>
@@ -40,10 +40,10 @@ function onDrop(event: DragEvent) {
         <small>或点击选择图片</small>
       </template>
     </label>
-    <dl v-if="props.store.image.value" class="metadata">
-      <div><dt>文件</dt><dd :title="props.store.image.value.fileName">{{ props.store.image.value.fileName }}</dd></div>
-      <div><dt>尺寸</dt><dd>{{ props.store.image.value.width }} × {{ props.store.image.value.height }}</dd></div>
-      <div><dt>格式</dt><dd>{{ props.store.image.value.mime }}</dd></div>
+    <dl v-if="props.store.doc.value?.image" class="metadata">
+      <div><dt>文件</dt><dd :title="props.store.doc.value.image.fileName">{{ props.store.doc.value.image.fileName }}</dd></div>
+      <div><dt>尺寸</dt><dd>{{ props.store.doc.value.image.width }} × {{ props.store.doc.value.image.height }}</dd></div>
+      <div><dt>比例</dt><dd>{{ props.store.doc.value.image.analyzedScale.toFixed(2) }}× 分析</dd></div>
     </dl>
   </div>
 </template>
