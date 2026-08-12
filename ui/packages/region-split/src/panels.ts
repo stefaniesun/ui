@@ -91,7 +91,34 @@ export function detectPanels(raw: RawImage): Panel[] {
   return panelsFromOpenRows(openRows(raw));
 }
 
-/** y 是否落在某块面板内部（碰到面板的上下边缘不算，那正是合法的切分位置） */
+/**
+ * 面板边缘的容差。候选线取的是留白带的**中位行**，而面板边界取的是
+ * 颜色发生变化的那一行——卡片边缘的抗锯齿会让两者差几个像素。
+ * 不给容差的话，本来就是模块边界的候选线会因为"深入面板 3、4 个像素"被误删。
+ */
+const EDGE_TOLERANCE = 12;
+
+/** y 是否真的横穿面板内部（贴着上下边缘的不算，那正是合法的切分位置） */
 export function crossesPanel(panels: Panel[], y: number): boolean {
-  return panels.some(panel => y > panel.top && y < panel.bottom);
+  return panels.some(panel =>
+    y > panel.top + EDGE_TOLERANCE && y < panel.bottom - EDGE_TOLERANCE);
+}
+
+/**
+ * 把贴近面板边缘的 y 吸附到边缘上。候选线本身就该落在卡片的边界处，
+ * 抗锯齿造成的几个像素偏差没有保留价值，吸附过去更准也更稳定。
+ */
+export function snapToPanelEdge(panels: Panel[], y: number): number {
+  let best = y;
+  let bestDistance = EDGE_TOLERANCE;
+  for (const panel of panels) {
+    for (const edge of [panel.top, panel.bottom]) {
+      const distance = Math.abs(edge - y);
+      if (distance > 0 && distance <= bestDistance) {
+        best = edge;
+        bestDistance = distance;
+      }
+    }
+  }
+  return best;
 }

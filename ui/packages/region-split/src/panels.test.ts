@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { crossesPanel, detectPanels, panelsFromOpenRows, rowOpenness, type RawImage } from "./panels.js";
+import { crossesPanel, detectPanels, panelsFromOpenRows, rowOpenness, snapToPanelEdge, type RawImage } from "./panels.js";
 
 const W = 200;
 
@@ -78,13 +78,32 @@ describe("panelsFromOpenRows", () => {
 });
 
 describe("crossesPanel", () => {
-  const panels = [{ top: 100, bottom: 200 }];
+  const panels = [{ top: 100, bottom: 300 }];
   it("flags a line through the middle of a panel", () => {
-    expect(crossesPanel(panels, 150)).toBe(true);
+    expect(crossesPanel(panels, 200)).toBe(true);
   });
   it("allows lines at the panel edges and outside it", () => {
     expect(crossesPanel(panels, 100)).toBe(false);
-    expect(crossesPanel(panels, 200)).toBe(false);
+    expect(crossesPanel(panels, 300)).toBe(false);
     expect(crossesPanel(panels, 50)).toBe(false);
+  });
+  // 候选线取留白带的中位行，面板边界取颜色变化行，卡片边缘的抗锯齿会让两者
+  // 差几个像素。没有容差的话，本来就是模块边界的线会因为"深入面板 4px"被误删——
+  // 真实页面上这条线正是商品区与底部导航栏之间的分界。
+  it("tolerates a line a few pixels inside the edge", () => {
+    expect(crossesPanel(panels, 104)).toBe(false);
+    expect(crossesPanel(panels, 296)).toBe(false);
+  });
+});
+
+describe("snapToPanelEdge", () => {
+  const panels = [{ top: 100, bottom: 300 }];
+  it("pulls a near-edge line onto the edge", () => {
+    expect(snapToPanelEdge(panels, 104)).toBe(100);
+    expect(snapToPanelEdge(panels, 296)).toBe(300);
+  });
+  it("leaves lines far from any edge alone", () => {
+    expect(snapToPanelEdge(panels, 200)).toBe(200);
+    expect(snapToPanelEdge(panels, 50)).toBe(50);
   });
 });

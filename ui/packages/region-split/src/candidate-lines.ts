@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { crossesPanel, detectPanels, type Panel, type RawImage } from "./panels.js";
+import { crossesPanel, detectPanels, snapToPanelEdge, type Panel, type RawImage } from "./panels.js";
 import type { CandidateLine } from "./types.js";
 
 export interface RowStat { mean: [number, number, number]; variance: number }
@@ -140,6 +140,12 @@ export async function detectSurface(
 
   const stats = rowStatsFromRaw(raw);
   const panels = detectPanels(raw);
-  const candidateLines = candidatesFromRows(stats).filter(line => !crossesPanel(panels, line.y));
+  // 先把贴近卡片边缘的候选线吸附到边缘（抗锯齿会让两者差几个像素），
+  // 再剔除真正深入卡片内部的。顺序反过来会把本就是模块边界的线误删。
+  const seen = new Set<number>();
+  const candidateLines = candidatesFromRows(stats)
+    .map(line => ({ ...line, y: snapToPanelEdge(panels, line.y) }))
+    .filter(line => !crossesPanel(panels, line.y))
+    .filter(line => (seen.has(line.y) ? false : (seen.add(line.y), true)));
   return { candidateLines, panels };
 }
