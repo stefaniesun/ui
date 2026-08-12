@@ -94,10 +94,28 @@ describe("Toolbar", () => {
     expect(wrapper.find("[data-test=analyze]").attributes("disabled")).toBeDefined();
   });
 
-  it("opens the model config dialog", async () => {
-    const { store, wrapper } = await mounted();
-    await wrapper.find("[data-test=model-config]").trigger("click");
-    expect(store.configDialogOpen.value).toBe(true);
+  it("names the config file to edit when the model is not configured", async () => {
+    const store = createStore(makeFakeApi(initial));
+    await store.load("p1");
+    store.modelConfig.value = {
+      baseUrl: "", model: "", hasApiKey: false,
+      configPath: "D:/workspace/ui/region-split.config.json",
+    };
+    const wrapper = mount(Toolbar, { props: { store } });
+    const warning = wrapper.find("[data-test=model-warning]");
+    expect(warning.text()).toContain("region-split.config.json");
+    expect(warning.attributes("title")).toContain("D:/workspace/ui/region-split.config.json");
+  });
+
+  it("shows the configured model name instead of a warning", async () => {
+    const { wrapper } = await mounted();
+    expect(wrapper.find("[data-test=model-warning]").exists()).toBe(false);
+    expect(wrapper.find("[data-test=model-name]").text()).toBe("test-model");
+  });
+
+  it("offers no in-app way to edit the model config", async () => {
+    const { wrapper } = await mounted();
+    expect(wrapper.find("[data-test=model-config]").exists()).toBe(false);
   });
 
   // ⑦ 高度 < 16px 拆不出两个 >= 8px 的块，拆分按钮该禁用，和 [▲][▼] 的禁用处理保持一致

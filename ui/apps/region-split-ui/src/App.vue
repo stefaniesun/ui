@@ -2,7 +2,6 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import { httpApi } from "./api.js";
 import ImageCanvas from "./components/ImageCanvas.vue";
-import ModelConfigDialog from "./components/ModelConfigDialog.vue";
 import RegionList from "./components/RegionList.vue";
 import Toolbar from "./components/Toolbar.vue";
 import { createStore } from "./state.js";
@@ -59,7 +58,6 @@ onUnmounted(() => {
     <aside>
       <RegionList :store="store" :hovered-id="hoveredId" @hover="id => (hoveredId = id)" />
     </aside>
-    <ModelConfigDialog :store="store" />
   </div>
 </template>
 

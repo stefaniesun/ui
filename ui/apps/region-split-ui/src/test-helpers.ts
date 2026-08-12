@@ -22,11 +22,8 @@ export function makeFakeApi(initial: () => Region[], candidateLines: CandidateLi
     analyze: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),
     renameAi: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),
     getModelConfig: vi.fn(async () => ({
-      baseUrl: "http://local/v1", model: "test-model", hasApiKey: true, apiKeyMask: "sk-••••abcd",
+      baseUrl: "http://local/v1", model: "test-model", hasApiKey: true,
+      configPath: "/workspace/ui/region-split.config.json",
     })),
-    putModelConfig: vi.fn(async input => ({
-      baseUrl: input.baseUrl, model: input.model, hasApiKey: true, apiKeyMask: "sk-••••abcd",
-    })),
-    testModelConfig: vi.fn(async () => ({ ok: true })),
   };
 }

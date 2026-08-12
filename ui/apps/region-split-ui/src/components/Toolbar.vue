@@ -12,6 +12,12 @@ const splitting = computed(() => props.store.mode.value === "split");
 // 拆出两个块各自至少要 MIN_REGION_HEIGHT，否则进了拆分模式点哪都无效——
 // 和 [▲][▼] 一样，在选区不满足条件时直接禁用按钮。
 const canSplit = computed(() => (selected.value?.bounds.h ?? 0) >= MIN_REGION_HEIGHT * 2);
+// 配置文件的完整路径由服务端给出（它才知道自己在读哪个文件），
+// 界面上只显示文件名，完整路径放进 title。
+const configFileName = computed(() => {
+  const path = props.store.modelConfig.value?.configPath;
+  return path ? path.split(/[\\/]/).pop() : "region-split.config.json";
+});
 
 function onFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
@@ -73,9 +79,16 @@ function onNudgeClick(delta: number) {
       >{{ props.store.busy.value ? "分析中…" : "重新分析" }}</button>
       <span v-if="props.store.busy.value" data-test="busy" class="busy">处理中…</span>
       <span class="spacer" />
-      <button data-test="model-config" @click="props.store.openConfigDialog()">模型配置</button>
-      <span v-if="!props.store.isModelConfigured.value" data-test="model-warning" class="warning">
-        未配置模型
+      <span
+        v-if="!props.store.isModelConfigured.value"
+        data-test="model-warning"
+        class="warning"
+        :title="`在 ${props.store.modelConfig.value?.configPath ?? 'region-split.config.json'} 中配置模型后重启服务`"
+      >
+        未配置模型：请编辑 {{ configFileName }}
+      </span>
+      <span v-else data-test="model-name" class="model-name">
+        {{ props.store.modelConfig.value?.model }}
       </span>
       <button data-test="undo" :disabled="!props.store.canUndo.value" @click="props.store.undo()">撤销</button>
       <button data-test="redo" :disabled="!props.store.canRedo.value" @click="props.store.redo()">重做</button>
@@ -142,7 +155,8 @@ function onNudgeClick(delta: number) {
 .status { font-size: 12px; color: #666; }
 .spacer { flex: 1; }
 .hint { font-size: 12px; color: #888; }
-.warning { font-size: 12px; color: #e2a400; }
+.warning { font-size: 12px; color: #e2a400; cursor: help; }
+.model-name { font-size: 12px; color: #888; }
 .busy { font-size: 12px; color: #2f6fed; }
 .error { margin-left: 12px; color: #d0454c; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -4,9 +4,9 @@ import {
   mergeRegions, renameRegion, splitRegion,
   type ModelConfigView, type Region, type RegionSplitDoc,
 } from "@region-split/core/browser";
-import type { ModelConfigInput, StoreApi } from "./api.js";
+import type { StoreApi } from "./api.js";
 
-export type { ModelConfigInput, StoreApi };
+export type { StoreApi };
 
 const UNDO_STACK_LIMIT = 50;
 const COALESCE_MS = 500;
@@ -23,8 +23,6 @@ export function createStore(api: StoreApi) {
   const pendingRenameIds = ref<string[]>([]);
   const renamingId = ref<string | null>(null);
   const modelConfig = ref<ModelConfigView | null>(null);
-  const configDialogOpen = ref(false);
-  const configTestResult = ref<{ ok: boolean; error?: string } | null>(null);
 
   // 栈本身用普通数组（快照不需要响应式），深度单独用 ref 暴露，
   // 否则 canUndo/canRedo 这类 computed 没有响应式依赖，首次求值后就再也不会失效。
@@ -147,7 +145,7 @@ export function createStore(api: StoreApi) {
 
   return {
     projectId, doc, regions, selectedIds, mode, busy, error, pendingRenameIds, renamingId,
-    modelConfig, configDialogOpen, configTestResult,
+    modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
     isModelConfigured, candidateLines,
 
@@ -157,17 +155,6 @@ export function createStore(api: StoreApi) {
     async loadModelConfig() {
       try { modelConfig.value = await api.getModelConfig(); }
       catch (err) { error.value = (err as Error).message; }
-    },
-    openConfigDialog() { configTestResult.value = null; configDialogOpen.value = true; },
-    closeConfigDialog() { configDialogOpen.value = false; },
-    async saveModelConfig(input: ModelConfigInput) {
-      try { modelConfig.value = await api.putModelConfig(input); configDialogOpen.value = false; }
-      catch (err) { error.value = (err as Error).message; }
-    },
-    async testModelConfig(input: ModelConfigInput) {
-      configTestResult.value = null;
-      try { configTestResult.value = await api.testModelConfig(input); }
-      catch (err) { configTestResult.value = { ok: false, error: (err as Error).message }; }
     },
 
     async uploadImage(file: File) {

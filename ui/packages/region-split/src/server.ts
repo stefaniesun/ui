@@ -88,34 +88,21 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       }
     });
 
+  // 模型配置是只读的：改配置要编辑项目里的配置文件，服务不提供写入接口。
+  // 前端只用它判断能否分析，以及在未配置时提示该去改哪个文件。
   app.get("/api/model-config", async () => configStore.view());
 
-  app.put<{ Body: { baseUrl: string; model: string; apiKey?: string } }>(
-    "/api/model-config", async (req) => {
-      configStore.write(req.body);
-      return configStore.view();
-    });
-
-  app.post<{ Body: { baseUrl: string; model: string; apiKey?: string } }>(
-    "/api/model-config/test", async (req) => {
-      const saved = configStore.read();
-      // 只有在测试的 baseUrl 与已保存的 baseUrl 相同时才回落到已保存的 key，
-      // 否则任何能 POST 到本服务的调用方都能把明文 key 引到任意 baseUrl。
-      const savedKeyApplies = req.body.baseUrl === saved.baseUrl;
-      const config: ModelConfig = {
-        baseUrl: req.body.baseUrl,
-        model: req.body.model,
-        apiKey: req.body.apiKey && req.body.apiKey !== ""
-          ? req.body.apiKey
-          : (savedKeyApplies ? saved.apiKey : ""),
-      };
-      try {
-        await deps.createModel(config).nameRegion({ cropBase64: TINY_PNG_BASE64 });
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, error: (err as Error).message };
-      }
-    });
+  // 连通性自检：用当前配置文件里的配置发一个最小请求。
+  // 配置来自服务端自身，不接受请求体，所以不存在"把已存 Key 引到任意地址"的问题。
+  app.post("/api/model-config/check", async () => {
+    if (!configStore.isConfigured()) return { ok: false, error: "model not configured" };
+    try {
+      await currentModel().nameRegion({ cropBase64: TINY_PNG_BASE64 });
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  });
 
   app.get<{ Params: ProjectParams; Querystring: { rect?: string } }>(
     "/api/projects/:projectId/image", async (req, reply) => {

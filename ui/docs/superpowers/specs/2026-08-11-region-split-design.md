@@ -140,7 +140,7 @@ interface ModelConfig {
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
-│ [选择图片] [重新分析]        [模型配置]     [撤销] [重做]    │ 全局工具栏
+│ [选择图片] [重新分析]      qwen2.5vl:7b   [撤销] [重做]    │ 全局工具栏
 ├──────────────────────────────────────────────────────────┤
 │ 已选：会员信息卡   [▲][▼] 微调下边界  [拆分] [重命名] [AI 重命名] │ 上下文操作条
 ├───────────────────────────────┬──────────────────────────┤
@@ -200,16 +200,27 @@ interface ModelConfig {
 
 ### 5.5 模型配置
 
-全局工具栏的 `[模型配置]` 打开一个对话框，字段为 Base URL、API Key、模型名：
+模型配置**只在项目配置文件里维护，界面上没有配置入口**：
 
-- **API Key 不回传明文**。已保存时输入框显示占位掩码（如 `sk-••••abcd`），留空提交表示"保持原值不变"，填写新值才覆盖。
-- `[测试连接]` 用当前表单的值向模型发一个最小请求，就地显示成功或失败原因——配完立刻知道通不通，不用等到分析时才发现。
-- `[保存]` 写入服务端配置文件；`[取消]` 丢弃改动。
-- 未配置模型时，工具栏显示一个提示徽标引导用户点开此对话框。
+```text
+ui/region-split.config.json     含 API Key，不入版本库
+ui/region-split.config.example.json   提交进版本库的模板
+```
 
-配置存在**服务端**而不是浏览器：实际发起模型请求的是服务端，API Key 不应经过前端存储。
+```json
+{ "baseUrl": "http://127.0.0.1:11434/v1", "model": "qwen2.5vl:7b", "apiKey": "" }
+```
 
-### 5.5 撤销与重做
+界面对配置**只读不写**：
+
+- 已配置时，工具栏右侧显示当前模型名。
+- 未配置时显示提示徽标"未配置模型：请编辑 region-split.config.json"，`title` 里给出完整路径（路径由服务端提供，因为只有它知道自己在读哪个文件）；`[重新分析]` 与 `[AI 重命名]` 同时禁用。
+
+这样做的取舍：少了界面上的即时反馈，换来 API Key 完全不经过浏览器、也不存在"能通过 HTTP 改写服务端配置"的入口。连通性自检改由服务端提供（`POST /api/model-config/check`），它只用自己配置文件里的配置，不接受请求体。
+
+配置每次请求都重读，改完文件即时生效，不必重启服务。
+
+### 5.6 撤销与重做
 
 `[撤销]` / `[重做]` 按钮，同时支持 `Ctrl+Z` / `Ctrl+Shift+Z`。
 
@@ -231,32 +242,34 @@ POST /api/projects/:projectId/regions/:id/rename-ai   对单个区域调用模�
 GET  /api/projects/:projectId/image?rect=x,y,w,h      取原图或其裁剪
 ```
 
-模型配置接口：
+模型配置接口（**只读**，没有写入接口）：
 
 ```text
-GET  /api/model-config    读取，返回 { baseUrl, model, hasApiKey, apiKeyMask }，不含明文 key
-PUT  /api/model-config    保存 { baseUrl, model, apiKey? }；apiKey 缺省或空串表示保持原值
-POST /api/model-config/test   用请求体给出的配置发一个最小请求，返回 { ok, error? }
+GET  /api/model-config          返回 { baseUrl, model, hasApiKey, configPath }，不含明文 key
+POST /api/model-config/check    用服务端自己的配置发一个最小请求做连通性自检，返回 { ok, error? }
+                                不接受请求体，因此不存在把已存 Key 引向任意地址的路径
 ```
 
 `projectId` 由服务端在上传时生成（时间戳 + 短随机串，如 `20260811-a3f9`），前端拿到后写入 URL hash，刷新页面可恢复现场。界面初次打开无 `projectId` 时只显示"选择图片"。
 
-未配置模型时，`analyze` 与 `rename-ai` 返回 400 `{ error: "model not configured" }`，前端引导用户去打开模型配置对话框。
+未配置模型时，`analyze` 与 `rename-ai` 返回 400 `{ error: "model not configured" }`，前端在工具栏提示该去编辑哪个配置文件。
 
 `PUT regions` 采用整体替换而非增量补丁：`regions` 数组小，前端持有完整状态，整体写入实现简单且不变量校验直接。撤销/重做在前端完成，每次状态变化后调用一次 `PUT`。
 
 ### 6.1 存储
 
 ```text
-data/
-  model-config.json          ModelConfig（含 API Key，不入版本库）
-  projects/<projectId>/
-    image.png                上传的原图
-    image.analyzed.png       缩放后的分析图（用于模型调用与候选线检测）
-    regions.json             RegionSplitDoc
+ui/
+  region-split.config.json         模型配置（含 API Key，不入版本库）
+  region-split.config.example.json 模板（入版本库）
+  data/
+    projects/<projectId>/
+      image.png                    上传的原图
+      image.analyzed.png           缩放后的分析图（用于模型调用与候选线检测）
+      regions.json                 RegionSplitDoc
 ```
 
-模型配置的读取优先级：配置文件存在则用文件；否则回落到环境变量 `UIR_MODEL_BASE_URL` / `UIR_MODEL_API_KEY` / `UIR_MODEL_NAME`。界面上保存过一次后即以文件为准。`data/` 整个目录进 `.gitignore`。
+模型配置的读取优先级：配置文件存在则用文件；否则回落到环境变量 `UIR_MODEL_BASE_URL` / `UIR_MODEL_API_KEY` / `UIR_MODEL_NAME`（便于 CI 或容器部署）。配置文件路径由服务端从模块自身位置推导，不依赖 cwd，可用 `UIR_CONFIG_FILE` 覆盖。`data/` 与 `region-split.config.json` 都进 `.gitignore`。
 
 ## 7. 技术选型
 
@@ -265,7 +278,7 @@ data/
 | 语言/运行时 | TypeScript，Node ≥22 | 与既有仓库一致 |
 | 图像处理 | sharp | 尺寸读取、缩放、裁剪、raw 像素读取 |
 | 候选线检测 | 自实现水平投影分析 | 逻辑简单（百行内），纯函数易测 |
-| 模型接入 | OpenAI 兼容 Chat Completions | 不绑厂商，本地模型或中转站均可；配置以界面写入的 `data/model-config.json` 为准，环境变量兜底。模型客户端**按请求构造**（配置随时可改），不在启动时固化 |
+| 模型接入 | OpenAI 兼容 Chat Completions | 不绑厂商，本地模型或中转站均可；配置来自项目文件 `region-split.config.json`，环境变量兜底。模型客户端**按请求构造**，改配置文件即时生效、不必重启 |
 | 输出校验 | zod | 与既有 `packages/contracts` 一致 |
 | 服务端 | Fastify | 轻量、TS 友好 |
 | 前端 | Vue 3 + TypeScript + Vite | 与既有仓库一致 |
@@ -280,7 +293,7 @@ packages/region-split/
   src/candidate-lines.ts   候选切分线检测（纯函数）
   src/reconcile.ts         融合与不变量修正（纯函数）
   src/model.ts             模型调用与 Schema 校验
-  src/model-config.ts      ModelConfig 读写、掩码、环境变量回落
+  src/model-config.ts      ModelConfig 只读加载、环境变量回落
   src/analyze.ts           编排：预处理 → 候选线 → 模型 → 融合
   src/store.ts             项目文件读写与不变量校验
   src/server.ts            Fastify 路由
@@ -292,7 +305,6 @@ apps/region-split-ui/
   src/components/ImageCanvas.vue    图片 + 分段叠加 + 拆分线
   src/components/RegionList.vue     右侧列表
   src/components/Toolbar.vue        全局工具栏 + 上下文操作条
-  src/components/ModelConfigDialog.vue  模型配置对话框
   src/App.vue
 ```
 
@@ -315,7 +327,7 @@ apps/region-split-ui/
 4. 拆分/合并后自动命名在 15s 内返回且名称语义正确。
 5. 撤销可连续回退 10 步以上，状态无错乱；刷新页面后结果与落盘 JSON 一致。
 6. 不变量在任何操作序列后都成立。
-7. 在界面上配置一个本地模型端点，测试连接通过，随后分析可用；改成一个错误端点后测试连接给出明确失败原因；API Key 保存后不以明文回传前端。
+7. 在 `region-split.config.json` 里配置一个本地模型端点，`POST /api/model-config/check` 返回 `ok`，随后分析可用；改成错误端点后自检给出明确失败原因；`GET /api/model-config` 的响应不含明文 API Key。
 
 ## 10. 非目标
 

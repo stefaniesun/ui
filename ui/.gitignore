@@ -1,5 +1,11 @@
 node_modules/
+node_modules-hoisted/
 dist/
 .cache/
+.pnpm-store/
+.npm-cache/
 data/
 *.log
+
+# 含 API Key，不入版本库；模板见 region-split.config.example.json
+region-split.config.json

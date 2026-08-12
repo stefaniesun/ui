@@ -71,10 +71,13 @@ describe("createStore", () => {
     expect(store.isModelConfigured.value).toBe(true);
   });
 
-  it("records the connection test result", async () => {
+  // 模型配置是服务端只读给出的，前端不写；界面只用它决定能否分析、
+  // 以及未配置时提示该去改哪个文件。
+  it("exposes the config file path so the toolbar can tell the user where to configure", async () => {
     const { store } = await loadedStore();
-    await store.testModelConfig({ baseUrl: "http://local/v1", model: "m" });
-    expect(store.configTestResult.value).toEqual({ ok: true });
+    await store.loadModelConfig();
+    expect(store.modelConfig.value?.configPath).toContain("region-split.config.json");
+    expect(JSON.stringify(store.modelConfig.value)).not.toContain("apiKey");
   });
 
   it("splits the selected region and selects the new lower block", async () => {

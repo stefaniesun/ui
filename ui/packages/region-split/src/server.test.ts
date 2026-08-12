@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import FormData from "form-data";
@@ -21,8 +21,11 @@ const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
 function makeApp(m: SegmentModel = model(), configured = true) {
   const root = mkdtempSync(join(tmpdir(), "rs-"));
   const store = new ProjectStore(join(root, "projects"));
-  const configStore = new ModelConfigStore(join(root, "model-config.json"), {});
-  if (configured) configStore.write({ baseUrl: "http://local/v1", model: "m", apiKey: "key12345678" });
+  const configPath = join(root, "region-split.config.json");
+  if (configured) {
+    writeFileSync(configPath, JSON.stringify({ baseUrl: "http://local/v1", model: "m", apiKey: "key12345678" }), "utf8");
+  }
+  const configStore = new ModelConfigStore(configPath, {});
   return { app: buildServer({ store, configStore, createModel: () => m }), store, configStore };
 }
 
@@ -160,80 +163,83 @@ describe("region split server", () => {
 });
 
 describe("model config routes", () => {
-  it("reads and writes config without exposing the raw key", async () => {
+  it("exposes a read-only view that never contains the raw key", async () => {
     const { app } = makeApp(model(), false);
-    expect((await app.inject({ method: "GET", url: "/api/model-config" })).json())
-      .toEqual({ baseUrl: "", model: "", hasApiKey: false, apiKeyMask: "" });
+    const empty = (await app.inject({ method: "GET", url: "/api/model-config" })).json();
+    expect(empty).toMatchObject({ baseUrl: "", model: "", hasApiKey: false });
+    expect(typeof empty.configPath).toBe("string");
 
-    const saved = await app.inject({
-      method: "PUT", url: "/api/model-config",
-      payload: { baseUrl: "http://local/v1", model: "qwen-vl", apiKey: "sk-abcdefghijkl" },
-    });
-    expect(saved.json()).toEqual({
-      baseUrl: "http://local/v1", model: "qwen-vl", hasApiKey: true, apiKeyMask: "sk-••••ijkl",
-    });
-    expect(JSON.stringify(saved.json())).not.toContain("abcdefgh");
+    const { app: configured } = makeApp();
+    const view = (await configured.inject({ method: "GET", url: "/api/model-config" })).json();
+    expect(view).toMatchObject({ baseUrl: "http://local/v1", model: "m", hasApiKey: true });
+    expect(JSON.stringify(view)).not.toContain("key12345678");
   });
 
-  it("keeps the stored key when the payload omits it", async () => {
-    const { app, configStore } = makeApp(model(), false);
-    await app.inject({
-      method: "PUT", url: "/api/model-config",
-      payload: { baseUrl: "http://a/v1", model: "m1", apiKey: "originalkey1" },
-    });
-    await app.inject({ method: "PUT", url: "/api/model-config", payload: { baseUrl: "http://b/v1", model: "m2" } });
-    expect(configStore.read().apiKey).toBe("originalkey1");
-  });
-
-  it("reports a successful connection test", async () => {
+  it("offers no way to write the config over http", async () => {
     const { app } = makeApp();
-    const res = await app.inject({
-      method: "POST", url: "/api/model-config/test",
-      payload: { baseUrl: "http://local/v1", model: "m" },
+    for (const method of ["PUT", "POST"] as const) {
+      const res = await app.inject({
+        method, url: "/api/model-config",
+        payload: { baseUrl: "http://attacker/v1", model: "m", apiKey: "sk-injected" },
+      });
+      expect(res.statusCode).toBe(404);
+    }
+  });
+
+  it("checks connectivity using the server-side config only", async () => {
+    const seen: { baseUrl: string; apiKey: string }[] = [];
+    const root = mkdtempSync(join(tmpdir(), "rs-"));
+    const store = new ProjectStore(join(root, "projects"));
+    const configPath = join(root, "region-split.config.json");
+    writeFileSync(configPath, JSON.stringify({
+      baseUrl: "http://saved/v1", model: "saved-model", apiKey: "sk-savedkey123",
+    }), "utf8");
+    const app = buildServer({
+      store,
+      configStore: new ModelConfigStore(configPath, {}),
+      createModel: config => {
+        seen.push({ baseUrl: config.baseUrl, apiKey: config.apiKey });
+        return model();
+      },
     });
+
+    const res = await app.inject({ method: "POST", url: "/api/model-config/check" });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
+    expect(seen).toEqual([{ baseUrl: "http://saved/v1", apiKey: "sk-savedkey123" }]);
   });
 
-  it("reports a failed connection test with 200 and a reason", async () => {
-    const failing = model({ nameRegion: async () => { throw new Error("connect ECONNREFUSED"); } });
-    const { app } = makeApp(failing);
-    const res = await app.inject({
-      method: "POST", url: "/api/model-config/test",
-      payload: { baseUrl: "http://bad/v1", model: "m" },
+  it("ignores a request body on the connectivity check", async () => {
+    const seen: string[] = [];
+    const root = mkdtempSync(join(tmpdir(), "rs-"));
+    const configPath = join(root, "region-split.config.json");
+    writeFileSync(configPath, JSON.stringify({
+      baseUrl: "http://saved/v1", model: "m", apiKey: "sk-savedkey123",
+    }), "utf8");
+    const app = buildServer({
+      store: new ProjectStore(join(root, "projects")),
+      configStore: new ModelConfigStore(configPath, {}),
+      createModel: config => { seen.push(config.baseUrl); return model(); },
     });
+
+    await app.inject({
+      method: "POST", url: "/api/model-config/check",
+      payload: { baseUrl: "http://attacker.example/v1", model: "m" },
+    });
+    // 请求体被完全忽略，永远用服务端自己的配置
+    expect(seen).toEqual(["http://saved/v1"]);
+  });
+
+  it("reports a failed check with 200 and a reason", async () => {
+    const { app } = makeApp(model({ nameRegion: async () => { throw new Error("connect ECONNREFUSED"); } }));
+    const res = await app.inject({ method: "POST", url: "/api/model-config/check" });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: false, error: "connect ECONNREFUSED" });
   });
 
-  it("falls back to the saved key only when the tested baseUrl matches the saved baseUrl", async () => {
-    const seenConfigs: { baseUrl: string; apiKey: string }[] = [];
-    const recordingModel = (): SegmentModel => ({
-      segment: async () => [],
-      nameRegion: async () => ({ displayName: "x", id: "x", type: "other" }),
-    });
-    const root = mkdtempSync(join(tmpdir(), "rs-"));
-    const store = new ProjectStore(join(root, "projects"));
-    const configStore = new ModelConfigStore(join(root, "model-config.json"), {});
-    configStore.write({ baseUrl: "http://saved/v1", model: "saved-model", apiKey: "sk-savedkey123" });
-    const app = buildServer({
-      store, configStore,
-      createModel: (config) => {
-        seenConfigs.push({ baseUrl: config.baseUrl, apiKey: config.apiKey });
-        return recordingModel();
-      },
-    });
-
-    await app.inject({
-      method: "POST", url: "/api/model-config/test",
-      payload: { baseUrl: "http://saved/v1", model: "saved-model" },
-    });
-    expect(seenConfigs[0]).toEqual({ baseUrl: "http://saved/v1", apiKey: "sk-savedkey123" });
-
-    await app.inject({
-      method: "POST", url: "/api/model-config/test",
-      payload: { baseUrl: "http://attacker.example/v1", model: "saved-model" },
-    });
-    expect(seenConfigs[1]).toEqual({ baseUrl: "http://attacker.example/v1", apiKey: "" });
+  it("reports not configured instead of calling the model", async () => {
+    const { app } = makeApp(model(), false);
+    expect((await app.inject({ method: "POST", url: "/api/model-config/check" })).json())
+      .toEqual({ ok: false, error: "model not configured" });
   });
 });

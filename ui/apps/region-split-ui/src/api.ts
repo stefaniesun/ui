@@ -1,7 +1,5 @@
 import type { ModelConfigView, Region, RegionSplitDoc } from "@region-split/core/browser";
 
-export interface ModelConfigInput { baseUrl: string; model: string; apiKey?: string }
-
 export interface StoreApi {
   upload(file: File): Promise<{ projectId: string; doc: RegionSplitDoc }>;
   getProject(projectId: string): Promise<{ projectId: string; doc: RegionSplitDoc }>;
@@ -9,8 +7,6 @@ export interface StoreApi {
   analyze(projectId: string): Promise<{ doc: RegionSplitDoc }>;
   renameAi(projectId: string, regionId: string): Promise<{ doc: RegionSplitDoc }>;
   getModelConfig(): Promise<ModelConfigView>;
-  putModelConfig(input: ModelConfigInput): Promise<ModelConfigView>;
-  testModelConfig(input: ModelConfigInput): Promise<{ ok: boolean; error?: string }>;
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -44,20 +40,6 @@ export const httpApi: StoreApi = {
   },
   getModelConfig() {
     return json("/api/model-config");
-  },
-  putModelConfig(input) {
-    return json("/api/model-config", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-    });
-  },
-  testModelConfig(input) {
-    return json("/api/model-config/test", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(input),
-    });
   },
 };
 

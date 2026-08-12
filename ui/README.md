@@ -30,17 +30,39 @@ pnpm -C ui/apps/region-split-ui dev
 
 ## 配置模型
 
-点工具栏的「模型配置」，填：
+复制模板，填上自己的端点：
 
-- **Base URL**：OpenAI 兼容端点，例如本地 Ollama 的 `http://127.0.0.1:11434/v1`
-- **模型名**：需要支持图片输入的多模态模型
-- **API Key**：本地模型可留空
+```bash
+cp ui/region-split.config.example.json ui/region-split.config.json
+```
 
-点「测试连接」确认通了再保存。已保存的 Key 不会回传前端，输入框留空表示保持不变。
+```json
+{
+  "baseUrl": "http://127.0.0.1:11434/v1",
+  "model": "qwen2.5vl:7b",
+  "apiKey": ""
+}
+```
 
-也可以用环境变量提供默认值：`UIR_MODEL_BASE_URL` / `UIR_MODEL_API_KEY` / `UIR_MODEL_NAME`。界面保存过一次后以界面配置为准。
+- **baseUrl**：OpenAI 兼容端点，例如本地 Ollama 的 `http://127.0.0.1:11434/v1`
+- **model**：需要支持图片输入的多模态模型
+- **apiKey**：本地模型留空即可
 
-未配置模型时，「重新分析」和「AI 重命名」会禁用，其余功能（上传、手动拆分/合并/微调/重命名、撤销）全部照常可用。
+配置每次请求都重读，**改完文件立即生效，不用重启服务**。服务启动时会打印它读的是哪个文件、当前配到了哪个模型。
+
+确认连得通：
+
+```bash
+curl -X POST http://127.0.0.1:4800/api/model-config/check
+```
+
+返回 `{"ok":true}` 说明可用，失败会带上原因。
+
+`region-split.config.json` 含 API Key，已在 `.gitignore` 里。也可以改用环境变量 `UIR_MODEL_BASE_URL` / `UIR_MODEL_API_KEY` / `UIR_MODEL_NAME`（配置文件优先），或用 `UIR_CONFIG_FILE` 指定别的配置文件路径。
+
+界面上**没有**模型配置入口——API Key 不经过浏览器，也不存在能通过 HTTP 改写服务端配置的接口。工具栏只显示当前模型名，未配置时提示该去编辑哪个文件。
+
+未配置模型时，「重新分析」和「AI 重命名」会禁用，其余功能（上传、手动拆分/合并/微调/重命名、撤销）全部照常可用——候选切分线是纯图像分析，不需要模型，所以手动拆分的吸附一样有效。
 
 ## 操作
 
@@ -59,15 +81,15 @@ pnpm -C ui/apps/region-split-ui dev
 
 ## 数据
 
-写在 `ui/data/`（已 gitignore）：
-
 ```text
-data/
-  model-config.json          模型配置（含 API Key）
-  projects/<projectId>/
-    image.png                上传的原图
-    image.analyzed.png       缩放后的分析图（长图会被等比缩到 2000px 高）
-    regions.json             区域划分结果
+ui/
+  region-split.config.json         模型配置（含 API Key，已 gitignore）
+  region-split.config.example.json 模板
+  data/                            运行期数据，已 gitignore
+    projects/<projectId>/
+      image.png                    上传的原图
+      image.analyzed.png           缩放后的分析图（长图会被等比缩到 2000px 高）
+      regions.json                 区域划分结果
 ```
 
 `regions.json` 的坐标一律是**原图像素**。服务端在每次写入前校验不变量（升序、首尾相接、覆盖全图、每块 ≥ 8px、id 唯一），违反直接拒绝，不做静默修正。
