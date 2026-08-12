@@ -25,7 +25,10 @@ export class ProjectStore {
     return join(this.root, projectId);
   }
 
+  /** 上传的原图，永不改动——它是后续像素比对的事实基准 */
   imagePath(projectId: string): string { return join(this.projectDir(projectId), "image.png"); }
+  /** 抹掉系统外壳后的图，与原图同分辨率；界面和裁剪都用它 */
+  cleanImagePath(projectId: string): string { return join(this.projectDir(projectId), "image.clean.png"); }
   analyzedImagePath(projectId: string): string { return join(this.projectDir(projectId), "image.analyzed.png"); }
   private docPath(projectId: string): string { return join(this.projectDir(projectId), "regions.json"); }
 

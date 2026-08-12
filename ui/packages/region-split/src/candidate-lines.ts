@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { crossesPanel, detectPanels, type Panel, type RawImage } from "./panels.js";
 import type { CandidateLine } from "./types.js";
 
 export interface RowStat { mean: [number, number, number]; variance: number }
@@ -96,6 +97,11 @@ export function candidatesFromRows(
 
 export async function rowStats(imagePath: string): Promise<RowStat[]> {
   const { data, info } = await sharp(imagePath).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  return rowStatsFromRaw({ data, width: info.width, height: info.height, channels: info.channels });
+}
+
+export function rowStatsFromRaw(info: RawImage): RowStat[] {
+  const { data } = info;
   const stats: RowStat[] = [];
   for (let y = 0; y < info.height; y++) {
     let r = 0, g = 0, b = 0;
@@ -116,4 +122,24 @@ export async function rowStats(imagePath: string): Promise<RowStat[]> {
 
 export async function detectCandidateLines(imagePath: string): Promise<CandidateLine[]> {
   return candidatesFromRows(await rowStats(imagePath));
+}
+
+/**
+ * 一次读图同时算出候选切分线和面板，并把横穿面板的候选线剔除。
+ *
+ * 一维行分析分不清"卡片内部的行间距"和"卡片之间的留白"——两者都是纯色横带。
+ * 面板检测提供了缺失的二维信息：落在卡片内部的候选线不可能是模块边界，
+ * 留着只会让初始划分把卡片切两半、也会给模型送噪声。
+ */
+export async function detectSurface(
+  imagePath: string,
+): Promise<{ candidateLines: CandidateLine[]; panels: Panel[] }> {
+  const { data, info } = await sharp(imagePath).removeAlpha().raw()
+    .toBuffer({ resolveWithObject: true });
+  const raw: RawImage = { data, width: info.width, height: info.height, channels: info.channels };
+
+  const stats = rowStatsFromRaw(raw);
+  const panels = detectPanels(raw);
+  const candidateLines = candidatesFromRows(stats).filter(line => !crossesPanel(panels, line.y));
+  return { candidateLines, panels };
 }

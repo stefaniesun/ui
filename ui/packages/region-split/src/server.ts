@@ -2,17 +2,17 @@ import { existsSync } from "node:fs";
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import sharp from "sharp";
-import { InvalidImageError, analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
+import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
 import type { SegmentModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
 import type { ProjectStore } from "./store.js";
-import type { CandidateLine, Region } from "./types.js";
+import type { Region } from "./types.js";
 
 export interface ServerDeps {
   store: ProjectStore;
   configStore: ModelConfigStore;
   createModel: (config: ModelConfig) => SegmentModel;
-  detectLines?: (analyzedPath: string) => Promise<CandidateLine[]>;
+  detectSurface?: DetectSurface;
 }
 
 type ProjectParams = { projectId: string };
@@ -33,7 +33,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     const buffer = await file.toBuffer();
     try {
       const { projectId, doc } = await createProject(
-        { store, detectLines: deps.detectLines }, { fileName: file.filename, buffer });
+        { store, detectSurface: deps.detectSurface }, { fileName: file.filename, buffer });
       return reply.code(201).send({ projectId, doc });
     } catch (err) {
       if (err instanceof InvalidImageError) {
@@ -55,7 +55,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     if (!configStore.isConfigured()) return reply.code(400).send({ error: "model not configured" });
     try {
       return {
-        doc: await analyzeProject({ store, model: currentModel(), detectLines: deps.detectLines }, projectId),
+        doc: await analyzeProject({ store, model: currentModel(), detectSurface: deps.detectSurface }, projectId),
       };
     } catch (err) {
       return reply.code(502).send({ error: (err as Error).message });
@@ -104,9 +104,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     }
   });
 
-  app.get<{ Params: ProjectParams; Querystring: { rect?: string } }>(
+  app.get<{ Params: ProjectParams; Querystring: { rect?: string; original?: string } }>(
     "/api/projects/:projectId/image", async (req, reply) => {
-      const path = store.imagePath(req.params.projectId);
+      // 默认给清理后的图（界面和裁剪都该看不到系统外壳）；
+      // ?original=1 取未经处理的原图，留给将来的像素比对用。
+      // 老项目建的时候还没有预处理，这里按需补齐，避免取图 404。
+      const { projectId } = req.params;
+      if (req.query.original !== "1") await ensureCleanImage(store, projectId);
+      const path = req.query.original === "1"
+        ? store.imagePath(projectId)
+        : store.cleanImagePath(projectId);
       if (!existsSync(path)) return reply.code(404).send({ error: "image not found" });
       let image = sharp(path);
       if (req.query.rect) {

@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import FormData from "form-data";
@@ -130,6 +130,20 @@ describe("region split server", () => {
     expect((await sharp(full.rawPayload).metadata()).height).toBe(400);
     const crop = await app.inject({ method: "GET", url: `/api/projects/${projectId}/image?rect=0,10,375,50` });
     expect((await sharp(crop.rawPayload).metadata()).height).toBe(50);
+  });
+
+  it("serves the cleaned image by default and the untouched original on demand", async () => {
+    const { app, store } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    const clean = await app.inject({ method: "GET", url: `/api/projects/${projectId}/image` });
+    const original = await app.inject({ method: "GET", url: `/api/projects/${projectId}/image?original=1` });
+    expect(clean.statusCode).toBe(200);
+    expect(original.statusCode).toBe(200);
+    // 两者尺寸必须一致——预处理只重写像素，不改分辨率
+    const [a, b] = [await sharp(clean.rawPayload).metadata(), await sharp(original.rawPayload).metadata()];
+    expect([a.width, a.height]).toEqual([b.width, b.height]);
+    expect(existsSync(store.cleanImagePath(projectId))).toBe(true);
+    expect(existsSync(store.imagePath(projectId))).toBe(true);
   });
 
   it("rejects a malformed rect with 400", async () => {

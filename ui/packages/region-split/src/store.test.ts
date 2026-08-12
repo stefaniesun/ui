@@ -9,9 +9,10 @@ import type { RegionSplitDoc } from "./types.js";
 const freshStore = () => new ProjectStore(mkdtempSync(join(tmpdir(), "rs-")));
 const doc = (): RegionSplitDoc => ({
   schemaVersion: "1",
-  image: { fileName: "image.png", width: 375, height: 600, analyzedScale: 1 },
+  image: { fileName: "image.png", width: 375, height: 600, analyzedScale: 1, removedChrome: [] },
   regions: fullPageRegions({ width: 375, height: 600 }),
   candidateLines: [],
+  panels: [],
   updatedAt: new Date().toISOString(),
 });
 

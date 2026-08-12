@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { candidatesFromRows, detectCandidateLines, rowStats, type RowStat } from "./candidate-lines.js";
+import { candidatesFromRows, detectCandidateLines, detectSurface, rowStats, type RowStat } from "./candidate-lines.js";
 
 const uniform = (gray: number): RowStat => ({ mean: [gray, gray, gray], variance: 1 });
 const busy = (gray: number): RowStat => ({ mean: [gray, gray, gray], variance: 60 });
@@ -96,5 +96,37 @@ describe("rowStats and detectCandidateLines", () => {
 
     const lines = await detectCandidateLines(path);
     expect(lines.some(line => Math.abs(line.y - 138) <= 3)).toBe(true);
+  });
+});
+
+describe("detectSurface", () => {
+  // 卡片内部的行间距和卡片之间的留白，在一维行分析里长得一模一样。
+  // 面板检测提供二维信息，把落在卡片内部的候选线剔除掉。
+  it("drops candidate lines that would cut through a card", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rs-surf-"));
+    const path = join(dir, "cards.png");
+    const W = 200;
+    await sharp({ create: { width: W, height: 600, channels: 3, background: "#f5f5f5" } })
+      .composite([
+        // 一张白卡片，内部上下两半之间留一条白色间距——一维分析会把它当成候选线
+        { input: { create: { width: W - 40, height: 80, channels: 3, background: "#ffffff" } }, top: 100, left: 20 },
+        { input: { create: { width: 60, height: 20, channels: 3, background: "#333333" } }, top: 110, left: 40 },
+        { input: { create: { width: 60, height: 20, channels: 3, background: "#333333" } }, top: 155, left: 40 },
+        // 第二张卡片，与第一张之间是真正的模块边界
+        { input: { create: { width: W - 40, height: 80, channels: 3, background: "#ffffff" } }, top: 260, left: 20 },
+        { input: { create: { width: 60, height: 20, channels: 3, background: "#333333" } }, top: 290, left: 40 },
+      ])
+      .png().toFile(path);
+
+    const { candidateLines, panels } = await detectSurface(path);
+    expect(panels.length).toBeGreaterThanOrEqual(2);
+
+    // 卡片内部（两行深色块之间，y≈135）不该留下候选线
+    const insideCard = candidateLines.filter(line => line.y > 105 && line.y < 175);
+    expect(insideCard).toEqual([]);
+
+    // 两张卡片之间（y≈180..260）应该仍有候选线
+    const betweenCards = candidateLines.filter(line => line.y > 180 && line.y < 260);
+    expect(betweenCards.length).toBeGreaterThan(0);
   });
 });

@@ -1,6 +1,6 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectCandidateLines } from "./candidate-lines.js";
+import { detectSurface } from "./candidate-lines.js";
 import { createOpenAiModel } from "./model.js";
 import { ModelConfigStore } from "./model-config.js";
 import { buildServer } from "./server.js";
@@ -23,7 +23,7 @@ const app = buildServer({
   store,
   configStore,
   createModel: config => createOpenAiModel(config),
-  detectLines: detectCandidateLines,
+  detectSurface,
 });
 
 const port = Number(process.env.UIR_PORT ?? 4800);

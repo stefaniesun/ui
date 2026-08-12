@@ -1,9 +1,9 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
-import { InvalidImageError, analyzeProject, createProject, renameRegionWithModel } from "./analyze.js";
+import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel } from "./analyze.js";
 import { ProjectStore } from "./store.js";
 import type { SegmentModel } from "./model.js";
 
@@ -37,10 +37,10 @@ describe("createProject", () => {
   it("stores candidate lines and creates initial regions before model analysis", async () => {
     const store = freshStore();
     const { doc } = await createProject(
-      { store, detectLines: async () => [
+      { store, detectSurface: async () => ({ candidateLines: [
         { y: 40, strength: 0.8 },
         { y: 800, strength: 0.9 },
-      ] },
+      ], panels: [] }) },
       { fileName: "long.png", buffer: await png(750, 5000) },
     );
     // 分析图坐标按 analyzedScale = 0.4 换回原图坐标。
@@ -73,6 +73,31 @@ describe("createProject", () => {
   });
 });
 
+describe("ensureCleanImage", () => {
+  it("backfills the clean image for projects created before preprocessing existed", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
+    // 模拟老项目：删掉清理图，把分析图换回未处理的原图
+    rmSync(store.cleanImagePath(projectId));
+    writeFileSync(store.analyzedImagePath(projectId), readFileSync(store.imagePath(projectId)));
+    expect(existsSync(store.cleanImagePath(projectId))).toBe(false);
+
+    await ensureCleanImage(store, projectId);
+    expect(existsSync(store.cleanImagePath(projectId))).toBe(true);
+    // 补出来的图必须与原图同分辨率
+    const meta = await sharp(store.cleanImagePath(projectId)).metadata();
+    expect([meta.width, meta.height]).toEqual([375, 400]);
+  });
+
+  it("is idempotent — an existing clean image is left alone", async () => {
+    const store = freshStore();
+    const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
+    const before = readFileSync(store.cleanImagePath(projectId));
+    await ensureCleanImage(store, projectId);
+    expect(readFileSync(store.cleanImagePath(projectId)).equals(before)).toBe(true);
+  });
+});
+
 describe("analyzeProject", () => {
   it("turns model segments into stored regions", async () => {
     const store = freshStore();
@@ -91,7 +116,7 @@ describe("analyzeProject", () => {
       { displayName: "内容", id: "body", type: "card" as const, yStart: 40, yEnd: 2000, confidence: 0.8, scrollX: false, scrollY: false },
     ]);
     await analyzeProject(
-      { store, model: model({ segment }), detectLines: async () => [{ y: 40, strength: 1 }] },
+      { store, model: model({ segment }), detectSurface: async () => ({ candidateLines: [{ y: 40, strength: 1 }], panels: [] }) },
       projectId,
     );
     // 分析图 y=40 对应原图 y=100（analyzedScale = 0.4）
@@ -103,7 +128,7 @@ describe("analyzeProject", () => {
   it("keeps the candidate lines computed at upload time when analyze is not given detectLines", async () => {
     const store = freshStore();
     const { projectId } = await createProject(
-      { store, detectLines: async () => [{ y: 40, strength: 0.8 }] },
+      { store, detectSurface: async () => ({ candidateLines: [{ y: 40, strength: 0.8 }], panels: [] }) },
       { fileName: "long.png", buffer: await png(750, 5000) },
     );
     const before = store.readDoc(projectId).candidateLines;
@@ -175,6 +200,8 @@ describe("renameRegionWithModel", () => {
     const store = freshStore();
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
     await analyzeProject({ store, model: model() }, projectId);
+    // 两张都删掉：只删清理图的话 ensureCleanImage 会从原图重建，读盘不会失败
+    rmSync(store.cleanImagePath(projectId));
     rmSync(store.imagePath(projectId));
     const err: Error = await renameRegionWithModel({ store, model: model() }, projectId, "body").catch(e => e);
     expect(err).toBeInstanceOf(Error);

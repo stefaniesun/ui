@@ -10,6 +10,8 @@ export interface SegmentInput {
   width: number;    // 分析图宽
   height: number;   // 分析图高
   candidateYs: number[];
+  /** 检测到的卡片/面板，分析图坐标。模块边界不得横穿它们。 */
+  panels: { top: number; bottom: number }[];
 }
 
 export interface SegmentModel {
@@ -54,6 +56,9 @@ const SEGMENT_PROMPT = [
   "displayName 用简短中文，id 用 kebab-case 英文，confidence 取 0 到 1。",
   `type 只能取以下之一：${regionTypes.join("、")}。`,
   "参考给出的候选切分线：它们是图像分析得到的真实分割位置，优先在这些位置附近切分。",
+  "同时给出了图像分析检测到的卡片/面板区间。**切分位置不得落在任何一个面板内部**——",
+  "一张卡片是一个整体，从中间切开会把它拆成两半。可以在面板的上下边缘处切，",
+  "也可以把连续几个面板合成一个模块。",
   SCROLL_RULES,
 ].join("\n");
 
@@ -146,6 +151,10 @@ export function createOpenAiModel(cfg: {
         input.candidateYs.length > 0
           ? `候选切分线 y 值：${input.candidateYs.join(", ")}`
           : "本次没有候选切分线，请自行判断切分位置。",
+        input.panels.length > 0
+          ? `卡片/面板区间（不可从内部切开）：${
+              input.panels.map(panel => `${panel.top}-${panel.bottom}`).join(", ")}`
+          : "本次没有检测到卡片。",
       ].join("\n");
       const parsed = await askParsed(SEGMENT_PROMPT, userText, input.imageBase64, segmentsSchema);
       return parsed.regions as RawSegment[];

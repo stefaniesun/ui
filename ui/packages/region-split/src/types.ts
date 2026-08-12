@@ -34,6 +34,11 @@ export const candidateLineSchema = z.object({
 });
 export type CandidateLine = z.infer<typeof candidateLineSchema>;
 
+export const panelSchema = z.object({
+  top: z.number(),      // 原图坐标
+  bottom: z.number(),
+});
+
 export const regionSplitDocSchema = z.object({
   schemaVersion: z.string(),
   image: z.object({
@@ -41,9 +46,18 @@ export const regionSplitDocSchema = z.object({
     width: z.number().positive(),
     height: z.number().positive(),
     analyzedScale: z.number().positive(),
+    // 预处理抹掉的系统外壳横带。高度即安全区 inset——下游生成代码时，
+    // 相邻模块的背景要向这个方向铺满这段距离。旧文档没有该字段。
+    removedChrome: z.array(z.object({
+      edge: z.enum(["top", "bottom"]),
+      height: z.number().positive(),
+    })).default([]),
   }),
   regions: z.array(regionSchema),
   candidateLines: z.array(candidateLineSchema).default([]),
+  // 检测到的卡片/面板（原图坐标）。模块边界不该横穿面板——这是候选线
+  // 一维分析看不出来的信息，也一并送给模型作为约束。
+  panels: z.array(panelSchema).default([]),
   updatedAt: z.string(),
 });
 export type RegionSplitDoc = z.infer<typeof regionSplitDocSchema>;
