@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import { httpApi } from "./api.js";
+import BusyOverlay from "./components/BusyOverlay.vue";
 import ImageCanvas from "./components/ImageCanvas.vue";
 import RegionList from "./components/RegionList.vue";
 import Toolbar from "./components/Toolbar.vue";
@@ -58,6 +59,7 @@ onUnmounted(() => {
     <aside>
       <RegionList :store="store" :hovered-id="hoveredId" @hover="id => (hoveredId = id)" />
     </aside>
+    <BusyOverlay :store="store" />
   </div>
 </template>
 

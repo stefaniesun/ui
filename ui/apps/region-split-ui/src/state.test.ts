@@ -175,6 +175,52 @@ describe("createStore", () => {
     expect(putRegions).not.toHaveBeenCalled();
   });
 
+  // 遮罩层只是视觉拦截，真正保证"分析期间改不动"的是这些守卫。
+  // 遮罩在真实浏览器里挡住指针，但它不该是唯一防线——键盘、程序化调用都绕得过。
+  describe("busy guards", () => {
+    it("ignores every mutating action while an operation is in flight", async () => {
+      const { store, putRegions } = await loadedStore();
+      store.select("a", false);
+      const before = store.regions.value;
+
+      store.busyLabel.value = "AI 分析中…";
+      store.nudge(1);
+      store.beginSplit();
+      store.commitSplit(100);
+      store.rename("a", "改个名");
+      store.select("b", true);
+      store.merge();
+
+      expect(store.regions.value).toBe(before);   // 引用未变 = 一点没动
+      expect(store.mode.value).toBe("idle");      // 没进入拆分模式
+      await vi.advanceTimersByTimeAsync(500);
+      expect(putRegions).not.toHaveBeenCalled();  // 也没有落盘请求
+    });
+
+    it("resumes normally once the operation finishes", async () => {
+      const { store } = await loadedStore();
+      store.select("a", false);
+      store.busyLabel.value = "AI 分析中…";
+      store.nudge(1);
+      expect(store.regions.value[0]!.bounds.h).toBe(200);
+
+      store.busyLabel.value = "";
+      store.nudge(1);
+      expect(store.regions.value[0]!.bounds.h).toBe(201);
+    });
+
+    it("labels each kind of operation so the overlay can name it", async () => {
+      const api = makeFakeApi(initial);
+      let seen = "";
+      api.analyze = async () => { seen = store.busyLabel.value; return { doc: makeDoc(initial()) }; };
+      const store = createStore(api);
+      await store.load("p1");
+      await store.analyze();
+      expect(seen).toBe("AI 分析中…");
+      expect(store.busyLabel.value).toBe("");   // 结束后清空
+    });
+  });
+
   describe("auto AI rename after split/merge", () => {
     // 这组用例只依赖真实 Promise 微任务链（受控 gate promise），不需要也不应该
     // 被假定时器影响——用假定时器反而要手动推进才能让微任务队列前进，脆弱且没必要。

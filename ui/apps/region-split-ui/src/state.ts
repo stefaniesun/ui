@@ -18,7 +18,14 @@ export function createStore(api: StoreApi) {
   const regions = shallowRef<Region[]>([]);
   const selectedIds = ref<string[]>([]);
   const mode = ref<"idle" | "split">("idle");
-  const busy = ref(false);
+  // busyLabel 是单一来源，busy 作为可写 computed 保留旧的布尔用法：
+  // 组件里的 `:disabled="busy"` 和守卫里的 `if (busy.value) return` 都不用改，
+  // 而遮罩层可以拿到"上传中"还是"AI 分析中"这样的具体文案。
+  const busyLabel = ref("");
+  const busy = computed({
+    get: () => busyLabel.value !== "",
+    set: (value: boolean) => { busyLabel.value = value ? "处理中…" : ""; },
+  });
   const error = ref("");
   const pendingRenameIds = ref<string[]>([]);
   const renamingId = ref<string | null>(null);
@@ -144,7 +151,7 @@ export function createStore(api: StoreApi) {
   }
 
   return {
-    projectId, doc, regions, selectedIds, mode, busy, error, pendingRenameIds, renamingId,
+    projectId, doc, regions, selectedIds, mode, busy, busyLabel, error, pendingRenameIds, renamingId,
     modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
     isModelConfigured, candidateLines,
@@ -158,28 +165,28 @@ export function createStore(api: StoreApi) {
     },
 
     async uploadImage(file: File) {
-      busy.value = true; error.value = "";
+      busyLabel.value = "上传并预处理中…"; error.value = "";
       try {
         const result = await api.upload(file);
         setDoc(result.doc, result.projectId);
         undoStack.length = 0; redoStack.length = 0; syncDepths();
       } catch (err) { error.value = (err as Error).message; }
-      finally { busy.value = false; }
+      finally { busyLabel.value = ""; }
     },
 
     async load(id: string) {
-      busy.value = true; error.value = "";
+      busyLabel.value = "载入中…"; error.value = "";
       try {
         const result = await api.getProject(id);
         setDoc(result.doc, result.projectId);
         undoStack.length = 0; redoStack.length = 0; syncDepths();
       } catch (err) { error.value = (err as Error).message; }
-      finally { busy.value = false; }
+      finally { busyLabel.value = ""; }
     },
 
     async analyze() {
       if (busy.value || !projectId.value) return;
-      busy.value = true; error.value = "";
+      busyLabel.value = "AI 分析中…"; error.value = "";
       try {
         // 先把待落盘的微调冲掉——服务端的分析流程从磁盘读文档，冲掉之前
         // 分析完成后可能反而把用户刚做的微调覆盖回旧值。
@@ -187,7 +194,7 @@ export function createStore(api: StoreApi) {
         pushUndo();
         setDoc((await api.analyze(projectId.value)).doc);
       } catch (err) { error.value = (err as Error).message; dropLastUndo(); }
-      finally { busy.value = false; }
+      finally { busyLabel.value = ""; }
     },
 
     select(id: string, additive: boolean) {
