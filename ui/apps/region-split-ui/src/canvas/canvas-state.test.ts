@@ -22,7 +22,7 @@ describe("canvas state", () => {
 
   it("fits bounds into the available viewport", () => {
     expect(fitBounds({ x: 100, y: 50, width: 1000, height: 500 }, { width: 800, height: 600 }, 50))
-      .toEqual({ x: 15, y: 90, zoom: 0.7 });
+      .toEqual({ x: -20, y: 90, zoom: 0.7 });
   });
 
   it("loads persisted positions and safely falls back on malformed storage", () => {

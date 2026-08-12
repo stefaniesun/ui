@@ -2,8 +2,7 @@
 import { onBeforeUnmount, ref } from "vue";
 import type { Store } from "../state.js";
 
-const props = defineProps<{ store: Store; splitting: boolean }>();
-const emit = defineEmits<{ "update:splitting": [value: boolean] }>();
+const props = defineProps<{ store: Store }>();
 const renaming = ref(false);
 const name = ref("");
 let repeatTimer: number | undefined;
@@ -34,7 +33,7 @@ onBeforeUnmount(stopNudge);
     <span class="divider" />
     <button :disabled="props.store.selectedIds.value.length !== 1 || props.store.busy.value" title="边界上移" @pointerdown="startNudge(-1)" @pointerup="stopNudge" @pointerleave="stopNudge">↑</button>
     <button :disabled="props.store.selectedIds.value.length !== 1 || props.store.busy.value" title="边界下移" @pointerdown="startNudge(1)" @pointerup="stopNudge" @pointerleave="stopNudge">↓</button>
-    <button :class="{ active: props.splitting }" :disabled="props.store.selectedIds.value.length !== 1 || props.store.busy.value" @click="emit('update:splitting', !props.splitting)">拆分</button>
+    <button :class="{ active: props.store.mode.value === 'split' }" :disabled="props.store.selectedIds.value.length !== 1 || props.store.busy.value" @click="props.store.mode.value === 'split' ? props.store.cancelSplit() : props.store.beginSplit()">{{ props.store.mode.value === 'split' ? '取消拆分' : '拆分' }}</button>
     <button :disabled="!props.store.canMerge.value || props.store.busy.value" @click="props.store.merge()">合并</button>
     <button :disabled="props.store.selectedIds.value.length !== 1 || props.store.busy.value" @click="beginRename">重命名</button>
     <form v-if="renaming" class="rename" @submit.prevent="commitRename">

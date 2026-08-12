@@ -29,7 +29,8 @@ function onKeydown(event: KeyboardEvent) {
     event.preventDefault();
     if (event.shiftKey) void store.redo(); else void store.undo();
   } else if (event.key === "Escape") {
-    store.clearSelection();
+    if (store.mode.value === "split") store.cancelSplit();
+    else store.clearSelection();
   } else if (event.key === "ArrowUp" && store.selectedIds.value.length === 1) {
     event.preventDefault(); void store.nudge(-1);
   } else if (event.key === "ArrowDown" && store.selectedIds.value.length === 1) {

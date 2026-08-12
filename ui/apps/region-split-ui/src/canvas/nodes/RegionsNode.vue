@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { Store } from "../../state.js";
 import ActionBar from "../../components/ActionBar.vue";
 import RegionCanvas from "../../components/RegionCanvas.vue";
@@ -12,15 +11,13 @@ const props = defineProps<{
   showPanels: boolean;
 }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
-const splitting = ref(false);
 </script>
 
 <template>
   <div class="regions-node">
-    <ActionBar v-model:splitting="splitting" :store="props.store" />
+    <ActionBar :store="props.store" />
     <div class="regions-workspace">
       <RegionCanvas
-        v-model:splitting="splitting"
         :store="props.store"
         :hovered-id="props.hoveredId"
         :show-candidate-lines="props.showCandidateLines"

@@ -8,11 +8,10 @@ import { snapToCandidates, toImageY } from "../coords.js";
 const props = defineProps<{
   store: Store;
   hoveredId: string | null;
-  splitting: boolean;
   showCandidateLines: boolean;
   showPanels: boolean;
 }>();
-const emit = defineEmits<{ hover: [id: string | null]; "update:splitting": [value: boolean] }>();
+const emit = defineEmits<{ hover: [id: string | null] }>();
 const stageEl = ref<HTMLElement | null>(null);
 const imgEl = ref<HTMLImageElement | null>(null);
 const displayScale = ref(1);
@@ -30,32 +29,34 @@ const splitHalvesValue = computed(() => {
 });
 
 function measure() {
-  if (imgEl.value && image.value) displayScale.value = imgEl.value.clientWidth / image.value.width;
+  if (!imgEl.value || !image.value) return;
+  const layoutWidth = imgEl.value.clientWidth;
+  displayScale.value = layoutWidth > 0 && image.value.width > 0 ? layoutWidth / image.value.width : 1;
 }
 function onMove(event: MouseEvent) {
-  if (!props.splitting || !image.value) return;
+  if (props.store.mode.value !== "split" || !image.value) return;
   const rect = stageEl.value!.getBoundingClientRect();
-  const rawY = Math.max(0, Math.min(image.value.height, toImageY(event.clientY, rect.top, displayScale.value)));
+  const screenScale = rect.height > 0 && image.value.height > 0 ? rect.height / image.value.height : 1;
+  const rawY = Math.max(0, Math.min(image.value.height, toImageY(event.clientY, rect.top, screenScale)));
   const snappedY = snapToCandidates(rawY, props.store.candidateLines.value, 12);
   splitY.value = snappedY.y;
   splitSnapped.value = snappedY.snapped;
   splitValid.value = canSplitAt(props.store.regions.value, props.store.selectedIndex.value, snappedY.y);
 }
 async function onStageClick() {
-  if (!props.splitting || splitY.value === null || !splitValid.value) return;
+  if (props.store.mode.value !== "split" || splitY.value === null || !splitValid.value) return;
   await props.store.commitSplit(splitY.value);
-  emit("update:splitting", false);
   splitY.value = null;
 }
 function onRegionClick(id: string, event: MouseEvent) {
-  if (props.splitting) return;
+  if (props.store.mode.value === "split") return;
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
 </script>
 
 <template>
   <div class="region-canvas" @click.self="props.store.clearSelection()">
-    <div v-if="image" ref="stageEl" class="stage" :class="{ splitting: props.splitting }" @mousemove="onMove" @click="onStageClick">
+    <div v-if="image" ref="stageEl" class="stage" :class="{ splitting: props.store.mode.value === 'split' }" @mousemove="onMove" @click="onStageClick">
       <img ref="imgEl" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
       <div v-if="props.showPanels" class="panel-tint" />
       <span
@@ -76,7 +77,7 @@ function onRegionClick(id: string, event: MouseEvent) {
       >
         <span>{{ index + 1 }} · {{ region.displayName }}</span>
       </div>
-      <template v-if="props.splitting && splitY !== null">
+      <template v-if="props.store.mode.value === 'split' && splitY !== null">
         <div class="split-line" :class="{ snapped: splitSnapped, invalid: !splitValid }" :style="{ top: `${splitY * displayScale}px` }" />
         <span class="split-info" :style="{ top: `${splitY * displayScale}px` }">y {{ splitY }} · {{ splitHalvesValue?.top }} / {{ splitHalvesValue?.bottom }}</span>
       </template>
