@@ -123,6 +123,12 @@ function stopExpand() {
   if (pointerActivated) props.store.endBoundaryGesture();
 }
 
+function cancelExpand() {
+  stopExpand();
+  pointerActivated = false;
+  suppressClick = false;
+}
+
 function onExpandClick(event: MouseEvent, id: string, direction: RegionExpandDirection) {
   if (suppressClick) {
     suppressClick = false;
@@ -199,8 +205,8 @@ onBeforeUnmount(() => {
           :disabled="!props.store.canExpandRegion(region.id, 'up')"
           @pointerdown.stop="startExpand($event, region.id, 'up')"
           @pointerup.stop="stopExpand"
-          @pointercancel.stop="stopExpand"
-          @pointerleave="stopExpand"
+          @pointercancel.stop="cancelExpand"
+          @pointerleave="cancelExpand"
           @click.stop="onExpandClick($event, region.id, 'up')"
         >▲</button>
         <button
@@ -211,8 +217,8 @@ onBeforeUnmount(() => {
           :disabled="!props.store.canExpandRegion(region.id, 'down')"
           @pointerdown.stop="startExpand($event, region.id, 'down')"
           @pointerup.stop="stopExpand"
-          @pointercancel.stop="stopExpand"
-          @pointerleave="stopExpand"
+          @pointercancel.stop="cancelExpand"
+          @pointerleave="cancelExpand"
           @click.stop="onExpandClick($event, region.id, 'down')"
         >▼</button>
       </span>

@@ -193,6 +193,9 @@ describe("RegionList", () => {
     const afterCancel = store.regions.value[1]!.bounds.h;
     await vi.advanceTimersByTimeAsync(120);
     expect(store.regions.value[1]!.bounds.h).toBe(afterCancel);
+    button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+    await wrapper.vm.$nextTick();
+    expect(store.regions.value[1]!.bounds.h).toBe(afterCancel + 1);
 
     await button.trigger("pointerdown", { button: 0 });
     await wrapper.unmount();
