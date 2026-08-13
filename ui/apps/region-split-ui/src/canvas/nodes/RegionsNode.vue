@@ -243,8 +243,8 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError });
 .upload-button,
 .analysis-state button { border: 1px solid var(--accent); border-radius: 6px; padding: 9px 16px; color: white; background: var(--accent); cursor: pointer; }
 .text-button { border: 0; color: var(--accent); background: transparent; cursor: pointer; }
-.comparison-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 245px; align-items: start; background: var(--bg-inset); }
-.comparison-images { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 430px)); gap: 0; align-items: start; }
+.comparison-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 245px; align-items: stretch; height: min(620px, calc(100vh - 180px)); min-height: 420px; overflow: hidden; background: var(--bg-inset); }
+.comparison-images { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 430px)); gap: 0; align-items: start; min-height: 0; overflow-y: auto; }
 .boundary-guides {
   position: absolute; z-index: 6; top: 28px; left: calc(50% - 32px); width: 32px;
   overflow: visible; pointer-events: none;
@@ -262,7 +262,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError });
 .placeholder-image { opacity: .2; }
 .analysis-state { z-index: 1; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118cc; }
 .analysis-error { color: #ffb4b4; }
-.region-list-column { min-height: 100%; border-left: 1px solid var(--border); background: var(--bg-node); }
+.region-list-column { min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg-node); }
 .list-placeholder { min-height: 420px; display: grid; place-items: center; padding: 20px; color: var(--text-faint); font-size: 10px; text-align: center; }
 .region-list-column :deep(.list) { min-height: 100%; }
 </style>

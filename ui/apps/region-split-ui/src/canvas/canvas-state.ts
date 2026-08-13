@@ -12,6 +12,15 @@ export interface Bounds extends Point {
   height: number;
 }
 
+export function fitNodeShellBounds(position: Point, shell: ViewportSize, measured: ViewportSize): Bounds {
+  return {
+    x: position.x,
+    y: position.y,
+    width: Math.min(measured.width, shell.width),
+    height: Math.min(measured.height, shell.height),
+  };
+}
+
 export interface ViewportSize {
   width: number;
   height: number;

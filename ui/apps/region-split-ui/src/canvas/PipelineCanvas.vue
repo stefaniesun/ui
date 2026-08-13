@@ -6,6 +6,7 @@ import {
   NODE_POSITIONS_STORAGE_KEY,
   clampZoom,
   fitBounds,
+  fitNodeShellBounds,
   loadNodePositions,
   saveNodePositions,
   zoomAtPoint,
@@ -92,9 +93,8 @@ function onWheel(event: WheelEvent) {
 
 function contentBounds() {
   const node = workspaceEl.value?.querySelector<HTMLElement>('[data-node-id="workspace"]');
-  const width = node?.offsetWidth || fallbackSize.width;
-  const height = node?.offsetHeight || fallbackSize.height;
-  return { ...positions.workspace, width, height };
+  const measured = { width: node?.offsetWidth || fallbackSize.width, height: node?.offsetHeight || fallbackSize.height };
+  return fitNodeShellBounds(positions.workspace, fallbackSize, measured);
 }
 
 function fitAll() {
