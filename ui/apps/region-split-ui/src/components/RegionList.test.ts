@@ -229,6 +229,19 @@ describe("RegionList", () => {
     expect(store.canUndo.value).toBe(false);
   });
 
+  it("locks selection and inline editing until AI analysis succeeds", async () => {
+    const { store, wrapper } = await mounted();
+    store.doc.value = { ...store.doc.value!, analyzedAt: undefined };
+    await wrapper.vm.$nextTick();
+
+    await wrapper.findAll("[data-test=row]")[0]!.trigger("click");
+    await wrapper.findAll("[data-test=name]")[0]!.trigger("dblclick");
+
+    expect(store.selectedIds.value).toEqual([]);
+    expect(wrapper.find("[data-test=rename-input]").exists()).toBe(false);
+    expect(wrapper.findAll("[data-test=row]")[0]!.classes()).toContain("disabled");
+  });
+
   it("renames inline on double click", async () => {
     const { store, wrapper } = await mounted();
     await wrapper.findAll("[data-test=name]")[0]!.trigger("dblclick");

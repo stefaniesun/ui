@@ -31,6 +31,8 @@ function setRowRef(id: string, el: Element | ComponentPublicInstance | null) {
 
 const singleSelectedId = computed(() =>
   props.store.selectedIds.value.length === 1 ? props.store.selectedIds.value[0]! : null);
+const locked = computed(() =>
+  props.store.busy.value || props.store.needsAnalysis.value || props.store.mode.value === "split");
 
 // 选中项变为单选时，把对应行滚动进可视区域。用 flush: "post" 而不是在回调里
 // 再套一层 nextTick——嵌套 nextTick 注册的 .then 排在测试里 await 的
@@ -58,6 +60,7 @@ function onHoverLeave() {
 }
 
 function beginEdit(id: string) {
+  if (locked.value) return;
   const region = props.store.regions.value.find(item => item.id === id);
   if (!region) return;
   editingId.value = id;
@@ -66,7 +69,7 @@ function beginEdit(id: string) {
 }
 
 function commit() {
-  if (editingId.value && draft.value.trim()) {
+  if (!locked.value && editingId.value && draft.value.trim()) {
     props.store.rename(editingId.value, draft.value.trim());
   }
   close();
@@ -82,7 +85,7 @@ function close() {
 // "拆分「undefined」"上、切分线恒红，只能按 Esc 脱困。拆分模式下列表本身也
 // 不可选中，逻辑与画布保持一致。
 function onRowClick(id: string, event: MouseEvent) {
-  if (props.store.mode.value === "split") return;
+  if (locked.value) return;
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
 
@@ -170,7 +173,7 @@ onBeforeUnmount(() => {
       :class="{
         selected: props.store.selectedIds.value.includes(region.id),
         hovered: activeHoverId === region.id,
-        disabled: props.store.mode.value === 'split',
+        disabled: locked,
       }"
       @click="onRowClick(region.id, $event)"
       @mouseenter="onHoverEnter(region.id)"
@@ -182,6 +185,7 @@ onBeforeUnmount(() => {
         :ref="setInputRef"
         v-model="draft"
         data-test="rename-input"
+        :disabled="locked"
         @click.stop
         @keydown.enter="commit"
         @keydown.esc="close"
@@ -231,27 +235,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.notice {
-  margin: 6px; padding: 8px 10px; border-radius: 6px;
-  background: #fff8e1; border: 1px solid #f0d492; color: #7a5c12;
-  font-size: 12px; line-height: 1.6;
-}
-.list { list-style: none; margin: 0; padding: 4px; }
-.row { display: flex; align-items: center; gap: 6px; padding: 6px; border-radius: 6px; cursor: pointer; }
-.row.hovered { background: #f0f4ff; }
-.row.selected { background: #e8f0fe; }
-.row.disabled { cursor: default; opacity: 0.6; }
-.index { width: 18px; color: #999; font-size: 12px; }
-.name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.type { font-size: 11px; color: #888; }
+.notice { margin: 6px; padding: 8px; border: 1px solid #e2a40066; border-radius: 6px; background: #e2a40012; color: var(--warn); font-size: 10px; line-height: 1.5; }
+.list { min-width: 0; height: 100%; margin: 0; padding: 7px; overflow: auto; list-style: none; background: var(--bg-node); }
+.row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
+.row.hovered { border-color: var(--border-strong); background: #303540; }.row.selected { border-color: var(--accent); background: var(--accent-soft); }.row.disabled { cursor: default; opacity: .6; }
+.index { width: 18px; color: var(--text-faint); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type { color: var(--text-faint); font-size: 9px; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
+input { flex: 1; min-width: 0; height: 25px; min-height: 25px; font-size: 10px; }
 .boundary-controls { display: inline-flex; gap: 2px; margin-left: 2px; }
-.boundary-controls button {
-  width: 22px; height: 22px; padding: 0; border: 1px solid #c9d3e6;
-  border-radius: 4px; background: #fff; color: #2f6fed; cursor: pointer;
-  font-size: 10px; line-height: 1;
-}
-.boundary-controls button:hover:not(:disabled) { background: #edf3ff; }
-.boundary-controls button:disabled { color: #b8bec9; background: #f5f6f8; cursor: not-allowed; }
-.scroll { font-size: 12px; color: #2f6fed; cursor: help; }
-input { flex: 1; min-width: 0; }
+.boundary-controls button { width: 22px; height: 22px; padding: 0; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--accent); background: var(--bg-control); cursor: pointer; font-size: 10px; line-height: 1; }
+.boundary-controls button:hover:not(:disabled) { background: var(--accent-soft); }
+.boundary-controls button:disabled { color: var(--text-faint); cursor: not-allowed; opacity: .5; }
+.analysis-status,.retry-elements { margin-left: 24px; font-size: 9px; }
 </style>
