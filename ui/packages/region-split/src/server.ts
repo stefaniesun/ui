@@ -52,15 +52,16 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return { projectId, doc: store.readDoc(projectId) };
   });
 
-  app.post<{ Params: ProjectParams }>("/api/projects/:projectId/analyze", async (req, reply) => {
+  app.post<{ Params: ProjectParams; Body: { expectedRevision?: number } }>("/api/projects/:projectId/analyze", async (req, reply) => {
     const { projectId } = req.params;
     if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
     if (!configStore.isConfigured()) return reply.code(400).send({ error: "model not configured" });
     try {
       return {
-        doc: await analyzeProject({ store, model: currentModel(), detectSurface: deps.detectSurface }, projectId),
+        doc: await analyzeProject({ store, model: currentModel(), detectSurface: deps.detectSurface, coordinator }, projectId, req.body?.expectedRevision ?? store.readDoc(projectId).revision),
       };
     } catch (err) {
+      if (err instanceof RevisionConflictError) return reply.code(409).send({ error: err.message, doc: err.latest });
       return reply.code(502).send({ error: (err as Error).message });
     }
   });

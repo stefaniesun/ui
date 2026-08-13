@@ -247,7 +247,7 @@ export function createStore(api: StoreApi) {
         // 分析完成后可能反而把用户刚做的微调覆盖回旧值。
         await persistNow();
         pushUndo();
-        setDoc((await api.analyze(projectId.value)).doc);
+        setDoc((await api.analyze(projectId.value, doc.value?.revision ?? 0)).doc);
       } catch (err) { error.value = (err as Error).message; dropLastUndo(); }
       finally { busyLabel.value = ""; }
     },
