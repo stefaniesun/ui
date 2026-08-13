@@ -127,7 +127,9 @@ function onNudgeClick(delta: number) {
           @mouseleave="endPress"
         >▼</button>
         <span class="hint">微调下边界</span>
-        <button data-test="split" :disabled="!canSplit || props.store.busy.value" @click="props.store.beginSplit()">拆分</button>
+        <button type="button" aria-label="选择元素" :aria-pressed="store.canvasMode.value === 'select'" :disabled="!store.doc.value?.analyzedAt || store.busy.value" @click="store.setCanvasMode('select')">选择</button>
+      <button type="button" aria-label="添加元素框" :aria-pressed="store.canvasMode.value === 'add-element'" :disabled="!store.doc.value?.analyzedAt || store.busy.value" @click="store.setCanvasMode('add-element')">添加元素框</button>
+      <button data-test="split" :disabled="!canSplit || props.store.busy.value" @click="props.store.beginSplit()">拆分</button>
         <button data-test="rename" :disabled="props.store.busy.value" @click="props.store.startRename(selected.id)">重命名</button>
         <button
           data-test="ai-rename"

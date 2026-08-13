@@ -4,6 +4,7 @@ import { canSplitAt } from "@region-split/core/browser";
 import { imageUrl } from "../api.js";
 import { snapToCandidates, toImageY } from "../coords.js";
 import type { Store } from "../state.js";
+import ElementOverlay from "./ElementOverlay.vue";
 
 const props = defineProps<{ store: Store; hoveredId?: string | null }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
@@ -105,6 +106,12 @@ function onStageClick() {
           >
             <span class="label">{{ index + 1 }} {{ region.displayName }}</span>
           </div>
+
+          <ElementOverlay
+            :store="props.store" :image-width="image.width" :image-height="image.height"
+            :display-width="displayWidth" :display-height="image.height * displayScale"
+            :disabled="!props.store.doc.value?.analyzedAt || props.store.busy.value || splitting"
+          />
 
           <template v-if="splitting && splitY !== null">
             <div
