@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef } from "vue";
 import {
   adjustBoundary, areAdjacent, canAdjustBoundary, canSplitAt,
-  addElement as addElementToDoc, changeElementType as changeElementTypeInDoc,
+  addElement as addElementToDoc, applyRegionEdit, changeElementType as changeElementTypeInDoc,
   deleteElementTree, mergeRegions, moveElementTree, renameElement as renameElementInDoc,
   renameRegion, reparentElement as reparentElementInDoc, resizeElement as resizeElementInDoc, splitRegion,
   type ElementNode, type ElementType, type ModelConfigView, type Rect, type Region, type RegionSplitDoc,
@@ -40,8 +40,12 @@ export function createStore(api: StoreApi) {
 
   // 栈本身用普通数组（快照不需要响应式），深度单独用 ref 暴露，
   // 否则 canUndo/canRedo 这类 computed 没有响应式依赖，首次求值后就再也不会失效。
-  const undoStack: Region[][] = [];
-  const redoStack: Region[][] = [];
+  interface EditSnapshot {
+    regions: Region[]; elements: ElementNode[]; elementAnalysis: RegionSplitDoc["elementAnalysis"];
+    selectedIds: string[]; selectedElementId: string | null;
+  }
+  const undoStack: EditSnapshot[] = [];
+  const redoStack: EditSnapshot[] = [];
   const undoDepth = ref(0);
   const redoDepth = ref(0);
   let lastNudgeAt = 0;
@@ -54,8 +58,18 @@ export function createStore(api: StoreApi) {
     redoDepth.value = redoStack.length;
   }
 
-  function snapshot(): Region[] {
-    return regions.value.map(region => ({ ...region, bounds: { ...region.bounds } }));
+  function snapshot(): EditSnapshot {
+    return {
+      regions: regions.value.map(region => ({ ...region, bounds: { ...region.bounds } })),
+      elements: elements.value.map(element => ({ ...element, bounds: { ...element.bounds } })),
+      elementAnalysis: structuredClone(doc.value?.elementAnalysis ?? {}),
+      selectedIds: [...selectedIds.value], selectedElementId: selectedElementId.value,
+    };
+  }
+  function restore(edit: EditSnapshot) {
+    regions.value = edit.regions; elements.value = edit.elements; selectedIds.value = edit.selectedIds;
+    selectedElementId.value = edit.selectedElementId;
+    if (doc.value) doc.value = { ...doc.value, regions: edit.regions, elements: edit.elements, elementAnalysis: edit.elementAnalysis };
   }
 
   const selectedIndex = computed(() =>
@@ -120,17 +134,7 @@ export function createStore(api: StoreApi) {
       elements.value = result.doc.elements;
     } catch (err) {
       error.value = (err as Error).message;
-      // 落盘失败后尝试用服务端当前状态纠正本地——但这个纠正本身也可能失败
-      // （网络仍然不通）。纠正失败时只报错，绝不能让本地飞行中的编辑被
-      // 一个半失败的回滚过程篡改成别的东西；调用方全是 `void persistNow()`，
-      // 这里也绝不能让异常逃出去变成 unhandled rejection。
-      try {
-        const fresh = await api.getProject(projectId.value);
-        doc.value = fresh.doc;
-        regions.value = fresh.doc.regions;
-      } catch (fetchErr) {
-        error.value = (fetchErr as Error).message;
-      }
+      // 保存失败时保留完整本地快照，禁止静默采用服务端状态覆盖用户修改。
     }
   }
 
@@ -145,6 +149,8 @@ export function createStore(api: StoreApi) {
     elements.value = next.elements;
     if (id) projectId.value = id;
     selectedIds.value = [];
+    selectedElementId.value = null;
+    hoveredElementId.value = null;
     mode.value = "idle";
   }
 
@@ -265,7 +271,8 @@ export function createStore(api: StoreApi) {
       if (index !== lastNudgeBoundary || now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
       lastNudgeBoundary = index;
-      regions.value = next;
+      if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "boundary"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
+      else regions.value = next;
       schedulePersist();
     },
 
@@ -279,7 +286,8 @@ export function createStore(api: StoreApi) {
       if (move.boundaryIndex !== lastNudgeBoundary || now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
       lastNudgeBoundary = move.boundaryIndex;
-      regions.value = next;
+      if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "boundary"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
+      else regions.value = next;
       if (!boundaryGestureActive) schedulePersist();
     },
 
@@ -303,7 +311,8 @@ export function createStore(api: StoreApi) {
       if (index < 0 || !canSplitAt(regions.value, index, y)) return;
       pushUndo();
       const next = splitRegion(regions.value, index, y);
-      regions.value = next;
+      if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "split"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
+      else regions.value = next;
       mode.value = "idle";
       const upperId = next[index]!.id;
       const lowerId = next[index + 1]!.id;
@@ -319,7 +328,8 @@ export function createStore(api: StoreApi) {
       if (!areAdjacent(regions.value, selectedIds.value)) return;
       pushUndo();
       const next = mergeRegions(regions.value, selectedIds.value);
-      regions.value = next;
+      if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "merge"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
+      else regions.value = next;
       const survivorIds = new Set(next.map(region => region.id));
       selectedIds.value = selectedIds.value.filter(id => survivorIds.has(id)).slice(0, 1);
       const mergedId = selectedIds.value[0];
@@ -332,7 +342,9 @@ export function createStore(api: StoreApi) {
       const current = regions.value.find(region => region.id === id);
       if (!current || current.displayName === displayName) return;
       pushUndo();
-      regions.value = renameRegion(regions.value, id, displayName);
+      const next = renameRegion(regions.value, id, displayName);
+      if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "metadata"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
+      else regions.value = next;
       void persistNow();
     },
 
@@ -354,7 +366,7 @@ export function createStore(api: StoreApi) {
       if (!previous) return;
       redoStack.push(snapshot());
       syncDepths();
-      regions.value = previous;
+      restore(previous);
       lastNudgeAt = 0;
       void persistNow();
     },
@@ -364,7 +376,7 @@ export function createStore(api: StoreApi) {
       if (!next) return;
       undoStack.push(snapshot());
       syncDepths();
-      regions.value = next;
+      restore(next);
       lastNudgeAt = 0;
       void persistNow();
     },
