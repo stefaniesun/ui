@@ -70,6 +70,7 @@ export function createStore(api: StoreApi) {
     };
   }
   function restore(edit: EditSnapshot) {
+    localEditVersion += 1;
     regions.value = edit.regions; elements.value = edit.elements; selectedIds.value = edit.selectedIds;
     selectedElementId.value = edit.selectedElementId;
     if (doc.value) doc.value = { ...doc.value, regions: edit.regions, elements: edit.elements, elementAnalysis: edit.elementAnalysis };
@@ -219,8 +220,8 @@ export function createStore(api: StoreApi) {
     hoverElement(id: string | null) { hoveredElementId.value = id; },
     setCanvasMode(next: "select" | "split-region" | "add-element") { canvasMode.value = next; mode.value = next === "split-region" ? "split" : "idle"; },
     addElement(element: ElementNode) { if (!doc.value) return; pushUndo(); doc.value = addElementToDoc({ ...doc.value, regions: regions.value, elements: elements.value }, element); elements.value = doc.value.elements; schedulePersist(); },
-    moveElement(id: string, dx: number, dy: number) { if (!doc.value) return; doc.value = moveElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id, dx, dy); elements.value = doc.value.elements; },
-    resizeElement(id: string, bounds: Rect) { if (!doc.value) return; if (!boundaryGestureActive) pushUndo(); doc.value = resizeElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, bounds); elements.value = doc.value.elements; if (!boundaryGestureActive) schedulePersist(); },
+    moveElement(id: string, dx: number, dy: number) { if (!doc.value) return; localEditVersion += 1; doc.value = moveElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id, dx, dy); elements.value = doc.value.elements; },
+    resizeElement(id: string, bounds: Rect) { if (!doc.value) return; if (!boundaryGestureActive) pushUndo(); else localEditVersion += 1; doc.value = resizeElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, bounds); elements.value = doc.value.elements; if (!boundaryGestureActive) schedulePersist(); },
     deleteElement(id: string) { if (!doc.value) return; pushUndo(); doc.value = deleteElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id); elements.value = doc.value.elements; if (selectedElementId.value === id) selectedElementId.value = null; schedulePersist(); },
     renameElement(id: string, name: string) { if (!doc.value) return; pushUndo(); doc.value = renameElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, name); elements.value = doc.value.elements; schedulePersist(); },
     changeElementType(id: string, type: ElementType) { if (!doc.value) return; pushUndo(); doc.value = changeElementTypeInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, type); elements.value = doc.value.elements; schedulePersist(); },
@@ -297,6 +298,7 @@ export function createStore(api: StoreApi) {
       if (index !== lastNudgeBoundary || now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
       lastNudgeBoundary = index;
+      localEditVersion += 1;
       if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "boundary"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
       else regions.value = next;
       schedulePersist();
@@ -312,6 +314,7 @@ export function createStore(api: StoreApi) {
       if (move.boundaryIndex !== lastNudgeBoundary || now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
       lastNudgeBoundary = move.boundaryIndex;
+      localEditVersion += 1;
       if (doc.value) { doc.value = applyRegionEdit({ ...doc.value, regions: regions.value, elements: elements.value }, () => next, "boundary"); regions.value = doc.value.regions; elements.value = doc.value.elements; }
       else regions.value = next;
       if (!boundaryGestureActive) schedulePersist();
