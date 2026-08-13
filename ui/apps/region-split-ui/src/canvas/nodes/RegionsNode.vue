@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import {
+  computed, nextTick, onBeforeUnmount, onMounted, ref, watch,
+  type CSSProperties,
+} from "vue";
 import type { Store } from "../../state.js";
 import { imageUrl } from "../../api.js";
 import ActionBar from "../../components/ActionBar.vue";
@@ -37,6 +40,48 @@ const imageAspect = computed(() => {
   const image = props.store.doc.value?.image;
   return image ? `${image.width} / ${image.height}` : "1 / 1";
 });
+const originalImageEl = ref<HTMLImageElement | null>(null);
+const imageDisplayHeight = ref(0);
+let imageResizeObserver: ResizeObserver | null = null;
+
+const internalBoundaryGuides = computed(() => {
+  const documentHeight = props.store.doc.value?.image.height ?? 0;
+  if (!resultReady.value || documentHeight <= 0 || imageDisplayHeight.value <= 0) return [];
+  const scale = imageDisplayHeight.value / documentHeight;
+  return props.store.regions.value.slice(1).map(region => ({
+    id: region.id,
+    top: region.bounds.y * scale,
+  }));
+});
+
+function guideStyle(top: number): CSSProperties {
+  return { top: `${top}px`, width: "32px" };
+}
+
+function measureOriginalImage() {
+  imageDisplayHeight.value = originalImageEl.value?.clientHeight ?? 0;
+}
+
+function observeOriginalImage() {
+  imageResizeObserver?.disconnect();
+  imageResizeObserver = null;
+  const image = originalImageEl.value;
+  if (!image || typeof ResizeObserver === "undefined") {
+    measureOriginalImage();
+    return;
+  }
+  imageResizeObserver = new ResizeObserver(measureOriginalImage);
+  imageResizeObserver.observe(image);
+  measureOriginalImage();
+}
+
+watch(sourceUrl, async () => {
+  await nextTick();
+  observeOriginalImage();
+});
+
+onMounted(observeOriginalImage);
+onBeforeUnmount(() => imageResizeObserver?.disconnect());
 
 function reportConfigurationError() {
   emit("error", {
@@ -120,7 +165,14 @@ defineExpose({ retryAnalysis });
           <section class="image-panel">
             <header>原始效果图</header>
             <div class="image-frame">
-              <img data-test="original-image" class="comparison-image" :src="sourceUrl" alt="原始效果图" />
+              <img
+                ref="originalImageEl"
+                data-test="original-image"
+                class="comparison-image"
+                :src="sourceUrl"
+                alt="原始效果图"
+                @load="measureOriginalImage"
+              />
             </div>
           </section>
           <section class="image-panel analysis-panel">
@@ -143,6 +195,21 @@ defineExpose({ retryAnalysis });
               <div v-else class="analysis-state">等待 AI 区域分析</div>
             </div>
           </section>
+          <div
+            v-if="internalBoundaryGuides.length"
+            data-test="boundary-guides"
+            class="boundary-guides"
+            :style="{ height: `${imageDisplayHeight}px` }"
+            aria-hidden="true"
+          >
+            <span
+              v-for="guide in internalBoundaryGuides"
+              :key="guide.id"
+              data-test="boundary-guide"
+              class="boundary-guide"
+              :style="guideStyle(guide.top)"
+            />
+          </div>
         </div>
         <aside class="region-list-column">
           <RegionList
@@ -166,7 +233,14 @@ defineExpose({ retryAnalysis });
 .analysis-state button { border: 1px solid var(--accent); border-radius: 6px; padding: 9px 16px; color: white; background: var(--accent); cursor: pointer; }
 .text-button { border: 0; color: var(--accent); background: transparent; cursor: pointer; }
 .comparison-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 245px; align-items: start; background: var(--bg-inset); }
-.comparison-images { display: grid; grid-template-columns: repeat(2, minmax(0, 430px)); gap: 0; align-items: start; }
+.comparison-images { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 430px)); gap: 0; align-items: start; }
+.boundary-guides {
+  position: absolute; z-index: 6; top: 28px; left: calc(50% - 32px); width: 32px;
+  overflow: visible; pointer-events: none;
+}
+.boundary-guide {
+  position: absolute; left: 0; height: 1px; background: #4c8dff66; pointer-events: none;
+}
 .image-panel { min-width: 0; margin: 0; padding: 0; overflow: hidden; background: #0a0d13; }
 .image-panel + .image-panel { box-shadow: inset 1px 0 var(--border); }
 .image-panel header { height: 28px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }

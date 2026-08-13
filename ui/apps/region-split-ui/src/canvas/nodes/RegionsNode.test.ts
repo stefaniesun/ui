@@ -1,12 +1,32 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoreApi } from "../../api.js";
 import { createStore } from "../../state.js";
 import { makeDoc, makeFakeApi, makeRegion } from "../../test-helpers.js";
 import RegionsNode from "./RegionsNode.vue";
 
 const file = new File(["image"], "screen.png", { type: "image/png" });
+let resizeCallback: ResizeObserverCallback;
+const observe = vi.fn();
+const disconnect = vi.fn();
+
+beforeEach(() => {
+  observe.mockClear();
+  disconnect.mockClear();
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: ResizeObserverCallback) {
+      resizeCallback = callback;
+    }
+    observe = observe;
+    disconnect = disconnect;
+    unobserve = vi.fn();
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 async function mountNode(overrides: Partial<StoreApi> = {}) {
   const api = makeFakeApi(() => [makeRegion("a", 0, 600)], [], overrides);
@@ -25,6 +45,25 @@ async function chooseFile(wrapper: ReturnType<typeof mount>) {
   });
   await wrapper.get("input[type=file]").trigger("change");
   await flushPromises();
+  await nextTick();
+}
+
+async function showAnalyzedResult(
+  store: ReturnType<typeof createStore>,
+  wrapper: ReturnType<typeof mount>,
+  regions = [
+    makeRegion("a", 0, 200),
+    makeRegion("b", 200, 200),
+    makeRegion("c", 400, 200),
+  ],
+) {
+  store.projectId.value = "p1";
+  store.doc.value = makeDoc(regions, [], true);
+  store.regions.value = regions;
+  await nextTick();
+  const image = wrapper.get('[data-test="original-image"]').element;
+  Object.defineProperty(image, "clientHeight", { configurable: true, value: 600 });
+  image.dispatchEvent(new Event("load"));
   await nextTick();
 }
 
@@ -113,6 +152,20 @@ describe("RegionsNode upload and analysis orchestration", () => {
     expect(comparison.attributes("style")).toContain("--image-aspect: 375 / 600");
     expect(original.classes()).toContain("comparison-image");
     expect(analysis.classes()).toContain("comparison-image");
+  });
+
+  it("extends each internal region boundary 32px into the original image", async () => {
+    const { store, wrapper } = await mountNode();
+    await showAnalyzedResult(store, wrapper);
+
+    const layer = wrapper.get('[data-test="boundary-guides"]');
+    const guides = wrapper.findAll('[data-test="boundary-guide"]');
+
+    expect(guides).toHaveLength(2);
+    expect(layer.attributes("style")).toContain("height: 600px");
+    expect(guides[0]!.attributes("style")).toContain("top: 200px");
+    expect(guides[1]!.attributes("style")).toContain("top: 400px");
+    expect(guides.every(guide => guide.attributes("style").includes("width: 32px"))).toBe(true);
   });
 
   it("ignores duplicate uploads while busy", async () => {
