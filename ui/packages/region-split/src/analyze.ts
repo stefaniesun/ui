@@ -90,7 +90,8 @@ export async function createProject(
   }));
 
   const doc: RegionSplitDoc = {
-    schemaVersion: "1",
+    schemaVersion: "2",
+    revision: 0,
     image: {
       fileName: input.fileName, width: meta.width, height: meta.height, analyzedScale,
       removedChrome: preprocessed.removed.map(band => ({ edge: band.edge, height: band.height })),
@@ -99,6 +100,8 @@ export async function createProject(
       { width: meta.width, height: meta.height },
       candidateLines,
     ),
+    elements: [],
+    elementAnalysis: {},
     candidateLines,
     panels,
     updatedAt: new Date().toISOString(),

@@ -110,13 +110,10 @@ export function applyNaming(
   naming: { displayName: string; id: string; type: RegionType; scrollX?: boolean; scrollY?: boolean },
 ): Region[] {
   if (!regions.some(region => region.id === id)) return regions;
-  const taken = new Set(regions.filter(region => region.id !== id).map(region => region.id));
-  const nextId = uniqueId(naming.id, taken);
   return regions.map(region =>
     region.id === id
       ? {
           ...region,
-          id: nextId,
           displayName: naming.displayName,
           type: naming.type,
           // 模型重新看了这块裁图，滚动判断一并采纳；没给就保持原值

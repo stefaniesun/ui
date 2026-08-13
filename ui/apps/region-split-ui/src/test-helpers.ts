@@ -13,9 +13,9 @@ export function makeRegion(
 
 export function makeDoc(regions: Region[], candidateLines: CandidateLine[] = []): RegionSplitDoc {
   return {
-    schemaVersion: "1",
+    schemaVersion: "2", revision: 0,
     image: { fileName: "s.png", width: 375, height: 600, analyzedScale: 1, removedChrome: [] },
-    regions, candidateLines, panels: [], updatedAt: "2026-08-11T00:00:00.000Z",
+    regions, elements: [], elementAnalysis: {}, candidateLines, panels: [], updatedAt: "2026-08-11T00:00:00.000Z",
   };
 }
 

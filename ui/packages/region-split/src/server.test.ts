@@ -116,7 +116,7 @@ describe("region split server", () => {
     await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
     const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/body/rename-ai` });
     expect(res.statusCode).toBe(200);
-    expect(res.json().doc.regions[1]).toMatchObject({ id: "benefits", displayName: "权益表", type: "grid" });
+    expect(res.json().doc.regions[1]).toMatchObject({ id: "body", displayName: "权益表", type: "grid" });
     const missing = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/ghost/rename-ai` });
     expect(missing.statusCode).toBe(404);
   });

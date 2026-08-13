@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { checkInvariants, rectSchema, type Region } from "./types.js";
+import {
+  checkDocumentInvariants, checkInvariants, normalizeRegionSplitDoc,
+  rectSchema, regionSplitDocSchema, type ElementNode, type Region, type RegionSplitDoc,
+} from "./types.js";
 
 const image = { width: 375, height: 300 };
 const r = (id: string, y: number, h: number): Region => ({
@@ -37,6 +40,36 @@ describe("checkInvariants", () => {
   it("rejects duplicate ids", () => {
     const codes = checkInvariants([r("a", 0, 100), r("a", 100, 200)], image).map(v => v.code);
     expect(codes).toContain("duplicate-id");
+  });
+});
+
+const baseDoc = (): RegionSplitDoc => ({
+  schemaVersion: "2", revision: 0,
+  image: { fileName: "x.png", width: 375, height: 300, analyzedScale: 1, removedChrome: [] },
+  regions: [r("a", 0, 300)], elements: [], elementAnalysis: {}, candidateLines: [], panels: [], updatedAt: "now",
+});
+const element = (id: string, parentId: string | null): ElementNode => ({
+  id, parentId, regionId: "a", displayName: id, type: "container",
+  bounds: { x: 0, y: 0, w: 100, h: 100 }, confidence: 1, conflict: false, source: "ai",
+});
+
+describe("region split document elements", () => {
+  it("loads a v1 document with empty element defaults", () => {
+    const { revision: _revision, elements: _elements, elementAnalysis: _analysis, ...rest } = baseDoc();
+    const parsed = regionSplitDocSchema.parse({ ...rest, schemaVersion: "1" });
+    expect(parsed.revision).toBe(0);
+    expect(parsed.elements).toEqual([]);
+    expect(parsed.elementAnalysis).toEqual({});
+  });
+  it("rejects duplicate element ids and cyclic parents", () => {
+    const document = baseDoc();
+    document.elements = [element("a", "b"), element("b", "a")];
+    expect(checkDocumentInvariants(document).map(item => item.code)).toContain("element-parent-cycle");
+  });
+  it("normalizes persisted analyzing state to failed", () => {
+    const document = baseDoc();
+    document.elementAnalysis = { a: { status: "analyzing" } };
+    expect(normalizeRegionSplitDoc(document).elementAnalysis.a?.status).toBe("failed");
   });
 });
 
