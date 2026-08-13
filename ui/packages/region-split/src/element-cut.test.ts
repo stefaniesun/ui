@@ -160,6 +160,13 @@ describe("looksLikeTextRun", () => {
     expect(looksLikeTextRun(runs([[37, 34], [73, 34], [109, 34], [145, 34]]))).toBe(true);
   });
 
+  // 实测「企业采购」这行字距偏宽（比值 0.173），是两侧数据里最靠近阈值的文字样本
+  it("recognises a line with wider tracking", () => {
+    expect(looksLikeTextRun(runs([
+      [6, 28], [38, 13], [55, 13], [74, 30], [109, 26],
+    ]))).toBe(true);
+  });
+
   // 判别量是"间隙 / 子块尺寸"，不是间隙绝对值——下面这些都是真正的并列元素
   it("does not mistake real columns for text", () => {
     // 常用服务五格：间隙 98，子块约 140

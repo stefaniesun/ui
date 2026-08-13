@@ -128,9 +128,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       if (!region || region.w < MIN_ANALYZABLE_SIZE || region.h < MIN_ANALYZABLE_SIZE) {
         return reply.code(400).send({ error: "region is too small to analyse" });
       }
-      // 检测是纯本地像素计算，不需要模型配置——没配模型也该拿得到层级。
+      // 层级、布局量、滚动全是纯本地像素计算，没配模型也照常产出；
+      // 模型只负责叶子的文字/图标判别与命名，配了就用，失败会在内部降级。
+      const model = configStore.isConfigured() ? currentModel() : undefined;
       try {
-        return { tree: await detectElements({ store }, projectId, region) };
+        return { tree: await detectElements({ store, model }, projectId, region) };
       } catch (err) {
         return reply.code(502).send({ error: (err as Error).message });
       }

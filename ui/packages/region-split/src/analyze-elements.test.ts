@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { createProject } from "./analyze.js";
-import { detectElements } from "./analyze-elements.js";
+import { detectElements, groupForClassification } from "./analyze-elements.js";
 import { ProjectStore } from "./store.js";
+import type { SegmentModel } from "./model.js";
 
 async function seeded() {
   const store = new ProjectStore(mkdtempSync(join(tmpdir(), "rs-el-")));
@@ -39,5 +40,115 @@ describe("detectElements", () => {
     const { store, projectId } = await seeded();
     await expect(detectElements({ store }, projectId, { x: 0, y: 0, w: 20, h: 20 }))
       .rejects.toThrow(/too small/);
+  });
+});
+
+describe("groupForClassification", () => {
+  const node = (id: string, parentId: string | null, x: number, y: number,
+                layout?: "row" | "column") => ({
+    id, parentId, box: { x, y, w: 40, h: 40 }, kind: "component" as const,
+    displayName: id, style: {}, uniformity: 1, source: "auto" as const,
+    classification: "tool" as const, scrollX: false, scrollY: false,
+    positioning: "flow" as const,
+    ...(layout ? { layout: { direction: layout, gap: 0,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 } } } : {}),
+  });
+  const REGION = { x: 0, y: 0, w: 400, h: 300 };
+
+  // 顺序是这套做法的关键：模型不定位，只按阅读顺序作答
+  it("sorts a row group from left to right", () => {
+    const nodes = [
+      node("n1", null, 0, 0, "row"),
+      node("n3", "n1", 200, 0), node("n2", "n1", 100, 0),
+    ];
+    const group = groupForClassification(nodes, REGION)
+      .find(g => g.children.length === 2)!;
+    expect(group.direction).toBe("row");
+    expect(group.children.map(c => c.id)).toEqual(["n2", "n3"]);
+  });
+
+  it("sorts a column group from top to bottom", () => {
+    const nodes = [
+      node("n1", null, 0, 0, "column"),
+      node("n3", "n1", 0, 200), node("n2", "n1", 0, 100),
+    ];
+    const group = groupForClassification(nodes, REGION)
+      .find(g => g.children.length === 2)!;
+    expect(group.direction).toBe("column");
+    expect(group.children.map(c => c.id)).toEqual(["n2", "n3"]);
+  });
+
+  it("uses the region as the crop for top level nodes", () => {
+    const nodes = [node("n1", null, 0, 0), node("n2", null, 0, 100)];
+    const group = groupForClassification(nodes, REGION)[0]!;
+    expect(group.crop).toEqual(REGION);
+  });
+
+  it("uses the parent box as the crop for its children", () => {
+    const nodes = [node("n1", null, 10, 20, "row"), node("n2", "n1", 10, 20)];
+    const group = groupForClassification(nodes, REGION)
+      .find(g => g.children[0]!.id === "n2")!;
+    expect(group.crop).toEqual({ x: 10, y: 20, w: 40, h: 40 });
+  });
+});
+
+describe("detectElements with a model", () => {
+  const REGION2 = { x: 0, y: 0, w: 400, h: 300 };
+  const fake = (over: Partial<SegmentModel> = {}): SegmentModel => ({
+    segment: async () => { throw new Error("unused"); },
+    nameRegion: async () => { throw new Error("unused"); },
+    classifyChildren: async ({ count }) => Array.from({ length: count }, (_, i) => ({
+      kind: "text" as const, displayName: `叫${i + 1}`,
+    })),
+    ...over,
+  });
+
+  it("marks leaves uncertain when no model is configured", async () => {
+    const { store, projectId } = await seeded();
+    const tree = await detectElements({ store }, projectId, REGION2);
+    const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
+    const leaves = tree.nodes.filter(n => !parents.has(n.id) && n.kind !== "image");
+    expect(leaves.length).toBeGreaterThan(0);
+    expect(leaves.every(leaf => leaf.classification === "uncertain")).toBe(true);
+    expect(tree.namedAt).toBeUndefined();
+  });
+
+  it("applies the model kind and name to leaves", async () => {
+    const { store, projectId } = await seeded();
+    const tree = await detectElements({ store, model: fake() }, projectId, REGION2);
+    const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
+    const leaves = tree.nodes.filter(n => !parents.has(n.id));
+    expect(leaves.every(leaf => leaf.kind === "text")).toBe(true);
+    expect(leaves.every(leaf => leaf.classification === "model")).toBe(true);
+    expect(tree.namedAt).toBeDefined();
+  });
+
+  // 容器的 kind 由几何决定，模型不得改写
+  it("never lets the model overwrite a container kind", async () => {
+    const { store, projectId } = await seeded();
+    const model = fake({
+      classifyChildren: async ({ count }) => Array.from({ length: count }, () => ({
+        kind: "icon" as const, displayName: "模型说是图标",
+      })),
+    });
+    const tree = await detectElements({ store, model }, projectId, REGION2);
+    const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
+    for (const node of tree.nodes.filter(n => parents.has(n.id))) {
+      expect(["component", "grid"]).toContain(node.kind);
+      expect(node.displayName).toBe("模型说是图标");   // 名字仍然采纳
+    }
+  });
+
+  // 模型失败不能让整次检测失败——层级是纯本地算出来的
+  it("still returns a usable tree when the model throws", async () => {
+    const { store, projectId } = await seeded();
+    const model = fake({
+      classifyChildren: async () => { throw new Error("boom"); },
+    });
+    const tree = await detectElements({ store, model }, projectId, REGION2);
+    expect(tree.nodes.length).toBeGreaterThan(0);
+    const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
+    const leaves = tree.nodes.filter(n => !parents.has(n.id) && n.kind !== "image");
+    expect(leaves.every(leaf => leaf.classification === "uncertain")).toBe(true);
   });
 });
