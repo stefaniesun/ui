@@ -80,21 +80,83 @@ describe("createStore", () => {
     expect(putRegions).not.toHaveBeenCalled();
   });
 
+  it("blocks expansion when the neighboring region is at minimum height", async () => {
+    const { store, putRegions } = await loadedStore();
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+    store.regions.value = [
+      makeRegion("a", 0, 8),
+      makeRegion("b", 8, 584),
+      makeRegion("c", 592, 8),
+    ];
+
+    expect(store.canExpandRegion("b", "up")).toBe(false);
+    expect(store.canExpandRegion("b", "down")).toBe(false);
+    store.expandRegion("b", "up");
+    store.expandRegion("b", "down");
+
+    expect(store.canUndo.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(putRegions).not.toHaveBeenCalled();
+  });
+
+  it("coalesces repeated expansion of one boundary and debounces persistence", async () => {
+    const { store, putRegions } = await loadedStore();
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+
+    store.expandRegion("b", "up");
+    store.expandRegion("b", "up");
+    store.expandRegion("b", "up");
+    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 197, h: 203 });
+    expect(putRegions).not.toHaveBeenCalled();
+
+    store.undo();
+    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 200, h: 200 });
+    expect(store.canUndo.value).toBe(false);
+    expect(putRegions).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not coalesce adjustments of different boundaries", async () => {
+    const { store } = await loadedStore();
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+
+    store.expandRegion("b", "up");
+    store.expandRegion("b", "down");
+    store.undo();
+
+    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 199, h: 201 });
+    expect(store.canUndo.value).toBe(true);
+  });
+
+  it("does not create undo or persistence work for a clamped nudge", async () => {
+    const { store, putRegions } = await loadedStore();
+    store.regions.value = [makeRegion("a", 0, 8), makeRegion("b", 8, 592)];
+    store.select("a", false);
+
+    store.nudge(-1);
+
+    expect(store.canUndo.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(putRegions).not.toHaveBeenCalled();
+  });
+
   it("blocks directional expansion before analysis, while busy, and while splitting", async () => {
     const { store } = await loadedStore();
     const before = store.regions.value;
 
+    expect(store.canExpandRegion("b", "up")).toBe(false);
     store.expandRegion("b", "up");
     expect(store.regions.value).toBe(before);
 
     store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
     store.busyLabel.value = "AI 分析中…";
+    expect(store.canExpandRegion("b", "up")).toBe(false);
     store.expandRegion("b", "up");
     expect(store.regions.value).toBe(before);
 
     store.busyLabel.value = "";
     store.select("b", false);
     store.beginSplit();
+    expect(store.canExpandRegion("b", "up")).toBe(false);
     store.expandRegion("b", "up");
     expect(store.regions.value).toBe(before);
   });

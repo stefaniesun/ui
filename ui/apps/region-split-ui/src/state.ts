@@ -39,6 +39,7 @@ export function createStore(api: StoreApi) {
   const undoDepth = ref(0);
   const redoDepth = ref(0);
   let lastNudgeAt = 0;
+  let lastNudgeBoundary = -1;
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   function syncDepths() {
@@ -233,8 +234,9 @@ export function createStore(api: StoreApi) {
       const next = adjustBoundary(regions.value, index, delta);
       if (next === regions.value) return;
       const now = Date.now();
-      if (now - lastNudgeAt >= COALESCE_MS) pushUndo();
+      if (index !== lastNudgeBoundary || now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
+      lastNudgeBoundary = index;
       regions.value = next;
       schedulePersist();
     },
@@ -246,8 +248,9 @@ export function createStore(api: StoreApi) {
       if (next === regions.value) return;
       selectedIds.value = [id];
       const now = Date.now();
-      if (now - lastNudgeAt >= COALESCE_MS) pushUndo();
+      if (move.boundaryIndex !== lastNudgeBoundary || now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
+      lastNudgeBoundary = move.boundaryIndex;
       regions.value = next;
       schedulePersist();
     },
