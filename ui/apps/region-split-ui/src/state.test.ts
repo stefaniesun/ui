@@ -37,6 +37,68 @@ describe("createStore", () => {
     expect(store.regions.value[0]!.bounds.h).toBe(200);
   });
 
+  it("expands a region upward and selects it", async () => {
+    const { store } = await loadedStore();
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+
+    store.expandRegion("b", "up");
+
+    expect(store.selectedIds.value).toEqual(["b"]);
+    expect(store.regions.value.map(region => region.bounds)).toEqual([
+      { x: 0, y: 0, w: 375, h: 199 },
+      { x: 0, y: 199, w: 375, h: 201 },
+      { x: 0, y: 400, w: 375, h: 200 },
+    ]);
+  });
+
+  it("expands a region downward and selects it", async () => {
+    const { store } = await loadedStore();
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+
+    store.expandRegion("b", "down");
+
+    expect(store.selectedIds.value).toEqual(["b"]);
+    expect(store.regions.value.map(region => region.bounds)).toEqual([
+      { x: 0, y: 0, w: 375, h: 200 },
+      { x: 0, y: 200, w: 375, h: 201 },
+      { x: 0, y: 401, w: 375, h: 199 },
+    ]);
+  });
+
+  it("reports directional expansion availability and blocks impossible changes", async () => {
+    const { store, putRegions } = await loadedStore();
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+
+    expect(store.canExpandRegion("a", "up")).toBe(false);
+    expect(store.canExpandRegion("a", "down")).toBe(true);
+    expect(store.canExpandRegion("c", "up")).toBe(true);
+    expect(store.canExpandRegion("c", "down")).toBe(false);
+
+    store.expandRegion("a", "up");
+    expect(store.canUndo.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(putRegions).not.toHaveBeenCalled();
+  });
+
+  it("blocks directional expansion before analysis, while busy, and while splitting", async () => {
+    const { store } = await loadedStore();
+    const before = store.regions.value;
+
+    store.expandRegion("b", "up");
+    expect(store.regions.value).toBe(before);
+
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+    store.busyLabel.value = "AI 分析中…";
+    store.expandRegion("b", "up");
+    expect(store.regions.value).toBe(before);
+
+    store.busyLabel.value = "";
+    store.select("b", false);
+    store.beginSplit();
+    store.expandRegion("b", "up");
+    expect(store.regions.value).toBe(before);
+  });
+
   it("starts a new undo snapshot after the coalesce window", async () => {
     const { store } = await loadedStore();
     store.select("a", false);

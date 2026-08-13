@@ -7,6 +7,7 @@ import {
 import type { StoreApi } from "./api.js";
 
 export type { StoreApi };
+export type RegionExpandDirection = "up" | "down";
 
 const UNDO_STACK_LIMIT = 50;
 const COALESCE_MS = 500;
@@ -67,6 +68,21 @@ export function createStore(api: StoreApi) {
   // 名字是"区域 1..N"、类型全是 other，看起来和分析结果一模一样。
   // 界面必须把这个状态说清楚，否则用户会把原始信号当成 AI 的输出。
   const needsAnalysis = computed(() => Boolean(doc.value) && !doc.value?.analyzedAt);
+
+  function boundaryMoveForRegion(id: string, direction: RegionExpandDirection) {
+    const regionIndex = regions.value.findIndex(region => region.id === id);
+    if (regionIndex < 0) return null;
+    return direction === "up"
+      ? { boundaryIndex: regionIndex - 1, delta: -1 }
+      : { boundaryIndex: regionIndex, delta: 1 };
+  }
+
+  function canExpandRegion(id: string, direction: RegionExpandDirection): boolean {
+    if (busy.value || needsAnalysis.value || mode.value === "split") return false;
+    const move = boundaryMoveForRegion(id, direction);
+    if (!move || !canAdjustBoundary(regions.value, move.boundaryIndex)) return false;
+    return adjustBoundary(regions.value, move.boundaryIndex, move.delta) !== regions.value;
+  }
 
   function pushUndo() {
     undoStack.push(snapshot());
@@ -158,7 +174,7 @@ export function createStore(api: StoreApi) {
     projectId, doc, regions, selectedIds, mode, busy, busyLabel, error, pendingRenameIds, renamingId,
     modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
-    isModelConfigured, candidateLines, needsAnalysis,
+    isModelConfigured, candidateLines, needsAnalysis, canExpandRegion,
 
     startRename(id: string) { renamingId.value = id; },
     stopRename() { renamingId.value = null; },
@@ -214,10 +230,25 @@ export function createStore(api: StoreApi) {
       if (busy.value) return;
       const index = selectedIndex.value;
       if (index < 0 || !canAdjustBoundary(regions.value, index)) return;
+      const next = adjustBoundary(regions.value, index, delta);
+      if (next === regions.value) return;
       const now = Date.now();
       if (now - lastNudgeAt >= COALESCE_MS) pushUndo();
       lastNudgeAt = now;
-      regions.value = adjustBoundary(regions.value, index, delta);
+      regions.value = next;
+      schedulePersist();
+    },
+
+    expandRegion(id: string, direction: RegionExpandDirection) {
+      if (!canExpandRegion(id, direction)) return;
+      const move = boundaryMoveForRegion(id, direction)!;
+      const next = adjustBoundary(regions.value, move.boundaryIndex, move.delta);
+      if (next === regions.value) return;
+      selectedIds.value = [id];
+      const now = Date.now();
+      if (now - lastNudgeAt >= COALESCE_MS) pushUndo();
+      lastNudgeAt = now;
+      regions.value = next;
       schedulePersist();
     },
 
