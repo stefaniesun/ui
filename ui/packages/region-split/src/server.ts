@@ -1,12 +1,14 @@
 import { existsSync } from "node:fs";
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
+import { z } from "zod";
 import sharp from "sharp";
-import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
+import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, retryRegionElementAnalysis, type DetectSurface } from "./analyze.js";
 import type { SegmentModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
-import type { ProjectStore } from "./store.js";
-import type { Region } from "./types.js";
+import { RevisionConflictError, type ProjectStore } from "./store.js";
+import { elementNodeSchema, regionElementAnalysisSchema, regionSchema, type Region } from "./types.js";
+import { ProjectWriteCoordinator } from "./write-coordinator.js";
 
 export interface ServerDeps {
   store: ProjectStore;
@@ -23,6 +25,7 @@ const TINY_PNG_BASE64 =
 
 export function buildServer(deps: ServerDeps): FastifyInstance {
   const app = Fastify({ bodyLimit: 32 * 1024 * 1024 });
+  const coordinator = new ProjectWriteCoordinator();
   app.register(multipart, { limits: { fileSize: 32 * 1024 * 1024 } });
   const { store, configStore } = deps;
   const currentModel = () => deps.createModel(configStore.read());
@@ -62,6 +65,21 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     }
   });
 
+  app.put<{ Params: ProjectParams; Body: { expectedRevision: number; regions: Region[]; elements: unknown[]; elementAnalysis: Record<string, unknown> } }>(
+    "/api/projects/:projectId/document", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      try {
+        const regions = regionSchema.array().parse(req.body.regions);
+        const elements = elementNodeSchema.array().parse(req.body.elements);
+        const elementAnalysis = z.record(regionElementAnalysisSchema).parse(req.body.elementAnalysis);
+        return { doc: await coordinator.run(projectId, () => store.writeEditable(projectId, { expectedRevision: req.body.expectedRevision, regions, elements, elementAnalysis })) };
+      } catch (err) {
+        if (err instanceof RevisionConflictError) return reply.code(409).send({ error: err.message, doc: err.latest });
+        return reply.code(422).send({ error: (err as Error).message });
+      }
+    });
+
   app.put<{ Params: ProjectParams; Body: { regions: Region[] } }>(
     "/api/projects/:projectId/regions", async (req, reply) => {
       const { projectId } = req.params;
@@ -70,6 +88,20 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         return { doc: store.writeRegions(projectId, req.body.regions) };
       } catch (err) {
         return reply.code(422).send({ error: (err as Error).message });
+      }
+    });
+
+  app.post<{ Params: ProjectParams & { regionId: string }; Body: { expectedRevision: number; inputFingerprint: string } }>(
+    "/api/projects/:projectId/regions/:regionId/analyze-elements", async (req, reply) => {
+      const { projectId, regionId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      if (!configStore.isConfigured()) return reply.code(400).send({ error: "model not configured" });
+      try {
+        return { doc: await retryRegionElementAnalysis({ store, coordinator, model: currentModel() }, projectId, regionId, req.body.expectedRevision, req.body.inputFingerprint) };
+      } catch (err) {
+        if (err instanceof RevisionConflictError) return reply.code(409).send({ error: err.message, doc: err.latest });
+        if ((err as Error).message === "region not found") return reply.code(404).send({ error: "region not found" });
+        return reply.code(502).send({ error: (err as Error).message });
       }
     });
 
