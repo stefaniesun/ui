@@ -36,15 +36,14 @@ export function reconcileElementsWithRegions(
   const result = elements.map(element => ({ ...element, bounds: { ...element.bounds } }));
   const children = new Map<string, ElementNode[]>();
   for (const item of result) if (item.parentId) children.set(item.parentId, [...(children.get(item.parentId) ?? []), item]);
-  const sync = (item: ElementNode, regionId: string, conflict: boolean): void => {
+  const syncRegion = (item: ElementNode, regionId: string): void => {
     item.regionId = regionId;
-    item.conflict = conflict;
-    for (const child of children.get(item.id) ?? []) sync(child, regionId, conflict);
+    for (const child of children.get(item.id) ?? []) { child.conflict = false; syncRegion(child, regionId); }
   };
   for (const item of result.filter(element => element.parentId === null)) {
     const matches = regions.filter(region => contains(region.bounds, item.bounds));
-    if (matches.length === 1) sync(item, matches[0]!.id, false);
-    else sync(item, item.regionId, true);
+    if (matches.length === 1) { syncRegion(item, matches[0]!.id); item.conflict = false; }
+    else { syncRegion(item, item.regionId); item.conflict = true; }
   }
   void image;
   return result;
@@ -83,6 +82,14 @@ export function changeElementType(doc: RegionSplitDoc, elementId: string, type: 
 }
 
 export function reparentElement(doc: RegionSplitDoc, elementId: string, parentId: string | null): RegionSplitDoc {
+  const element = doc.elements.find(item => item.id === elementId);
+  if (!element) throw new Error("element not found");
   if (parentId && descendants(doc.elements, elementId).has(parentId)) throw new Error("element parent cycle");
+  if (parentId) {
+    const parent = doc.elements.find(item => item.id === parentId);
+    if (!parent) throw new Error("parent not found");
+    if (parent.regionId !== element.regionId) throw new Error("new parent must share region");
+    if (!contains(parent.bounds, element.bounds)) throw new Error("new parent must contain element");
+  }
   return update(doc, doc.elements.map(item => item.id === elementId ? { ...item, parentId } : item));
 }
