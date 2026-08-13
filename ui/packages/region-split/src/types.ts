@@ -177,6 +177,7 @@ export function checkDocumentInvariants(doc: RegionSplitDoc): InvariantViolation
     if (elements.has(element.id)) out.push({ code: "duplicate-element-id", message: `duplicate element id ${element.id}` });
     elements.set(element.id, element);
     if (!regions.has(element.regionId)) out.push({ code: "invalid-element-region", message: `unknown region ${element.regionId}` });
+    if (![element.bounds.x, element.bounds.y, element.bounds.w, element.bounds.h].every(Number.isInteger)) out.push({ code: "fractional-element-bounds", message: `element ${element.id} bounds must be integers` });
     if (element.bounds.w < 4 || element.bounds.h < 4) out.push({ code: "element-too-small", message: `element ${element.id} is too small` });
     if (!contains({ x: 0, y: 0, w: doc.image.width, h: doc.image.height }, element.bounds)) {
       out.push({ code: "element-outside-image", message: `element ${element.id} is outside the image` });
@@ -186,7 +187,10 @@ export function checkDocumentInvariants(doc: RegionSplitDoc): InvariantViolation
     if (element.parentId) {
       const parent = elements.get(element.parentId);
       if (!parent) out.push({ code: "invalid-element-parent", message: `unknown parent ${element.parentId}` });
-      else if (!contains(parent.bounds, element.bounds)) out.push({ code: "child-outside-parent", message: `${element.id} is outside parent` });
+      else {
+        if (!contains(parent.bounds, element.bounds)) out.push({ code: "child-outside-parent", message: `${element.id} is outside parent` });
+        if (parent.regionId !== element.regionId) out.push({ code: "child-region-mismatch", message: `${element.id} must share its parent's region` });
+      }
     } else if (!element.conflict) {
       const region = regions.get(element.regionId);
       if (region && !contains(region.bounds, element.bounds)) out.push({ code: "element-outside-region", message: `${element.id} is outside region` });

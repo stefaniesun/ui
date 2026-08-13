@@ -2,7 +2,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ProjectStore } from "./store.js";
+import { ProjectStore, RevisionConflictError } from "./store.js";
 import { fullPageRegions } from "./reconcile.js";
 import type { RegionSplitDoc } from "./types.js";
 
@@ -53,6 +53,28 @@ describe("ProjectStore", () => {
     ]);
     expect(next.regions).toHaveLength(2);
     expect(next.updatedAt).not.toBe("2020-01-01T00:00:00.000Z");
+  });
+
+  it("increments revision and rejects stale editable writes", () => {
+    const store = freshStore();
+    store.writeDoc("p1", doc());
+    const current = store.readDoc("p1");
+    const next = store.writeEditable("p1", {
+      expectedRevision: current.revision, regions: current.regions,
+      elements: current.elements, elementAnalysis: current.elementAnalysis,
+    });
+    expect(next.revision).toBe(1);
+    expect(() => store.writeEditable("p1", {
+      expectedRevision: 0, regions: current.regions,
+      elements: current.elements, elementAnalysis: current.elementAnalysis,
+    })).toThrow(RevisionConflictError);
+    expect(store.readDoc("p1").revision).toBe(1);
+  });
+
+  it("normalizes old documents and interrupted analysis when reading", () => {
+    const store = freshStore();
+    store.writeDoc("p1", { ...doc(), schemaVersion: "1", elementAnalysis: { a: { status: "analyzing" } } });
+    expect(store.readDoc("p1")).toMatchObject({ schemaVersion: "2", revision: 0, elements: [], elementAnalysis: { a: { status: "failed" } } });
   });
 
   it("rejects project ids that escape the root", () => {

@@ -1,4 +1,7 @@
-import { MIN_REGION_HEIGHT, type Region, type RegionType } from "./types.js";
+import {
+  MIN_REGION_HEIGHT, type Region, type RegionSplitDoc, type RegionType,
+} from "./types.js";
+import { reconcileElementsWithRegions } from "./elements.js";
 
 const PLACEHOLDER_NAME = "未命名区域";
 
@@ -102,6 +105,37 @@ export function mergeRegions(regions: Region[], ids: string[]): Region[] {
 export function renameRegion(regions: Region[], id: string, displayName: string): Region[] {
   if (!regions.some(region => region.id === id)) return regions;
   return regions.map(region => (region.id === id ? { ...region, displayName } : region));
+}
+
+export type RegionEditKind = "boundary" | "split" | "merge" | "metadata";
+
+export function applyRegionEdit(
+  doc: RegionSplitDoc,
+  edit: (regions: Region[]) => Region[],
+  kind: RegionEditKind = "boundary",
+): RegionSplitDoc {
+  const regions = edit(doc.regions.map(region => ({ ...region, bounds: { ...region.bounds } })));
+  const before = new Map(doc.regions.map(region => [region.id, region]));
+  const after = new Map(regions.map(region => [region.id, region]));
+  const analysis = { ...doc.elementAnalysis };
+  for (const id of Object.keys(analysis)) if (!after.has(id)) delete analysis[id];
+  for (const region of regions) {
+    const old = before.get(region.id);
+    if (!old) { analysis[region.id] = { status: "pending" }; continue; }
+    const changed = JSON.stringify(old.bounds) !== JSON.stringify(region.bounds)
+      || old.displayName !== region.displayName || old.type !== region.type;
+    if (changed) analysis[region.id] = { status: kind === "split" || kind === "merge" ? "pending" : "stale" };
+  }
+  if (kind === "split" || kind === "merge") {
+    for (const region of regions.filter(item => {
+      const old = before.get(item.id);
+      return !old || JSON.stringify(old.bounds) !== JSON.stringify(item.bounds);
+    })) analysis[region.id] = { status: "pending" };
+  }
+  return {
+    ...doc, regions, elementAnalysis: analysis,
+    elements: reconcileElementsWithRegions(doc.elements, regions, doc.image),
+  };
 }
 
 export function applyNaming(
