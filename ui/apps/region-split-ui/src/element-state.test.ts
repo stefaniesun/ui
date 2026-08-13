@@ -139,6 +139,14 @@ describe("createElementStore", () => {
     expect(added.parentId).toBeNull();
   });
 
+  it("toggles a scroll flag", async () => {
+    const store = createElementStore(loaded([node({ id: "n1" })]));
+    await store.load("p1", REGION);
+    await store.setScroll("p1", REGION, "n1", "x", true);
+    expect(store.tree.value!.nodes[0]!.scrollX).toBe(true);
+    expect(store.tree.value!.nodes[0]!.scrollY).toBe(false);
+  });
+
   it("keeps the local edit and reports the error when saving fails", async () => {
     const store = createElementStore(loaded([node({ id: "n1" })], {
       putElements: vi.fn(async () => { throw new Error("422 nope"); }),

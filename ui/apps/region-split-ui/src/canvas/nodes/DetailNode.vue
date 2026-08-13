@@ -46,6 +46,11 @@ function onRenameValue(id: string, displayName: string) {
 function onAddContainer(box: Rect) {
   if (region.value) void props.elementStore.addContainer(props.projectId, region.value, box);
 }
+function onSetScroll(id: string, axis: "x" | "y", value: boolean) {
+  if (region.value) {
+    void props.elementStore.setScroll(props.projectId, region.value, id, axis, value);
+  }
+}
 
 /** 树上双击只给 id，名字从当前节点取 */
 function onRenamePrompt(id: string) {
@@ -109,6 +114,7 @@ function onRenamePrompt(id: string) {
           :node="props.elementStore.selectedNode.value"
           @rename="onRenameValue"
           @set-kind="onSetKind"
+          @set-scroll="onSetScroll"
         />
       </section>
     </template>

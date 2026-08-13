@@ -63,6 +63,15 @@ const rows = computed(() => {
         class="name"
         @dblclick.stop="emit('rename', node.id)"
       >{{ node.displayName }}</span>
+      <span v-if="node.repeat" data-test="element-repeat" class="meta">
+        ×{{ node.repeat.count }}
+      </span>
+      <span v-if="node.layout" data-test="element-layout" class="meta">
+        {{ node.layout.direction === "row" ? "→" : "↓" }}{{ node.layout.gap }}
+      </span>
+      <span v-if="node.scrollX || node.scrollY" class="meta scroll">
+        {{ node.scrollX ? "↔" : "" }}{{ node.scrollY ? "↕" : "" }}
+      </span>
       <button
         v-if="node.id === props.selectedId"
         data-test="element-remove"
@@ -85,5 +94,7 @@ const rows = computed(() => {
 .kind-grid { border-color: var(--ok); color: var(--ok); }
 .kind-image { border-color: var(--warn); color: var(--warn); }
 .name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+.meta { flex: none; color: var(--text-faint); font-size: 9px; }
+.meta.scroll { color: var(--accent); }
 .remove { flex: none; min-height: 0; padding: 0 6px; border-color: var(--danger); color: var(--danger); }
 </style>

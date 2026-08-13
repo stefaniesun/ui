@@ -78,7 +78,6 @@ describe("connectedBoxes", () => {
 
 describe("detectElementTree", () => {
   const region: Rect = { x: 0, y: 0, w: 200, h: 300 };
-  const topLevel = (tree: ElementTree) => tree.nodes.filter(node => node.parentId === null);
 
   it("produces a flat tree of containers", async () => {
     const tree = detectElementTree(await raw(page()), region, NOW);

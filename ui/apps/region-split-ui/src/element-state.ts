@@ -79,6 +79,15 @@ export function createElementStore(api: StoreApi) {
         node.id === id ? { ...node, kind, classification: "human" as const } : node));
     },
 
+    /** 人工覆盖几何判定出来的滚动属性 */
+    async setScroll(
+      projectId: string, region: Rect, id: string, axis: "x" | "y", value: boolean,
+    ) {
+      await commit(projectId, region, nodes.value.map(node => node.id === id
+        ? { ...node, ...(axis === "x" ? { scrollX: value } : { scrollY: value }) }
+        : node));
+    },
+
     /** 删除一层：子节点上提到父节点，不级联删除 */
     async removeNode(projectId: string, region: Rect, id: string) {
       const target = nodes.value.find(node => node.id === id);

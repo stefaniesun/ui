@@ -56,3 +56,50 @@ describe("ElementProperties", () => {
     expect(wrapper.text()).toContain("0.02");
   });
 });
+
+describe("ElementProperties layout fields", () => {
+  const container: ElementNode = {
+    ...node,
+    kind: "grid",
+    layout: { direction: "row", gap: 98, padding: { top: 0, right: 42, bottom: 0, left: 38 } },
+    repeat: { count: 5, templateId: "n2", pitch: 219.3 },
+  };
+
+  it("shows the cut direction and gap", () => {
+    const text = mount(ElementProperties, { props: { node: container } }).text();
+    expect(text).toContain("横排");
+    expect(text).toContain("gap 98");
+  });
+
+  it("shows the padding in css order", () => {
+    const wrapper = mount(ElementProperties, { props: { node: container } });
+    expect(wrapper.find('[data-test="property-padding"]').text().split(/\s+/))
+      .toEqual(["0", "42", "0", "38"]);
+  });
+
+  it("shows the repeat count and pitch", () => {
+    const wrapper = mount(ElementProperties, { props: { node: container } });
+    expect(wrapper.find('[data-test="property-repeat"]').text()).toContain("×5");
+    expect(wrapper.find('[data-test="property-repeat"]').text()).toContain("219");
+  });
+
+  it("hides layout fields on a node that was never cut", () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    expect(wrapper.find('[data-test="property-layout"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="property-repeat"]').exists()).toBe(false);
+  });
+
+  it("toggles scroll on a container", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: container } });
+    await wrapper.find('[data-test="property-scroll-x"]').trigger("click");
+    expect(wrapper.emitted("set-scroll")![0]).toEqual(["n1", "x", true]);
+  });
+
+  // 滚动是容器的属性，叶子上没有意义
+  it("hides the scroll toggles on a leaf", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: { ...node, kind: "image" as const } },
+    });
+    expect(wrapper.find('[data-test="property-scroll-x"]').exists()).toBe(false);
+  });
+});

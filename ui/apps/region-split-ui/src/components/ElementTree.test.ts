@@ -67,3 +67,27 @@ describe("ElementTree", () => {
     expect(wrapper.find('[data-test="element-row"]').classes()).toContain("uncertain");
   });
 });
+
+describe("ElementTree layout badges", () => {
+  it("shows direction, gap and repeat on a container row", () => {
+    const wrapper = mountTree({
+      nodes: [node({
+        id: "n1", kind: "grid",
+        layout: { direction: "row", gap: 98, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+        repeat: { count: 5, templateId: "n2", pitch: 220 },
+      })],
+    });
+    expect(wrapper.find('[data-test="element-repeat"]').text()).toBe("×5");
+    expect(wrapper.find('[data-test="element-layout"]').text()).toBe("→98");
+  });
+
+  it("shows a scroll badge", () => {
+    const wrapper = mountTree({ nodes: [node({ id: "n1", scrollX: true })] });
+    expect(wrapper.text()).toContain("↔");
+  });
+
+  it("shows no badges on a plain leaf", () => {
+    const wrapper = mountTree({ nodes: [node({ id: "n1", kind: "text" })] });
+    expect(wrapper.find('[data-test="element-layout"]').exists()).toBe(false);
+  });
+});
