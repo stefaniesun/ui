@@ -1,5 +1,8 @@
 import { computed, ref, shallowRef } from "vue";
-import type { ElementKind, ElementNode, ElementTree, Rect } from "@region-split/core/browser";
+import {
+  recomputeLayout,
+  type ElementKind, type ElementNode, type ElementTree, type Rect,
+} from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
 
 /**
@@ -29,6 +32,14 @@ export function createElementStore(api: StoreApi) {
     && inner.x + inner.w <= outer.x + outer.w
     && inner.y + inner.h <= outer.y + outer.h;
 
+  /**
+   * 人工改动父子关系之后，受影响容器的布局量、重复与滚动就过时了。
+   * 这些量全是纯几何——只用子块矩形，不需要像素——所以前端直接算，改完立刻可见。
+   * 已被人工切换过滚动的节点记在 scrollOverrides 里，重算时保留它们的取值。
+   */
+  const scrollOverrides = new Set<string>();
+  const relayout = (next: ElementNode[]) => recomputeLayout(next, scrollOverrides);
+
   async function commit(projectId: string, region: Rect, next: ElementNode[]): Promise<void> {
     const current = tree.value;
     if (!current) return;
@@ -54,6 +65,7 @@ export function createElementStore(api: StoreApi) {
       try {
         tree.value = (await api.getElements(projectId, region.y, region.h)).tree;
         selectedId.value = null;
+        scrollOverrides.clear();
       } catch (err) { error.value = (err as Error).message; }
       finally { busyLabel.value = ""; }
     },
@@ -64,6 +76,7 @@ export function createElementStore(api: StoreApi) {
       try {
         tree.value = (await api.detectElements(projectId, region)).tree;
         selectedId.value = null;
+        scrollOverrides.clear();
       } catch (err) { error.value = (err as Error).message; }
       finally { busyLabel.value = ""; }
     },
@@ -83,6 +96,7 @@ export function createElementStore(api: StoreApi) {
     async setScroll(
       projectId: string, region: Rect, id: string, axis: "x" | "y", value: boolean,
     ) {
+      scrollOverrides.add(id);
       await commit(projectId, region, nodes.value.map(node => node.id === id
         ? { ...node, ...(axis === "x" ? { scrollX: value } : { scrollY: value }) }
         : node));
@@ -96,7 +110,8 @@ export function createElementStore(api: StoreApi) {
         .filter(node => node.id !== id)
         .map(node => node.parentId === id ? { ...node, parentId: target.parentId } : node);
       if (selectedId.value === id) selectedId.value = null;
-      await commit(projectId, region, next);
+      scrollOverrides.delete(id);
+      await commit(projectId, region, relayout(next));
     },
 
     /**
@@ -120,7 +135,7 @@ export function createElementStore(api: StoreApi) {
         node.parentId === (parent?.id ?? null) && contains(box, node.box)
           ? { ...node, parentId: id }
           : node);
-      await commit(projectId, region, [...next, added]);
+      await commit(projectId, region, relayout([...next, added]));
       selectedId.value = id;
     },
   };

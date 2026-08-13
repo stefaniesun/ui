@@ -157,3 +157,47 @@ describe("createElementStore", () => {
     expect(store.error.value).toContain("422");
   });
 });
+
+describe("layout is recomputed after structural edits", () => {
+  const boxed = (id: string, parentId: string | null, x: number, w: number) =>
+    node({ id, parentId, box: { x, y: 0, w, h: 90 } });
+
+  // 分类胶囊行：5 个胶囊本来是顶层兄弟，人工圈进一个容器后滚动才有地方安放
+  it("gives a manually added container its layout and scroll", async () => {
+    const store = createElementStore(loaded([
+      boxed("n1", null, 36, 216), boxed("n2", null, 276, 216), boxed("n3", null, 516, 252),
+      boxed("n4", null, 792, 180), boxed("n5", null, 996, 138),
+    ]));
+    await store.load("p1", REGION);
+    await store.addContainer("p1", REGION, { x: 0, y: 0, w: 1170, h: 90 });
+    const added = store.tree.value!.nodes.find(item => item.source === "manual")!;
+    expect(added.layout?.direction).toBe("row");
+    expect(added.scrollX).toBe(true);
+  });
+
+  it("clears stale layout when a container drops below two children", async () => {
+    const store = createElementStore(loaded([
+      node({
+        id: "n1", box: { x: 0, y: 0, w: 300, h: 90 },
+        layout: { direction: "row", gap: 60, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+      }),
+      boxed("n2", "n1", 30, 40),
+      boxed("n3", "n1", 130, 40),
+    ]));
+    await store.load("p1", REGION);
+    await store.removeNode("p1", REGION, "n3");
+    expect(store.tree.value!.nodes.find(item => item.id === "n1")!.layout).toBeUndefined();
+  });
+
+  // 人工切过滚动之后，后续的结构编辑不能把它抹掉
+  it("keeps a human scroll override across later edits", async () => {
+    const store = createElementStore(loaded([
+      node({ id: "n1", box: { x: 0, y: 0, w: 660, h: 90 } }),
+      boxed("n2", "n1", 0, 200), boxed("n3", "n1", 220, 200), boxed("n4", "n1", 440, 200),
+    ]));
+    await store.load("p1", REGION);
+    await store.setScroll("p1", REGION, "n1", "x", true);
+    await store.removeNode("p1", REGION, "n4");
+    expect(store.tree.value!.nodes.find(item => item.id === "n1")!.scrollX).toBe(true);
+  });
+});

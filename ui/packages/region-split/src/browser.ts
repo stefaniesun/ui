@@ -5,6 +5,7 @@ export * from "./types.js";
 export * from "./operations.js";
 export * from "./reconcile.js";
 export * from "./element-types.js";
+export * from "./element-layout.js";
 
 // 类型导出在编译期被擦除，不会把 model-config.ts 的 node:fs 依赖带进包里。
 export type { ModelConfig, ModelConfigView } from "./model-config.js";
