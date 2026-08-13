@@ -36,6 +36,7 @@ export function createStore(api: StoreApi) {
   const error = ref("");
   const saveConflict = ref<RegionSplitDoc | null>(null);
   let persistInFlight: Promise<void> | null = null;
+  let localEditVersion = 0;
   const pendingRenameIds = ref<string[]>([]);
   const renamingId = ref<string | null>(null);
   const modelConfig = ref<ModelConfigView | null>(null);
@@ -109,6 +110,7 @@ export function createStore(api: StoreApi) {
   }
 
   function pushUndo() {
+    localEditVersion += 1;
     undoStack.push(snapshot());
     if (undoStack.length > UNDO_STACK_LIMIT) undoStack.shift();
     redoStack.length = 0;
@@ -170,8 +172,9 @@ export function createStore(api: StoreApi) {
   // 失败要静默保留占位名），由各自的调用方处理。
   async function applyAiRename(id: string): Promise<void> {
     const revision = doc.value?.revision ?? 0;
+    const editVersion = localEditVersion;
     const result = await api.renameAi(projectId.value, id, revision);
-    if ((doc.value?.revision ?? 0) !== revision) return;
+    if ((doc.value?.revision ?? 0) !== revision || localEditVersion !== editVersion) return;
     doc.value = result.doc;
     regions.value = result.doc.regions;
     elements.value = result.doc.elements;
