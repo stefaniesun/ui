@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
-import type { Store } from "../state.js";
+import type { RegionExpandDirection, Store } from "../state.js";
 
 const props = defineProps<{ store: Store; hoveredId?: string | null }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
@@ -82,6 +82,10 @@ function onRowClick(id: string, event: MouseEvent) {
   if (props.store.mode.value === "split") return;
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
+
+function expand(id: string, direction: RegionExpandDirection) {
+  props.store.expandRegion(id, direction);
+}
 </script>
 
 <template>
@@ -131,7 +135,24 @@ function onRowClick(id: string, event: MouseEvent) {
         class="scroll"
         :title="[region.scrollX ? '可横向滑动' : '', region.scrollY ? '可纵向滑动' : ''].filter(Boolean).join(' · ')"
       >{{ region.scrollX ? "↔" : "" }}{{ region.scrollY ? "↕" : "" }}</span>
-      <span class="confidence">{{ Math.round(region.confidence * 100) }}%</span>
+      <span class="boundary-controls" @dblclick.stop>
+        <button
+          type="button"
+          data-test="expand-up"
+          aria-label="向上扩展区域"
+          title="向上扩展区域"
+          :disabled="!props.store.canExpandRegion(region.id, 'up')"
+          @click.stop="expand(region.id, 'up')"
+        >▲</button>
+        <button
+          type="button"
+          data-test="expand-down"
+          aria-label="向下扩展区域"
+          title="向下扩展区域"
+          :disabled="!props.store.canExpandRegion(region.id, 'down')"
+          @click.stop="expand(region.id, 'down')"
+        >▼</button>
+      </span>
     </li>
   </ul>
 </template>
@@ -150,7 +171,14 @@ function onRowClick(id: string, event: MouseEvent) {
 .index { width: 18px; color: #999; font-size: 12px; }
 .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .type { font-size: 11px; color: #888; }
-.confidence { font-size: 11px; color: #666; width: 34px; text-align: right; }
+.boundary-controls { display: inline-flex; gap: 2px; margin-left: 2px; }
+.boundary-controls button {
+  width: 22px; height: 22px; padding: 0; border: 1px solid #c9d3e6;
+  border-radius: 4px; background: #fff; color: #2f6fed; cursor: pointer;
+  font-size: 10px; line-height: 1;
+}
+.boundary-controls button:hover:not(:disabled) { background: #edf3ff; }
+.boundary-controls button:disabled { color: #b8bec9; background: #f5f6f8; cursor: not-allowed; }
 .scroll { font-size: 12px; color: #2f6fed; cursor: help; }
 input { flex: 1; min-width: 0; }
 </style>

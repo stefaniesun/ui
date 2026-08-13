@@ -9,17 +9,29 @@ const initial = () => [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
 async function mounted() {
   const store = createStore(makeFakeApi(initial));
   await store.load("p1");
+  store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
   return { store, wrapper: mount(RegionList, { props: { store } }) };
 }
 
 describe("RegionList", () => {
-  it("lists every region with type and confidence", async () => {
+  it("lists every region with type and boundary controls instead of confidence", async () => {
     const { wrapper } = await mounted();
     const rows = wrapper.findAll("[data-test=row]");
     expect(rows).toHaveLength(2);
     expect(rows[0]!.text()).toContain("名-a");
     expect(rows[0]!.text()).toContain("card");
-    expect(rows[0]!.text()).toContain("87%");
+    expect(rows[0]!.text()).not.toContain("87%");
+    expect(rows[0]!.get("[data-test=expand-up]").attributes("aria-label")).toBe("向上扩展区域");
+    expect(rows[0]!.get("[data-test=expand-down]").attributes("aria-label")).toBe("向下扩展区域");
+  });
+
+  it("disables controls at fixed outer boundaries", async () => {
+    const { wrapper } = await mounted();
+    const rows = wrapper.findAll("[data-test=row]");
+    expect(rows[0]!.get("[data-test=expand-up]").attributes("disabled")).toBeDefined();
+    expect(rows[0]!.get("[data-test=expand-down]").attributes("disabled")).toBeUndefined();
+    expect(rows[1]!.get("[data-test=expand-up]").attributes("disabled")).toBeUndefined();
+    expect(rows[1]!.get("[data-test=expand-down]").attributes("disabled")).toBeDefined();
   });
 
   it("badges regions that scroll, and leaves static ones unmarked", async () => {
@@ -39,6 +51,8 @@ describe("RegionList", () => {
 
   it("warns that an un-analysed document is only the initial split", async () => {
     const { store, wrapper } = await mounted();
+    store.doc.value = { ...store.doc.value!, analyzedAt: undefined };
+    await wrapper.vm.$nextTick();
     const notice = wrapper.find("[data-test=needs-analysis]");
     expect(notice.exists()).toBe(true);
     expect(notice.text()).toContain("初始划分");
@@ -59,6 +73,48 @@ describe("RegionList", () => {
     expect(store.selectedIds.value).toEqual(["b"]);
     await wrapper.findAll("[data-test=row]")[0]!.trigger("click", { ctrlKey: true });
     expect(store.selectedIds.value).toEqual(["b", "a"]);
+  });
+
+  it("selects the row and expands it from a boundary button", async () => {
+    const { store, wrapper } = await mounted();
+    const secondRow = wrapper.findAll("[data-test=row]")[1]!;
+
+    await secondRow.get("[data-test=expand-up]").trigger("click");
+
+    expect(store.selectedIds.value).toEqual(["b"]);
+    expect(store.regions.value[0]!.bounds.h).toBe(299);
+    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 299, h: 301 });
+  });
+
+  it("does not bubble boundary controls into additive row selection", async () => {
+    const { store, wrapper } = await mounted();
+    store.select("a", false);
+
+    await wrapper.findAll("[data-test=row]")[1]!
+      .get("[data-test=expand-up]").trigger("click", { ctrlKey: true });
+
+    expect(store.selectedIds.value).toEqual(["b"]);
+  });
+
+  it("disables both controls while busy, unanalysed, or splitting", async () => {
+    const { store, wrapper } = await mounted();
+    const controlsDisabled = () => wrapper.findAll(".boundary-controls button")
+      .every(button => button.attributes("disabled") !== undefined);
+
+    store.busyLabel.value = "AI 分析中…";
+    await wrapper.vm.$nextTick();
+    expect(controlsDisabled()).toBe(true);
+
+    store.busyLabel.value = "";
+    store.doc.value = { ...store.doc.value!, analyzedAt: undefined };
+    await wrapper.vm.$nextTick();
+    expect(controlsDisabled()).toBe(true);
+
+    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+    store.select("a", false);
+    store.beginSplit();
+    await wrapper.vm.$nextTick();
+    expect(controlsDisabled()).toBe(true);
   });
 
   it("renames inline on double click", async () => {
