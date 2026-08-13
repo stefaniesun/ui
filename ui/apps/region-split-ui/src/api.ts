@@ -1,32 +1,18 @@
-import type { ElementNode, ModelConfigView, Region, RegionElementAnalysis, RegionSplitDoc } from "@region-split/core/browser";
-
-export interface EditablePayload {
-  expectedRevision: number; regions: Region[]; elements: ElementNode[];
-  elementAnalysis: Record<string, RegionElementAnalysis>;
-}
-
-export class ApiError extends Error {
-  constructor(message: string, public readonly status: number, public readonly latestDoc?: RegionSplitDoc) { super(message); }
-}
+import type { ModelConfigView, Region, RegionSplitDoc } from "@region-split/core/browser";
 
 export interface StoreApi {
   upload(file: File): Promise<{ projectId: string; doc: RegionSplitDoc }>;
   getProject(projectId: string): Promise<{ projectId: string; doc: RegionSplitDoc }>;
   putRegions(projectId: string, regions: Region[]): Promise<{ doc: RegionSplitDoc }>;
-  putDocument(projectId: string, payload: EditablePayload): Promise<{ doc: RegionSplitDoc }>;
-  retryElementAnalysis(projectId: string, regionId: string, expectedRevision: number, inputFingerprint: string): Promise<{ doc: RegionSplitDoc }>;
-  analyze(projectId: string, expectedRevision?: number): Promise<{ doc: RegionSplitDoc }>;
-  renameAi(projectId: string, regionId: string, expectedRevision?: number): Promise<{ doc: RegionSplitDoc }>;
+  analyze(projectId: string): Promise<{ doc: RegionSplitDoc }>;
+  renameAi(projectId: string, regionId: string): Promise<{ doc: RegionSplitDoc }>;
   getModelConfig(): Promise<ModelConfigView>;
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const body = await res.json().catch(() => null);
-  if (!res.ok) {
-    const failure = body as { error?: string; doc?: RegionSplitDoc } | null;
-    throw new ApiError(failure?.error ?? `request failed: ${res.status}`, res.status, failure?.doc);
-  }
+  if (!res.ok) throw new Error((body as { error?: string } | null)?.error ?? `request failed: ${res.status}`);
   return body as T;
 }
 
@@ -46,19 +32,11 @@ export const httpApi: StoreApi = {
       body: JSON.stringify({ regions }),
     });
   },
-  putDocument(projectId, payload) {
-    return json(`/api/projects/${projectId}/document`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  analyze(projectId) {
+    return json(`/api/projects/${projectId}/analyze`, { method: "POST" });
   },
-  retryElementAnalysis(projectId, regionId, expectedRevision, inputFingerprint) {
-    return json(`/api/projects/${projectId}/regions/${regionId}/analyze-elements`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedRevision, inputFingerprint }),
-    });
-  },
-  analyze(projectId, expectedRevision = 0) {
-    return json(`/api/projects/${projectId}/analyze`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedRevision }) });
-  },
-  renameAi(projectId, regionId, expectedRevision = 0) {
-    return json(`/api/projects/${projectId}/regions/${regionId}/rename-ai`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedRevision }) });
+  renameAi(projectId, regionId) {
+    return json(`/api/projects/${projectId}/regions/${regionId}/rename-ai`, { method: "POST" });
   },
   getModelConfig() {
     return json("/api/model-config");

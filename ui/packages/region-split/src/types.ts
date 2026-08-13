@@ -28,28 +28,6 @@ export const regionSchema = z.object({
 });
 export type Region = z.infer<typeof regionSchema>;
 
-export const elementTypes = [
-  "container", "text", "image", "icon", "button", "input", "textarea", "select",
-  "checkbox", "radio", "link", "list", "list-item", "divider", "other",
-] as const;
-export type ElementType = (typeof elementTypes)[number];
-export type ElementSource = "ai" | "manual";
-export type ElementAnalysisStatus = "pending" | "analyzing" | "ready" | "stale" | "failed";
-
-export const elementNodeSchema = z.object({
-  id: z.string().min(1), regionId: z.string().min(1), parentId: z.string().min(1).nullable(),
-  displayName: z.string().min(1), type: z.enum(elementTypes), bounds: rectSchema,
-  confidence: z.number().min(0).max(1), conflict: z.boolean().default(false),
-  source: z.enum(["ai", "manual"]),
-});
-export type ElementNode = z.infer<typeof elementNodeSchema>;
-
-export const regionElementAnalysisSchema = z.object({
-  status: z.enum(["pending", "analyzing", "ready", "stale", "failed"]),
-  error: z.string().optional(), analyzedAt: z.string().optional(), inputFingerprint: z.string().optional(),
-});
-export type RegionElementAnalysis = z.infer<typeof regionElementAnalysisSchema>;
-
 export const candidateLineSchema = z.object({
   y: z.number(),          // 原图坐标
   strength: z.number().min(0).max(1),
@@ -62,8 +40,7 @@ export const panelSchema = z.object({
 });
 
 export const regionSplitDocSchema = z.object({
-  schemaVersion: z.enum(["1", "2"]),
-  revision: z.number().int().nonnegative().default(0),
+  schemaVersion: z.string(),
   image: z.object({
     fileName: z.string(),
     width: z.number().positive(),
@@ -77,8 +54,6 @@ export const regionSplitDocSchema = z.object({
     })).default([]),
   }),
   regions: z.array(regionSchema),
-  elements: z.array(elementNodeSchema).default([]),
-  elementAnalysis: z.record(regionElementAnalysisSchema).default({}),
   candidateLines: z.array(candidateLineSchema).default([]),
   // 检测到的卡片/面板（原图坐标）。模块边界不该横穿面板——这是候选线
   // 一维分析看不出来的信息，也一并送给模型作为约束。
@@ -90,17 +65,6 @@ export const regionSplitDocSchema = z.object({
   updatedAt: z.string(),
 });
 export type RegionSplitDoc = z.infer<typeof regionSplitDocSchema>;
-
-export function normalizeRegionSplitDoc(doc: RegionSplitDoc): RegionSplitDoc {
-  return {
-    ...doc,
-    schemaVersion: "2",
-    elementAnalysis: Object.fromEntries(Object.entries(doc.elementAnalysis).map(([id, state]) => [
-      id,
-      state.status === "analyzing" ? { status: "failed", error: "analysis interrupted" } : state,
-    ])),
-  };
-}
 
 export interface RawSegment {
   displayName: string;
@@ -160,51 +124,6 @@ export function checkInvariants(
       out.push({ code: "duplicate-id", message: `duplicate region id ${region.id}` });
     }
     seen.add(region.id);
-  }
-  return out;
-}
-
-function contains(outer: Rect, inner: Rect): boolean {
-  return inner.x >= outer.x && inner.y >= outer.y
-    && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h;
-}
-
-export function checkDocumentInvariants(doc: RegionSplitDoc): InvariantViolation[] {
-  const out = checkInvariants(doc.regions, doc.image);
-  const regions = new Map(doc.regions.map(region => [region.id, region]));
-  const elements = new Map<string, ElementNode>();
-  for (const regionId of Object.keys(doc.elementAnalysis)) {
-    if (!regions.has(regionId)) out.push({ code: "orphan-element-analysis", message: `element analysis references unknown region ${regionId}` });
-  }
-  for (const element of doc.elements) {
-    if (elements.has(element.id)) out.push({ code: "duplicate-element-id", message: `duplicate element id ${element.id}` });
-    elements.set(element.id, element);
-    if (!regions.has(element.regionId)) out.push({ code: "invalid-element-region", message: `unknown region ${element.regionId}` });
-    if (![element.bounds.x, element.bounds.y, element.bounds.w, element.bounds.h].every(Number.isInteger)) out.push({ code: "fractional-element-bounds", message: `element ${element.id} bounds must be integers` });
-    if (element.bounds.w < 4 || element.bounds.h < 4) out.push({ code: "element-too-small", message: `element ${element.id} is too small` });
-    if (!contains({ x: 0, y: 0, w: doc.image.width, h: doc.image.height }, element.bounds)) {
-      out.push({ code: "element-outside-image", message: `element ${element.id} is outside the image` });
-    }
-  }
-  for (const element of doc.elements) {
-    if (element.parentId) {
-      const parent = elements.get(element.parentId);
-      if (!parent) out.push({ code: "invalid-element-parent", message: `unknown parent ${element.parentId}` });
-      else {
-        if (!contains(parent.bounds, element.bounds)) out.push({ code: "child-outside-parent", message: `${element.id} is outside parent` });
-        if (parent.regionId !== element.regionId) out.push({ code: "child-region-mismatch", message: `${element.id} must share its parent's region` });
-      }
-    } else if (!element.conflict) {
-      const region = regions.get(element.regionId);
-      if (region && !contains(region.bounds, element.bounds)) out.push({ code: "element-outside-region", message: `${element.id} is outside region` });
-    }
-    const seen = new Set<string>([element.id]);
-    let parentId = element.parentId;
-    while (parentId) {
-      if (seen.has(parentId)) { out.push({ code: "element-parent-cycle", message: `element parent cycle at ${element.id}` }); break; }
-      seen.add(parentId);
-      parentId = elements.get(parentId)?.parentId ?? null;
-    }
   }
   return out;
 }

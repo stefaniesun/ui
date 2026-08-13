@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { elementTypes, regionTypes, type ElementType, type RawSegment, type RegionType } from "./types.js";
+import { regionTypes, type RawSegment, type RegionType } from "./types.js";
 
 export interface RegionNaming {
   displayName: string; id: string; type: RegionType; scrollX: boolean; scrollY: boolean;
@@ -14,17 +14,9 @@ export interface SegmentInput {
   panels: { top: number; bottom: number }[];
 }
 
-export interface ElementAnalysisInput {
-  cropBase64: string; width: number; height: number; regionName: string; regionType: RegionType;
-}
-export interface RawElement {
-  id: string; parentId: string | null; displayName: string; type: ElementType;
-  x: number; y: number; width: number; height: number; confidence: number;
-}
 export interface SegmentModel {
   segment(input: SegmentInput): Promise<RawSegment[]>;
   nameRegion(input: { cropBase64: string }): Promise<RegionNaming>;
-  analyzeElements(input: ElementAnalysisInput): Promise<RawElement[]>;
 }
 
 const segmentsSchema = z.object({
@@ -38,14 +30,6 @@ const segmentsSchema = z.object({
     scrollX: z.boolean().default(false),
     scrollY: z.boolean().default(false),
   })).min(1),
-});
-
-const elementsSchema = z.object({
-  elements: z.array(z.object({
-    id: z.string().min(1), parentId: z.string().min(1).nullable(), displayName: z.string().min(1),
-    type: z.enum(elementTypes), x: z.number(), y: z.number(), width: z.number(), height: z.number(),
-    confidence: z.number().min(0).max(1),
-  })),
 });
 
 const namingSchema = z.object({
@@ -79,13 +63,6 @@ const SEGMENT_PROMPT = [
   "把它并进相邻的任一模块即可。每个模块都必须包含实际的界面元素（文字、图标、图片、控件），",
   "只有背景色的模块是无意义的。",
   SCROLL_RULES,
-].join("\n");
-
-const ELEMENT_PROMPT = [
-  "分析这个区域裁图中的具体 UI 元素。只输出 {\"elements\":[...]} JSON。",
-  "每项必须包含 id、parentId、displayName、type、x、y、width、height、confidence。",
-  "坐标使用裁图内整数像素；父元素必须完整包含子元素；不要识别纯装饰背景。",
-  `type 只能取：${elementTypes.join("、")}。`,
 ].join("\n");
 
 const NAMING_PROMPT = [
@@ -184,11 +161,6 @@ export function createOpenAiModel(cfg: {
       ].join("\n");
       const parsed = await askParsed(SEGMENT_PROMPT, userText, input.imageBase64, segmentsSchema);
       return parsed.regions as RawSegment[];
-    },
-    async analyzeElements(input) {
-      const text = `裁图尺寸：宽 ${input.width}，高 ${input.height}。区域：${input.regionName}，类型：${input.regionType}。`;
-      const parsed = await askParsed(ELEMENT_PROMPT, text, input.cropBase64, elementsSchema);
-      return parsed.elements as RawElement[];
     },
     async nameRegion(input) {
       // 断言到 RegionNaming：zod 的 .default() 让推断出的类型把这两个字段标成可选，

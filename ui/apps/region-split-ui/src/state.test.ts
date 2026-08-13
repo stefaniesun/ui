@@ -8,7 +8,7 @@ async function loadedStore() {
   const api = makeFakeApi(initial);
   const store = createStore(api);
   await store.load("p1");
-  return { store, putDocument: api.putDocument as Mock };
+  return { store, putRegions: api.putRegions as Mock };
 }
 
 describe("createStore", () => {
@@ -37,130 +37,6 @@ describe("createStore", () => {
     expect(store.regions.value[0]!.bounds.h).toBe(200);
   });
 
-  it("expands a region upward and selects it", async () => {
-    const { store } = await loadedStore();
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-
-    store.expandRegion("b", "up");
-
-    expect(store.selectedIds.value).toEqual(["b"]);
-    expect(store.regions.value.map(region => region.bounds)).toEqual([
-      { x: 0, y: 0, w: 375, h: 199 },
-      { x: 0, y: 199, w: 375, h: 201 },
-      { x: 0, y: 400, w: 375, h: 200 },
-    ]);
-  });
-
-  it("expands a region downward and selects it", async () => {
-    const { store } = await loadedStore();
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-
-    store.expandRegion("b", "down");
-
-    expect(store.selectedIds.value).toEqual(["b"]);
-    expect(store.regions.value.map(region => region.bounds)).toEqual([
-      { x: 0, y: 0, w: 375, h: 200 },
-      { x: 0, y: 200, w: 375, h: 201 },
-      { x: 0, y: 401, w: 375, h: 199 },
-    ]);
-  });
-
-  it("reports directional expansion availability and blocks impossible changes", async () => {
-    const { store, putDocument } = await loadedStore();
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-
-    expect(store.canExpandRegion("a", "up")).toBe(false);
-    expect(store.canExpandRegion("a", "down")).toBe(true);
-    expect(store.canExpandRegion("c", "up")).toBe(true);
-    expect(store.canExpandRegion("c", "down")).toBe(false);
-
-    store.expandRegion("a", "up");
-    expect(store.canUndo.value).toBe(false);
-    await vi.advanceTimersByTimeAsync(500);
-    expect(putDocument).not.toHaveBeenCalled();
-  });
-
-  it("blocks expansion when the neighboring region is at minimum height", async () => {
-    const { store, putDocument } = await loadedStore();
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-    store.regions.value = [
-      makeRegion("a", 0, 8),
-      makeRegion("b", 8, 584),
-      makeRegion("c", 592, 8),
-    ];
-
-    expect(store.canExpandRegion("b", "up")).toBe(false);
-    expect(store.canExpandRegion("b", "down")).toBe(false);
-    store.expandRegion("b", "up");
-    store.expandRegion("b", "down");
-
-    expect(store.canUndo.value).toBe(false);
-    await vi.advanceTimersByTimeAsync(500);
-    expect(putDocument).not.toHaveBeenCalled();
-  });
-
-  it("coalesces repeated expansion of one boundary and debounces persistence", async () => {
-    const { store, putDocument } = await loadedStore();
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-
-    store.expandRegion("b", "up");
-    store.expandRegion("b", "up");
-    store.expandRegion("b", "up");
-    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 197, h: 203 });
-    expect(putDocument).not.toHaveBeenCalled();
-
-    store.undo();
-    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 200, h: 200 });
-    expect(store.canUndo.value).toBe(false);
-    expect(putDocument).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not coalesce adjustments of different boundaries", async () => {
-    const { store } = await loadedStore();
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-
-    store.expandRegion("b", "up");
-    store.expandRegion("b", "down");
-    store.undo();
-
-    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 199, h: 201 });
-    expect(store.canUndo.value).toBe(true);
-  });
-
-  it("does not create undo or persistence work for a clamped nudge", async () => {
-    const { store, putDocument } = await loadedStore();
-    store.regions.value = [makeRegion("a", 0, 8), makeRegion("b", 8, 592)];
-    store.select("a", false);
-
-    store.nudge(-1);
-
-    expect(store.canUndo.value).toBe(false);
-    await vi.advanceTimersByTimeAsync(500);
-    expect(putDocument).not.toHaveBeenCalled();
-  });
-
-  it("blocks directional expansion before analysis, while busy, and while splitting", async () => {
-    const { store } = await loadedStore();
-    const before = store.regions.value;
-
-    expect(store.canExpandRegion("b", "up")).toBe(false);
-    store.expandRegion("b", "up");
-    expect(store.regions.value).toBe(before);
-
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-    store.busyLabel.value = "AI 分析中…";
-    expect(store.canExpandRegion("b", "up")).toBe(false);
-    store.expandRegion("b", "up");
-    expect(store.regions.value).toBe(before);
-
-    store.busyLabel.value = "";
-    store.select("b", false);
-    store.beginSplit();
-    expect(store.canExpandRegion("b", "up")).toBe(false);
-    store.expandRegion("b", "up");
-    expect(store.regions.value).toBe(before);
-  });
-
   it("starts a new undo snapshot after the coalesce window", async () => {
     const { store } = await loadedStore();
     store.select("a", false);
@@ -173,18 +49,18 @@ describe("createStore", () => {
   });
 
   it("debounces persistence for nudges and persists structure changes immediately", async () => {
-    const { store, putDocument } = await loadedStore();
+    const { store, putRegions } = await loadedStore();
     store.select("a", false);
     store.nudge(1);
-    expect(putDocument).not.toHaveBeenCalled();
+    expect(putRegions).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(500);
-    expect(putDocument).toHaveBeenCalledTimes(1);
+    expect(putRegions).toHaveBeenCalledTimes(1);
 
-    putDocument.mockClear();
+    putRegions.mockClear();
     store.select("b", false);
     store.beginSplit();
     store.commitSplit(300);
-    expect(putDocument).toHaveBeenCalledTimes(1);
+    expect(putRegions).toHaveBeenCalledTimes(1);
   });
 
   it("loads the model configuration and exposes whether it is usable", async () => {
@@ -291,12 +167,12 @@ describe("createStore", () => {
 
   // ⑧ 名字没变就不该产生撤销步或落盘请求
   it("skips rename when the new name matches the current one", async () => {
-    const { store, putDocument } = await loadedStore();
+    const { store, putRegions } = await loadedStore();
     store.select("b", false);
     store.rename("b", "名-b");
     expect(store.canUndo.value).toBe(false);
     await vi.advanceTimersByTimeAsync(500);
-    expect(putDocument).not.toHaveBeenCalled();
+    expect(putRegions).not.toHaveBeenCalled();
   });
 
   // "上传后的初始划分"和"AI 分析结果"在界面上长得一模一样（都是编号色块），
@@ -318,7 +194,7 @@ describe("createStore", () => {
   // 遮罩在真实浏览器里挡住指针，但它不该是唯一防线——键盘、程序化调用都绕得过。
   describe("busy guards", () => {
     it("ignores every mutating action while an operation is in flight", async () => {
-      const { store, putDocument } = await loadedStore();
+      const { store, putRegions } = await loadedStore();
       store.select("a", false);
       const before = store.regions.value;
 
@@ -333,7 +209,7 @@ describe("createStore", () => {
       expect(store.regions.value).toBe(before);   // 引用未变 = 一点没动
       expect(store.mode.value).toBe("idle");      // 没进入拆分模式
       await vi.advanceTimersByTimeAsync(500);
-      expect(putDocument).not.toHaveBeenCalled();  // 也没有落盘请求
+      expect(putRegions).not.toHaveBeenCalled();  // 也没有落盘请求
     });
 
     it("resumes normally once the operation finishes", async () => {
@@ -488,23 +364,23 @@ describe("createStore", () => {
     beforeEach(() => vi.useRealTimers());
 
     it("flushes a pending debounced nudge before sending an AI rename request", async () => {
-      const { store, putDocument } = await loadedStore();
+      const { store, putRegions } = await loadedStore();
       store.select("a", false);
       store.nudge(1);
-      expect(putDocument).not.toHaveBeenCalled();
+      expect(putRegions).not.toHaveBeenCalled();
       await store.aiRename("a");
-      expect(putDocument).toHaveBeenCalledTimes(1);
-      expect(putDocument.mock.calls[0]![1].regions[0].bounds.h).toBe(201);
+      expect(putRegions).toHaveBeenCalledTimes(1);
+      expect(putRegions.mock.calls[0]![1][0].bounds.h).toBe(201);
     });
 
     it("flushes a pending debounced nudge before re-analyzing", async () => {
-      const { store, putDocument } = await loadedStore();
+      const { store, putRegions } = await loadedStore();
       store.select("a", false);
       store.nudge(1);
-      expect(putDocument).not.toHaveBeenCalled();
+      expect(putRegions).not.toHaveBeenCalled();
       await store.analyze();
-      expect(putDocument).toHaveBeenCalledTimes(1);
-      expect(putDocument.mock.calls[0]![1].regions[0].bounds.h).toBe(201);
+      expect(putRegions).toHaveBeenCalledTimes(1);
+      expect(putRegions.mock.calls[0]![1][0].bounds.h).toBe(201);
     });
   });
 
@@ -519,7 +395,7 @@ describe("createStore", () => {
         await store.load("p1");
         return { store, api };
       })();
-      (api.putDocument as Mock).mockRejectedValue(new Error("save failed"));
+      (api.putRegions as Mock).mockRejectedValue(new Error("save failed"));
       (api.getProject as Mock).mockRejectedValue(new Error("network down"));
       store.select("a", false);
       store.nudge(1);

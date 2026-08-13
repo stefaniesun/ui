@@ -4,7 +4,6 @@ import { canSplitAt } from "@region-split/core/browser";
 import type { Store } from "../state.js";
 import { imageUrl } from "../api.js";
 import { snapToCandidates, toImageY } from "../coords.js";
-import ElementOverlay from "./ElementOverlay.vue";
 
 const props = defineProps<{
   store: Store;
@@ -71,14 +70,6 @@ function onRegionClick(id: string, event: MouseEvent) {
       >
         <span>{{ index + 1 }} · {{ region.displayName }}</span>
       </div>
-      <ElementOverlay
-        v-if="props.store.mode.value !== 'split'"
-        :store="props.store"
-        :image-width="image.width"
-        :image-height="image.height"
-        :display-width="image.width * displayScale"
-        :display-height="image.height * displayScale"
-      />
       <template v-if="props.store.mode.value === 'split' && splitY !== null">
         <div class="split-line" :class="{ snapped: splitSnapped, invalid: !splitValid }" :style="{ top: `${splitY * displayScale}px` }" />
         <span class="split-info" :style="{ top: `${splitY * displayScale}px` }">y {{ splitY }} · {{ splitHalvesValue?.top }} / {{ splitHalvesValue?.bottom }}</span>

@@ -20,7 +20,6 @@ const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
     { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
-  analyzeElements: async () => [],
   ...overrides,
 });
 
@@ -189,12 +188,12 @@ describe("analyzeProject", () => {
 });
 
 describe("renameRegionWithModel", () => {
-  it("replaces name and type while preserving the region id", async () => {
+  it("replaces name, id and type of one region", async () => {
     const store = freshStore();
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
     await analyzeProject({ store, model: model() }, projectId);
     const doc = await renameRegionWithModel({ store, model: model() }, projectId, "body");
-    expect(doc.regions[1]!).toMatchObject({ id: "body", displayName: "权益表", type: "grid" });
+    expect(doc.regions[1]!).toMatchObject({ id: "benefits", displayName: "权益表", type: "grid" });
   });
 
   it("hides the filesystem path when the source image cannot be read from disk", async () => {

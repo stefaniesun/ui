@@ -2,7 +2,6 @@ import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import { createStore } from "../state.js";
 import { makeDoc, makeFakeApi, makeRegion } from "../test-helpers.js";
-import type { ElementNode } from "@region-split/core/browser";
 import RegionCanvas from "./RegionCanvas.vue";
 
 async function mounted() {
@@ -31,17 +30,6 @@ describe("RegionCanvas", () => {
     await wrapper.findAll(".overlay")[0]!.trigger("click");
     await wrapper.findAll(".overlay")[1]!.trigger("click", { ctrlKey: true });
     expect(store.selectedIds.value).toEqual(["a", "b"]);
-  });
-
-  it("renders and selects element overlays inside the canvas", async () => {
-    const { store, wrapper } = await mounted();
-    store.elements.value = [{ id: "el-1", regionId: "a", parentId: null, displayName: "按钮", type: "button", bounds: { x: 20, y: 30, w: 100, h: 60 }, confidence: 1, conflict: false, source: "manual" } satisfies ElementNode];
-    store.doc.value = { ...store.doc.value!, elements: store.elements.value };
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.find('[data-element-id="el-1"]').exists()).toBe(true);
-    await wrapper.get('[data-element-id="el-1"]').trigger("pointerdown", { clientX: 20, clientY: 30 });
-    expect(store.selectedElementId.value).toBe("el-1");
   });
 
   it("hides candidate lines while keeping candidate snapping in split mode", async () => {

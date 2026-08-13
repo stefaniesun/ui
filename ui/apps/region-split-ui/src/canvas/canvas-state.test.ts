@@ -3,7 +3,6 @@ import {
   DEFAULT_NODE_POSITIONS,
   clampZoom,
   fitBounds,
-  fitNodeShellBounds,
   loadNodePositions,
   saveNodePositions,
   zoomAtPoint,
@@ -24,11 +23,6 @@ describe("canvas state", () => {
   it("fits bounds into the available viewport", () => {
     expect(fitBounds({ x: 100, y: 50, width: 1000, height: 500 }, { width: 800, height: 600 }, 50))
       .toEqual({ x: -20, y: 90, zoom: 0.7 });
-  });
-
-  it("fits the bounded node shell instead of an unbounded long-image body", () => {
-    expect(fitNodeShellBounds({ x: 120, y: 80 }, { width: 1105, height: 700 }, { width: 1105, height: 11500 }))
-      .toEqual({ x: 120, y: 80, width: 1105, height: 700 });
   });
 
   it("loads persisted positions and safely falls back on malformed storage", () => {

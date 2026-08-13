@@ -15,9 +15,9 @@ export function makeDoc(
   regions: Region[], candidateLines: CandidateLine[] = [], analyzed = false,
 ): RegionSplitDoc {
   return {
-    schemaVersion: "2", revision: 0,
+    schemaVersion: "1",
     image: { fileName: "s.png", width: 375, height: 600, analyzedScale: 1, removedChrome: [] },
-    regions, elements: [], elementAnalysis: {}, candidateLines, panels: [], updatedAt: "2026-08-11T00:00:00.000Z",
+    regions, candidateLines, panels: [], updatedAt: "2026-08-11T00:00:00.000Z",
     ...(analyzed ? { analyzedAt: "2026-08-11T00:00:00.000Z" } : {}),
   };
 }
@@ -29,8 +29,6 @@ export function makeFakeApi(
 ): StoreApi {
   return {
     putRegions: vi.fn(async (_id: string, regions: Region[]) => ({ doc: makeDoc(regions, candidateLines) })),
-    putDocument: vi.fn(async (_id, payload) => ({ doc: { ...makeDoc(payload.regions, candidateLines), revision: payload.expectedRevision + 1, elements: payload.elements, elementAnalysis: payload.elementAnalysis } })),
-    retryElementAnalysis: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),
     upload: vi.fn(async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) })),
     getProject: vi.fn(async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) })),
     analyze: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines, true) })),

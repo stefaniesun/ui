@@ -4,9 +4,7 @@ import { preprocessScreenshot } from "./preprocess.js";
 import { applyNaming } from "./operations.js";
 import { initialRegionsFromCandidateLines, reconcile } from "./reconcile.js";
 import type { SegmentModel } from "./model.js";
-import { analyzeOneRegionElements, analyzeRegionElements, elementInputFingerprint } from "./element-analysis.js";
-import { RevisionConflictError, type ProjectStore } from "./store.js";
-import type { ProjectWriteCoordinator } from "./write-coordinator.js";
+import type { ProjectStore } from "./store.js";
 import type { Panel } from "./panels.js";
 import type { CandidateLine, RegionSplitDoc } from "./types.js";
 
@@ -92,8 +90,7 @@ export async function createProject(
   }));
 
   const doc: RegionSplitDoc = {
-    schemaVersion: "2",
-    revision: 0,
+    schemaVersion: "1",
     image: {
       fileName: input.fileName, width: meta.width, height: meta.height, analyzedScale,
       removedChrome: preprocessed.removed.map(band => ({ edge: band.edge, height: band.height })),
@@ -102,8 +99,6 @@ export async function createProject(
       { width: meta.width, height: meta.height },
       candidateLines,
     ),
-    elements: [],
-    elementAnalysis: {},
     candidateLines,
     panels,
     updatedAt: new Date().toISOString(),
@@ -149,10 +144,8 @@ export async function analyzeProject(
     store: ProjectStore;
     model: SegmentModel;
     detectSurface?: DetectSurface;
-    coordinator?: ProjectWriteCoordinator;
   },
   projectId: string,
-  expectedRevision?: number,
 ): Promise<RegionSplitDoc> {
   const { store, model } = deps;
   await ensureCleanImage(store, projectId);
@@ -190,53 +183,18 @@ export async function analyzeProject(
     analyzedScale: doc.image.analyzedScale,
     candidateLines,
   });
-  const imageVersion = `${doc.image.width}x${doc.image.height}:${doc.image.removedChrome.length}`;
-  const analyzed = await analyzeRegionElements(regions, region => analyzeOneRegionElements(store, projectId, region, model));
-  const elements = regions.flatMap(region => {
-    const result = analyzed.get(region.id);
-    return result?.ok ? result.value : [];
-  });
-  const elementAnalysis = Object.fromEntries(regions.map(region => {
-    const result = analyzed.get(region.id);
-    return [region.id, result?.ok
-      ? { status: "ready" as const, analyzedAt: new Date().toISOString(), inputFingerprint: elementInputFingerprint(region, imageVersion) }
-      : { status: "failed" as const, error: result?.error ?? "element analysis failed", inputFingerprint: elementInputFingerprint(region, imageVersion) }];
-  }));
   const now = new Date().toISOString();
   const next: RegionSplitDoc = {
-    ...doc, regions, elements, elementAnalysis, candidateLines, panels, analyzedAt: now, updatedAt: now,
+    ...doc, regions, candidateLines, panels, analyzedAt: now, updatedAt: now,
   };
-  if (deps.coordinator && expectedRevision !== undefined) {
-    return deps.coordinator.run(projectId, () => store.commitDocument(projectId, expectedRevision, current => ({ ...next, revision: current.revision })));
-  }
   store.writeDoc(projectId, next);
   return next;
 }
 
-export async function retryRegionElementAnalysis(
-  deps: { store: ProjectStore; coordinator: ProjectWriteCoordinator; model: SegmentModel },
-  projectId: string, regionId: string, expectedRevision: number, expectedFingerprint: string,
-): Promise<RegionSplitDoc> {
-  const { store, coordinator, model } = deps;
-  const before = store.readDoc(projectId);
-  if (before.revision !== expectedRevision) throw new RevisionConflictError(before);
-  const region = before.regions.find(item => item.id === regionId);
-  if (!region) throw new Error("region not found");
-  const imageVersion = `${before.image.width}x${before.image.height}:${before.image.removedChrome.length}`;
-  if (elementInputFingerprint(region, imageVersion) !== expectedFingerprint) throw new RevisionConflictError(before);
-  const elements = await analyzeOneRegionElements(store, projectId, region, model);
-  return coordinator.run(projectId, () => store.commitDocument(projectId, expectedRevision, current => ({
-    ...current,
-    elements: [...current.elements.filter(item => item.regionId !== regionId), ...elements],
-    elementAnalysis: { ...current.elementAnalysis, [regionId]: { status: "ready", analyzedAt: new Date().toISOString(), inputFingerprint: expectedFingerprint } },
-  })));
-}
-
 export async function renameRegionWithModel(
-  deps: { store: ProjectStore; model: SegmentModel; coordinator?: ProjectWriteCoordinator },
+  deps: { store: ProjectStore; model: SegmentModel },
   projectId: string,
   regionId: string,
-  expectedRevision?: number,
 ): Promise<RegionSplitDoc> {
   const { store, model } = deps;
   await ensureCleanImage(store, projectId);
@@ -249,10 +207,5 @@ export async function renameRegionWithModel(
     width: region.bounds.w, height: region.bounds.h,
   });
   const naming = await model.nameRegion({ cropBase64 });
-  if (deps.coordinator && expectedRevision !== undefined) {
-    return deps.coordinator.run(projectId, () => store.commitDocument(projectId, expectedRevision, current => ({
-      ...current, regions: applyNaming(current.regions, regionId, naming),
-    })));
-  }
-  return store.commitDocument(projectId, doc.revision, current => ({ ...current, regions: applyNaming(current.regions, regionId, naming) }));
+  return store.writeRegions(projectId, applyNaming(doc.regions, regionId, naming));
 }

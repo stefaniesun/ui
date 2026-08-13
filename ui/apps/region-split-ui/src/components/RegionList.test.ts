@@ -1,54 +1,26 @@
 import { mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import RegionList from "./RegionList.vue";
 import { createStore } from "../state.js";
-import { makeDoc, makeFakeApi, makeRegion } from "../test-helpers.js";
+import { makeFakeApi, makeRegion } from "../test-helpers.js";
 
 const initial = () => [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
 
 async function mounted() {
-  const analyzed = makeDoc(initial());
-  analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
-  const api = makeFakeApi(initial);
-  api.putDocument = vi.fn(async (_projectId, payload) => ({
-    doc: { ...analyzed, revision: payload.expectedRevision + 1, regions: payload.regions, elements: payload.elements, elementAnalysis: payload.elementAnalysis },
-  }));
-  const store = createStore(api);
+  const store = createStore(makeFakeApi(initial));
   await store.load("p1");
-  store.doc.value = analyzed;
+  store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-12T00:00:00.000Z" };
   return { store, wrapper: mount(RegionList, { props: { store } }) };
 }
 
 describe("RegionList", () => {
-  afterEach(() => vi.useRealTimers());
-
-  it("lists every region with type and boundary controls instead of confidence", async () => {
+  it("lists every region with type and confidence", async () => {
     const { wrapper } = await mounted();
     const rows = wrapper.findAll("[data-test=row]");
     expect(rows).toHaveLength(2);
     expect(rows[0]!.text()).toContain("名-a");
     expect(rows[0]!.text()).toContain("card");
-    expect(rows[0]!.text()).not.toContain("87%");
-    expect(rows[0]!.get("[data-test=expand-up]").attributes("aria-label")).toBe("向上扩展区域");
-    expect(rows[0]!.get("[data-test=expand-down]").attributes("aria-label")).toBe("向下扩展区域");
-  });
-
-  it("disables controls at fixed outer boundaries", async () => {
-    const { wrapper } = await mounted();
-    const rows = wrapper.findAll("[data-test=row]");
-    expect(rows[0]!.get("[data-test=expand-up]").attributes("disabled")).toBeDefined();
-    expect(rows[0]!.get("[data-test=expand-down]").attributes("disabled")).toBeUndefined();
-    expect(rows[1]!.get("[data-test=expand-up]").attributes("disabled")).toBeUndefined();
-    expect(rows[1]!.get("[data-test=expand-down]").attributes("disabled")).toBeDefined();
-  });
-
-  it("disables expansion when the neighboring region reaches minimum height", async () => {
-    const { store, wrapper } = await mounted();
-    store.regions.value = [makeRegion("a", 0, 8), makeRegion("b", 8, 592)];
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.findAll("[data-test=row]")[1]!
-      .get("[data-test=expand-up]").attributes("disabled")).toBeDefined();
+    expect(rows[0]!.text()).toContain("87%");
   });
 
   it("badges regions that scroll, and leaves static ones unmarked", async () => {
@@ -90,143 +62,6 @@ describe("RegionList", () => {
     expect(store.selectedIds.value).toEqual(["b"]);
     await wrapper.findAll("[data-test=row]")[0]!.trigger("click", { ctrlKey: true });
     expect(store.selectedIds.value).toEqual(["b", "a"]);
-  });
-
-  it("selects the row and expands it from a boundary button", async () => {
-    const { store, wrapper } = await mounted();
-    const secondRow = wrapper.findAll("[data-test=row]")[1]!;
-
-    await secondRow.get("[data-test=expand-up]").trigger("click");
-
-    expect(store.selectedIds.value).toEqual(["b"]);
-    expect(store.regions.value[0]!.bounds.h).toBe(299);
-    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 299, h: 301 });
-  });
-
-  it("does not bubble boundary controls into additive row selection", async () => {
-    const { store, wrapper } = await mounted();
-    store.select("a", false);
-
-    await wrapper.findAll("[data-test=row]")[1]!
-      .get("[data-test=expand-up]").trigger("click", { ctrlKey: true });
-
-    expect(store.selectedIds.value).toEqual(["b"]);
-  });
-
-  it("disables both controls while busy, unanalysed, or splitting", async () => {
-    const { store, wrapper } = await mounted();
-    const controlsDisabled = () => wrapper.findAll(".boundary-controls button")
-      .every(button => button.attributes("disabled") !== undefined);
-
-    store.busyLabel.value = "AI 分析中…";
-    await wrapper.vm.$nextTick();
-    expect(controlsDisabled()).toBe(true);
-
-    store.busyLabel.value = "";
-    store.doc.value = { ...store.doc.value!, analyzedAt: undefined };
-    await wrapper.vm.$nextTick();
-    expect(controlsDisabled()).toBe(true);
-
-    store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
-    store.select("a", false);
-    store.beginSplit();
-    await wrapper.vm.$nextTick();
-    expect(controlsDisabled()).toBe(true);
-  });
-
-  it("repeats expansion after 400ms while held and suppresses the trailing click", async () => {
-    vi.useFakeTimers();
-    const { store, wrapper } = await mounted();
-    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
-
-    await button.trigger("pointerdown", { button: 0 });
-    expect(store.regions.value[1]!.bounds.h).toBe(301);
-
-    await vi.advanceTimersByTimeAsync(399);
-    expect(store.regions.value[1]!.bounds.h).toBe(301);
-
-    await vi.advanceTimersByTimeAsync(61);
-    expect(store.regions.value[1]!.bounds.h).toBe(302);
-
-    await button.trigger("pointerup");
-    button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
-    await wrapper.vm.$nextTick();
-    expect(store.regions.value[1]!.bounds.h).toBe(302);
-
-    await vi.advanceTimersByTimeAsync(120);
-    expect(store.regions.value[1]!.bounds.h).toBe(302);
-  });
-
-  it("debounces persistence during a held adjustment", async () => {
-    vi.useFakeTimers();
-    const analyzed = makeDoc(initial());
-    analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
-    const api = makeFakeApi(initial);
-    api.putDocument = vi.fn(async (_projectId, payload) => ({
-      doc: { ...analyzed, revision: payload.expectedRevision + 1, regions: payload.regions, elements: payload.elements, elementAnalysis: payload.elementAnalysis },
-    }));
-    const store = createStore(api);
-    await store.load("p1");
-    store.doc.value = analyzed;
-    const wrapper = mount(RegionList, { props: { store } });
-    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
-
-    await button.trigger("pointerdown", { button: 0 });
-    await vi.advanceTimersByTimeAsync(580);
-    expect(api.putDocument).not.toHaveBeenCalled();
-
-    await button.trigger("pointerup");
-    await vi.advanceTimersByTimeAsync(399);
-    expect(api.putDocument).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(api.putDocument).toHaveBeenCalledTimes(1);
-  });
-
-  it("stops a held adjustment on pointer cancel and component unmount", async () => {
-    vi.useFakeTimers();
-    const { store, wrapper } = await mounted();
-    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
-
-    await button.trigger("pointerdown", { button: 0 });
-    await vi.advanceTimersByTimeAsync(460);
-    await button.trigger("pointercancel");
-    const afterCancel = store.regions.value[1]!.bounds.h;
-    await vi.advanceTimersByTimeAsync(120);
-    expect(store.regions.value[1]!.bounds.h).toBe(afterCancel);
-    button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
-    await wrapper.vm.$nextTick();
-    expect(store.regions.value[1]!.bounds.h).toBe(afterCancel + 1);
-
-    await button.trigger("pointerdown", { button: 0 });
-    await wrapper.unmount();
-    const afterUnmount = store.regions.value[1]!.bounds.h;
-    await vi.advanceTimersByTimeAsync(600);
-    expect(store.regions.value[1]!.bounds.h).toBe(afterUnmount);
-  });
-
-  it("supports keyboard activation without pointerdown", async () => {
-    const { store, wrapper } = await mounted();
-    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
-
-    button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
-    await wrapper.vm.$nextTick();
-
-    expect(store.regions.value[1]!.bounds.h).toBe(301);
-  });
-
-  it("coalesces one held adjustment into one undo step", async () => {
-    vi.useFakeTimers();
-    const { store, wrapper } = await mounted();
-    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
-
-    await button.trigger("pointerdown", { button: 0 });
-    await vi.advanceTimersByTimeAsync(580);
-    await button.trigger("pointerup");
-    expect(store.regions.value[1]!.bounds.h).toBeGreaterThan(301);
-
-    store.undo();
-    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 300, h: 300 });
-    expect(store.canUndo.value).toBe(false);
   });
 
   it("locks selection and inline editing until AI analysis succeeds", async () => {

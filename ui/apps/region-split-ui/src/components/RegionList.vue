@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import {
-  computed, nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance,
-} from "vue";
-import type { RegionExpandDirection, Store } from "../state.js";
-import ElementTree from "./ElementTree.vue";
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
+import type { Store } from "../state.js";
 
 const props = defineProps<{ store: Store; hoveredId?: string | null }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
@@ -88,69 +85,6 @@ function onRowClick(id: string, event: MouseEvent) {
   if (locked.value) return;
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
-
-const REPEAT_DELAY_MS = 400;
-const REPEAT_INTERVAL_MS = 60;
-let repeatDelay: ReturnType<typeof setTimeout> | null = null;
-let repeatInterval: ReturnType<typeof setInterval> | null = null;
-let suppressClick = false;
-let pointerActivated = false;
-
-function clearRepeatTimers() {
-  if (repeatDelay) clearTimeout(repeatDelay);
-  if (repeatInterval) clearInterval(repeatInterval);
-  repeatDelay = null;
-  repeatInterval = null;
-}
-
-function startExpand(event: PointerEvent, id: string, direction: RegionExpandDirection) {
-  if (event.button !== 0 || !props.store.canExpandRegion(id, direction)) return;
-  clearRepeatTimers();
-  suppressClick = false;
-  pointerActivated = true;
-  props.store.beginBoundaryGesture();
-  props.store.expandRegion(id, direction);
-  repeatDelay = setTimeout(() => {
-    suppressClick = true;
-    repeatInterval = setInterval(() => {
-      if (!props.store.canExpandRegion(id, direction)) {
-        stopExpand();
-        return;
-      }
-      props.store.expandRegion(id, direction);
-    }, REPEAT_INTERVAL_MS);
-  }, REPEAT_DELAY_MS);
-}
-
-function stopExpand() {
-  clearRepeatTimers();
-  if (pointerActivated) props.store.endBoundaryGesture();
-}
-
-function cancelExpand() {
-  stopExpand();
-  pointerActivated = false;
-  suppressClick = false;
-}
-
-function onExpandClick(event: MouseEvent, id: string, direction: RegionExpandDirection) {
-  if (suppressClick) {
-    suppressClick = false;
-    pointerActivated = false;
-    event.preventDefault();
-    return;
-  }
-  if (pointerActivated) {
-    pointerActivated = false;
-    return;
-  }
-  props.store.expandRegion(id, direction);
-}
-
-onBeforeUnmount(() => {
-  clearRepeatTimers();
-  if (pointerActivated) props.store.endBoundaryGesture();
-});
 </script>
 
 <template>
@@ -201,35 +135,7 @@ onBeforeUnmount(() => {
         class="scroll"
         :title="[region.scrollX ? '可横向滑动' : '', region.scrollY ? '可纵向滑动' : ''].filter(Boolean).join(' · ')"
       >{{ region.scrollX ? "↔" : "" }}{{ region.scrollY ? "↕" : "" }}</span>
-      <span class="boundary-controls" @dblclick.stop>
-        <button
-          type="button"
-          data-test="expand-up"
-          aria-label="向上扩展区域"
-          title="向上扩展区域"
-          :disabled="!props.store.canExpandRegion(region.id, 'up')"
-          @pointerdown.stop="startExpand($event, region.id, 'up')"
-          @pointerup.stop="stopExpand"
-          @pointercancel.stop="cancelExpand"
-          @pointerleave="cancelExpand"
-          @click.stop="onExpandClick($event, region.id, 'up')"
-        >▲</button>
-        <button
-          type="button"
-          data-test="expand-down"
-          aria-label="向下扩展区域"
-          title="向下扩展区域"
-          :disabled="!props.store.canExpandRegion(region.id, 'down')"
-          @pointerdown.stop="startExpand($event, region.id, 'down')"
-          @pointerup.stop="stopExpand"
-          @pointercancel.stop="cancelExpand"
-          @pointerleave="cancelExpand"
-          @click.stop="onExpandClick($event, region.id, 'down')"
-        >▼</button>
-      </span>
-      <span v-if="props.store.doc.value?.elementAnalysis[region.id]?.status === 'analyzing'" class="analysis-status">元素分析中…</span>
-      <button v-else-if="['failed', 'stale'].includes(props.store.doc.value?.elementAnalysis[region.id]?.status ?? '')" type="button" class="retry-elements" aria-label="重新分析当前区域元素" @click.stop="props.store.retryElementAnalysis(region.id)">重试元素分析</button>
-      <ElementTree :store="props.store" :region-id="region.id" />
+      <span class="confidence">{{ Math.round(region.confidence * 100) }}%</span>
     </li>
   </ul>
 </template>
@@ -239,11 +145,6 @@ onBeforeUnmount(() => {
 .list { min-width: 0; height: 100%; margin: 0; padding: 7px; overflow: auto; list-style: none; background: var(--bg-node); }
 .row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
 .row.hovered { border-color: var(--border-strong); background: #303540; }.row.selected { border-color: var(--accent); background: var(--accent-soft); }.row.disabled { cursor: default; opacity: .6; }
-.index { width: 18px; color: var(--text-faint); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type { color: var(--text-faint); font-size: 9px; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
+.index { width: 18px; color: var(--text-faint); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type,.confidence { color: var(--text-faint); font-size: 9px; }.confidence { width: 28px; text-align: right; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
 input { flex: 1; min-width: 0; height: 25px; min-height: 25px; font-size: 10px; }
-.boundary-controls { display: inline-flex; gap: 2px; margin-left: 2px; }
-.boundary-controls button { width: 22px; height: 22px; padding: 0; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--accent); background: var(--bg-control); cursor: pointer; font-size: 10px; line-height: 1; }
-.boundary-controls button:hover:not(:disabled) { background: var(--accent-soft); }
-.boundary-controls button:disabled { color: var(--text-faint); cursor: not-allowed; opacity: .5; }
-.analysis-status,.retry-elements { margin-left: 24px; font-size: 9px; }
 </style>

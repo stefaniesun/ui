@@ -73,9 +73,9 @@ describe("renameRegion and applyNaming", () => {
     const out = renameRegion(base(), "b", "会员卡");
     expect(out[1]!).toMatchObject({ id: "b", displayName: "会员卡" });
   });
-  it("applies model naming without changing the persistent id", () => {
+  it("applies model naming and de-duplicates the id", () => {
     const out = applyNaming(base(), "b", { displayName: "权益表", id: "a", type: "grid" });
-    expect(out[1]!).toMatchObject({ id: "b", displayName: "权益表", type: "grid" });
+    expect(out[1]!).toMatchObject({ id: "a-2", displayName: "权益表", type: "grid" });
   });
   it("returns the same array reference when the rename target is missing", () => {
     const input = base();

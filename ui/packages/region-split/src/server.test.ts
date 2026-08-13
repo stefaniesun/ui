@@ -15,7 +15,6 @@ const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
     { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
-  analyzeElements: async () => [],
   ...overrides,
 });
 
@@ -75,7 +74,7 @@ describe("region split server", () => {
   it("analyzes and then reads back the regions", async () => {
     const { app } = makeApp();
     const { projectId } = (await upload(app)).json();
-    const analyzed = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
+    const analyzed = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
     expect(analyzed.statusCode).toBe(200);
     expect(analyzed.json().doc.regions.map((r: { id: string }) => r.id)).toEqual(["top", "body"]);
     const read = await app.inject({ method: "GET", url: `/api/projects/${projectId}` });
@@ -85,7 +84,7 @@ describe("region split server", () => {
   it("returns 502 when the model fails during analyze", async () => {
     const { app } = makeApp(model({ segment: async () => { throw new Error("llm down"); } }));
     const { projectId } = (await upload(app)).json();
-    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
+    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
     expect(res.statusCode).toBe(502);
     expect(res.json().error).toMatch(/llm down/);
   });
@@ -114,10 +113,10 @@ describe("region split server", () => {
   it("renames a region with the model", async () => {
     const { app } = makeApp();
     const { projectId } = (await upload(app)).json();
-    await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
-    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/body/rename-ai`, payload: { expectedRevision: 1 } });
+    await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
+    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/body/rename-ai` });
     expect(res.statusCode).toBe(200);
-    expect(res.json().doc.regions[1]).toMatchObject({ id: "body", displayName: "权益表", type: "grid" });
+    expect(res.json().doc.regions[1]).toMatchObject({ id: "benefits", displayName: "权益表", type: "grid" });
     const missing = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/ghost/rename-ai` });
     expect(missing.statusCode).toBe(404);
   });
@@ -171,7 +170,7 @@ describe("region split server", () => {
   it("refuses to analyze while the model is not configured", async () => {
     const { app } = makeApp(model(), false);
     const { projectId } = (await upload(app)).json();
-    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
+    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe("model not configured");
   });

@@ -75,14 +75,6 @@ describe("createOpenAiModel.segment", () => {
   });
 });
 
-describe("createOpenAiModel.analyzeElements", () => {
-  it("parses a flat element tree", async () => {
-    const json = JSON.stringify({ elements: [{ id: "hero", parentId: null, displayName: "首屏", type: "container", x: 0, y: 0, width: 100, height: 80, confidence: 0.9 }] });
-    const model = createOpenAiModel(cfg(fakeFetch(json)));
-    await expect(model.analyzeElements({ cropBase64: "AA", width: 100, height: 80, regionName: "首屏", regionType: "banner" })).resolves.toHaveLength(1);
-  });
-});
-
 describe("createOpenAiModel.nameRegion", () => {
   it("parses a naming response", async () => {
     const json = JSON.stringify({ displayName: "权益对比表", id: "benefits-comparison", type: "grid" });

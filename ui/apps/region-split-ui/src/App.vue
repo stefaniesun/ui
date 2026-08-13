@@ -20,8 +20,7 @@ const analyzing = computed(() => store.busy.value && store.busyLabel.value === "
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
 function isEditingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
-  return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA"
-    || element?.tagName === "SELECT" || element?.isContentEditable;
+  return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA" || element?.isContentEditable;
 }
 async function retryAnalysis() {
   dialogError.value = null;
@@ -39,10 +38,7 @@ function onKeydown(event: KeyboardEvent) {
   if (mod && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) void store.redo(); else void store.undo();
-  } else if (event.key === "Delete" && store.selectedElementId.value) {
-    event.preventDefault(); store.deleteElement(store.selectedElementId.value);
   } else if (event.key === "Escape") {
-    event.preventDefault();
     if (store.mode.value === "split") store.cancelSplit();
     else store.clearSelection();
   } else if (event.key === "ArrowUp" && store.selectedIds.value.length === 1) {
@@ -89,11 +85,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @close="dialogError = null"
       @retry="retryAnalysis"
     />
-    <div v-if="store.saveConflict.value" role="dialog" aria-modal="true" class="conflict-dialog">
-      <strong>文档已在其他操作中更新</strong>
-      <p>本地修改尚未覆盖服务端版本。可载入服务端版本后继续编辑。</p>
-      <button type="button" @click="store.loadServerVersion()">载入服务端版本</button>
-    </div>
   </main>
 </template>
 
@@ -101,5 +92,4 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 .app-shell { position: relative; width: 100%; height: 100%; overflow: hidden; }
 .brand { position: absolute; z-index: 30; left: 16px; top: 14px; display: flex; align-items: center; gap: 9px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: #24272eee; box-shadow: 0 8px 20px #0007; pointer-events: none; }
 .brand-mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 7px; color: white; background: var(--accent); font-size: 10px; font-weight: 800; }.brand strong,.brand small { display: block; }.brand strong { font-size: 12px; }.brand small { margin-top: 2px; color: var(--text-faint); font-size: 9px; }
-.conflict-dialog { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); z-index: 40; width: 320px; padding: 18px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--bg-node); box-shadow: 0 18px 50px #0008; }
 </style>
