@@ -3,6 +3,7 @@ import {
   computed, nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance,
 } from "vue";
 import type { RegionExpandDirection, Store } from "../state.js";
+import ElementTree from "./ElementTree.vue";
 
 const props = defineProps<{ store: Store; hoveredId?: string | null }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
@@ -222,6 +223,7 @@ onBeforeUnmount(() => {
           @click.stop="onExpandClick($event, region.id, 'down')"
         >▼</button>
       </span>
+      <ElementTree :store="props.store" :region-id="region.id" />
     </li>
   </ul>
 </template>
