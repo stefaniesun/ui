@@ -11,7 +11,6 @@ const store = createStore(httpApi);
 const hoveredId = ref<string | null>(null);
 const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
 const dialogError = ref<RegionNodeError | null>(null);
-const showCandidateLines = ref(true);
 const showPanels = ref(true);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
@@ -70,7 +69,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         ref="regionsNode"
         :store="store"
         :hovered-id="hoveredId"
-        :show-candidate-lines="showCandidateLines"
         :show-panels="showPanels"
         @hover="hoveredId = $event"
         @uploaded="store.projectId.value && syncHash(store.projectId.value)"

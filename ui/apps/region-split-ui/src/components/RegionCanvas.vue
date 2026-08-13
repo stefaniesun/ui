@@ -8,7 +8,6 @@ import { snapToCandidates, toImageY } from "../coords.js";
 const props = defineProps<{
   store: Store;
   hoveredId: string | null;
-  showCandidateLines: boolean;
   showPanels: boolean;
 }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
@@ -59,12 +58,6 @@ function onRegionClick(id: string, event: MouseEvent) {
     <div v-if="image" ref="stageEl" class="stage" :class="{ splitting: props.store.mode.value === 'split' }" @mousemove="onMove" @click="onStageClick">
       <img ref="imgEl" data-test="analysis-image" class="comparison-image" :src="imageUrl(props.store.projectId.value)" :alt="image.fileName" @load="measure" />
       <div v-if="props.showPanels" class="panel-tint" />
-      <span
-        v-for="line in props.showCandidateLines ? props.store.candidateLines.value : []"
-        :key="`candidate-${line.y}`"
-        class="candidate-line"
-        :style="{ top: `${line.y * displayScale}px`, opacity: Math.max(.35, line.strength) }"
-      />
       <div
         v-for="(region, index) in props.store.regions.value"
         :key="region.id"
@@ -90,7 +83,6 @@ function onRegionClick(id: string, event: MouseEvent) {
 .region-canvas { min-width: 0; min-height: 0; display: block; margin: 0; padding: 0; overflow: hidden; background: var(--bg-inset); }
 .stage { position: relative; width: 100%; aspect-ratio: var(--image-aspect); margin: 0; padding: 0; overflow: hidden; background: #111318; }
 .stage img { display: block; width: 100%; height: auto; }.stage.splitting { cursor: crosshair; }.panel-tint { position: absolute; inset: 0; background: repeating-linear-gradient(180deg, transparent 0 19%, #4c8dff12 19% 20%); pointer-events: none; }
-.candidate-line { position: absolute; z-index: 2; left: 0; right: 0; height: 1px; background: var(--warn); pointer-events: none; }
 .overlay { position: absolute; z-index: 3; left: 0; right: 0; border: 1px solid #4c8dff66; background: #4c8dff08; cursor: pointer; }.overlay:hover,.overlay.hovered { background: #4c8dff22; }.overlay.selected { z-index: 4; border: 2px solid var(--accent); background: #4c8dff28; box-shadow: inset 0 0 0 1px #ffffff22; }.overlay span { position: absolute; left: 5px; top: 4px; max-width: calc(100% - 10px); overflow: hidden; padding: 2px 5px; border-radius: 4px; color: white; background: #16181dcc; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .split-line { position: absolute; z-index: 8; left: 0; right: 0; height: 2px; background: var(--accent); box-shadow: 0 0 6px var(--accent); pointer-events: none; }.split-line.snapped { background: var(--ok); }.split-line.invalid { background: var(--danger); }.split-info { position: absolute; z-index: 9; right: 5px; transform: translateY(-130%); padding: 2px 5px; border-radius: 4px; color: white; background: #16181dee; font-size: 10px; pointer-events: none; }
 .empty-state { min-height: 520px; display: grid; place-items: center; color: var(--text-faint); }

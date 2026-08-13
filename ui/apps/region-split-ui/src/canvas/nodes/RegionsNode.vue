@@ -16,7 +16,6 @@ export interface RegionNodeError {
 const props = defineProps<{
   store: Store;
   hoveredId: string | null;
-  showCandidateLines: boolean;
   showPanels: boolean;
 }>();
 const emit = defineEmits<{
@@ -131,7 +130,6 @@ defineExpose({ retryAnalysis });
               data-test="analysis-result"
               :store="props.store"
               :hovered-id="props.hoveredId"
-              :show-candidate-lines="props.showCandidateLines"
               :show-panels="props.showPanels"
               @hover="emit('hover', $event)"
             />

@@ -13,7 +13,7 @@ async function mountNode(overrides: Partial<StoreApi> = {}) {
   const store = createStore(api);
   await store.loadModelConfig();
   const wrapper = mount(RegionsNode, {
-    props: { store, hoveredId: null, showCandidateLines: true, showPanels: true },
+    props: { store, hoveredId: null, showPanels: true },
   });
   return { api, store, wrapper };
 }
@@ -211,7 +211,7 @@ describe("RegionsNode upload and analysis orchestration", () => {
     const store = createStore(api);
     await store.loadModelConfig();
     const wrapper = mount(RegionsNode, {
-      props: { store, hoveredId: null, showCandidateLines: true, showPanels: true },
+      props: { store, hoveredId: null, showPanels: true },
       attachTo: host,
     });
 
