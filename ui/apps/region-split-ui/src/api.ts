@@ -1,4 +1,6 @@
-import type { ModelConfigView, Region, RegionSplitDoc } from "@region-split/core/browser";
+import type {
+  ElementTree, ModelConfigView, Rect, Region, RegionSplitDoc,
+} from "@region-split/core/browser";
 
 export interface StoreApi {
   upload(file: File): Promise<{ projectId: string; doc: RegionSplitDoc }>;
@@ -7,6 +9,9 @@ export interface StoreApi {
   analyze(projectId: string): Promise<{ doc: RegionSplitDoc }>;
   renameAi(projectId: string, regionId: string): Promise<{ doc: RegionSplitDoc }>;
   getModelConfig(): Promise<ModelConfigView>;
+  getElements(projectId: string, y: number, h: number): Promise<{ tree: ElementTree | null }>;
+  detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree }>;
+  putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree }>;
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -41,8 +46,30 @@ export const httpApi: StoreApi = {
   getModelConfig() {
     return json("/api/model-config");
   },
+  getElements(projectId, y, h) {
+    return json(`/api/projects/${projectId}/elements?y=${y}&h=${h}`);
+  },
+  detectElements(projectId, region) {
+    return json(`/api/projects/${projectId}/elements/detect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ region }),
+    });
+  },
+  putElements(projectId, region, tree) {
+    return json(`/api/projects/${projectId}/elements`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ region, tree }),
+    });
+  },
 };
 
 export function imageUrl(projectId: string): string {
   return `/api/projects/${projectId}/image`;
+}
+
+/** 区域裁图。服务端的 image 路由已支持 rect 查询参数。 */
+export function regionImageUrl(projectId: string, region: Rect): string {
+  return `/api/projects/${projectId}/image?rect=${region.x},${region.y},${region.w},${region.h}`;
 }

@@ -1,5 +1,7 @@
 import { vi } from "vitest";
-import type { CandidateLine, Region, RegionSplitDoc } from "@region-split/core/browser";
+import type {
+  CandidateLine, ElementNode, ElementTree, Rect, Region, RegionSplitDoc,
+} from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
 
 export function makeRegion(
@@ -37,6 +39,15 @@ export function makeFakeApi(
       baseUrl: "http://local/v1", model: "test-model", hasApiKey: true,
       configPath: "/workspace/ui/region-split.config.json",
     })),
+    // 区域相关的用例不碰元素接口；给出惰性桩只是为了满足 StoreApi，
+    // 需要断言元素行为的用例请用 overrides 覆盖。
+    getElements: vi.fn(async () => ({ tree: null })),
+    detectElements: vi.fn(async () => ({ tree: makeElementTree() })),
+    putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree })),
     ...overrides,
   };
+}
+
+export function makeElementTree(nodes: ElementNode[] = []): ElementTree {
+  return { regionKey: "0-600", detectedAt: "2026-08-11T00:00:00.000Z", nodes };
 }
