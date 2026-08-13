@@ -166,26 +166,63 @@ describe("RegionsNode upload and analysis orchestration", () => {
     expect(guides[0]!.attributes("style")).toContain("top: 200px");
     expect(guides[1]!.attributes("style")).toContain("top: 400px");
     expect(guides.every(guide => guide.attributes("style")?.includes("width: 32px"))).toBe(true);
+    expect(guides.some(guide => guide.attributes("style")?.includes("top: 0px"))).toBe(false);
+    expect(guides.some(guide => guide.attributes("style")?.includes("top: 600px"))).toBe(false);
+    expect(layer.attributes("style")).toContain("left: calc(50% - 32px)");
+    expect(layer.attributes("style")).toContain("pointer-events: none");
+    expect(guides.every(guide => guide.attributes("style")?.includes("pointer-events: none"))).toBe(true);
+
+    const comparisonStyle = wrapper.get(".comparison-images").attributes("style");
+    expect(comparisonStyle).toContain("grid-template-columns: repeat(2, minmax(0, 430px))");
+    expect(comparisonStyle).toContain("gap: 0px");
   });
 
-  it("hides boundary guides until analysis and image measurement are ready", async () => {
+  it("hides boundary guides when an analyzed multi-region image is not measured", async () => {
     const { store, wrapper } = await mountNode();
+    const regions = [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
+    store.projectId.value = "p1";
+    store.doc.value = makeDoc(regions, [], true);
+    store.regions.value = regions;
+    await nextTick();
 
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
+  });
+
+  it("hides boundary guides for unanalysed or single-region results", async () => {
+    const { store, wrapper } = await mountNode();
+    const regions = [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
+    store.projectId.value = "p1";
+    store.doc.value = makeDoc(regions, [], true);
+    store.regions.value = regions;
+    await nextTick();
+    const image = wrapper.get('[data-test="original-image"]').element;
+    Object.defineProperty(image, "clientHeight", { configurable: true, value: 600 });
+    image.dispatchEvent(new Event("load"));
+    await nextTick();
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(true);
+
+    store.doc.value = makeDoc(regions);
+    await nextTick();
     expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
 
     const oneRegion = [makeRegion("a", 0, 600)];
-    store.projectId.value = "p1";
     store.doc.value = makeDoc(oneRegion, [], true);
     store.regions.value = oneRegion;
     await nextTick();
     expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
+  });
 
-    const regions = [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
-    store.doc.value = makeDoc(regions);
-    store.regions.value = regions;
-    const image = wrapper.get('[data-test="original-image"]').element;
-    Object.defineProperty(image, "clientHeight", { configurable: true, value: 600 });
-    image.dispatchEvent(new Event("load"));
+  it("hides existing guides while analysis is busy or has failed", async () => {
+    const { store, wrapper } = await mountNode();
+    await showAnalyzedResult(store, wrapper);
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(true);
+
+    store.busyLabel.value = "AI 分析中…";
+    await nextTick();
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
+
+    store.busyLabel.value = "";
+    (wrapper.vm as unknown as { markAnalysisFailed: () => void }).markAnalysisFailed();
     await nextTick();
     expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
   });
@@ -221,8 +258,9 @@ describe("RegionsNode upload and analysis orchestration", () => {
     expect(observe).toHaveBeenCalledWith(image);
     expect(wrapper.get('[data-test="boundary-guides"]').attributes("aria-hidden")).toBe("true");
 
+    const callsBeforeUnmount = disconnect.mock.calls.length;
     wrapper.unmount();
-    expect(disconnect).toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalledTimes(callsBeforeUnmount + 1);
   });
 
   it("ignores duplicate uploads while busy", async () => {

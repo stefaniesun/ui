@@ -54,8 +54,19 @@ const internalBoundaryGuides = computed(() => {
   }));
 });
 
+const comparisonImagesStyle = computed<CSSProperties>(() => ({
+  "--image-aspect": imageAspect.value,
+  gridTemplateColumns: "repeat(2, minmax(0, 430px))",
+  gap: "0px",
+}));
+const guideLayerStyle = computed<CSSProperties>(() => ({
+  height: `${imageDisplayHeight.value}px`,
+  left: "calc(50% - 32px)",
+  pointerEvents: "none",
+}));
+
 function guideStyle(top: number): CSSProperties {
-  return { top: `${top}px`, width: "32px" };
+  return { top: `${top}px`, width: "32px", pointerEvents: "none" };
 }
 
 function measureOriginalImage() {
@@ -145,7 +156,7 @@ async function onDrop(event: DragEvent) {
   await uploadAndAnalyze(event.dataTransfer?.files[0]);
 }
 
-defineExpose({ retryAnalysis });
+defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError });
 </script>
 
 <template>
@@ -161,7 +172,7 @@ defineExpose({ retryAnalysis });
     <template v-else>
       <ActionBar v-if="resultReady" :store="props.store" />
       <div data-test="comparison-workspace" class="comparison-workspace">
-        <div class="comparison-images" :style="{ '--image-aspect': imageAspect }">
+        <div class="comparison-images" :style="comparisonImagesStyle">
           <section class="image-panel">
             <header>原始效果图</header>
             <div class="image-frame">
@@ -199,7 +210,7 @@ defineExpose({ retryAnalysis });
             v-if="internalBoundaryGuides.length"
             data-test="boundary-guides"
             class="boundary-guides"
-            :style="{ height: `${imageDisplayHeight}px` }"
+            :style="guideLayerStyle"
             aria-hidden="true"
           >
             <span
