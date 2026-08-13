@@ -165,7 +165,64 @@ describe("RegionsNode upload and analysis orchestration", () => {
     expect(layer.attributes("style")).toContain("height: 600px");
     expect(guides[0]!.attributes("style")).toContain("top: 200px");
     expect(guides[1]!.attributes("style")).toContain("top: 400px");
-    expect(guides.every(guide => guide.attributes("style").includes("width: 32px"))).toBe(true);
+    expect(guides.every(guide => guide.attributes("style")?.includes("width: 32px"))).toBe(true);
+  });
+
+  it("hides boundary guides until analysis and image measurement are ready", async () => {
+    const { store, wrapper } = await mountNode();
+
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
+
+    const oneRegion = [makeRegion("a", 0, 600)];
+    store.projectId.value = "p1";
+    store.doc.value = makeDoc(oneRegion, [], true);
+    store.regions.value = oneRegion;
+    await nextTick();
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
+
+    const regions = [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
+    store.doc.value = makeDoc(regions);
+    store.regions.value = regions;
+    const image = wrapper.get('[data-test="original-image"]').element;
+    Object.defineProperty(image, "clientHeight", { configurable: true, value: 600 });
+    image.dispatchEvent(new Event("load"));
+    await nextTick();
+    expect(wrapper.find('[data-test="boundary-guides"]').exists()).toBe(false);
+  });
+
+  it("updates guide positions after boundary and image-size changes", async () => {
+    const { store, wrapper } = await mountNode();
+    await showAnalyzedResult(store, wrapper);
+
+    store.regions.value = [
+      makeRegion("a", 0, 180),
+      makeRegion("b", 180, 220),
+      makeRegion("c", 400, 200),
+    ];
+    await nextTick();
+    expect(wrapper.findAll('[data-test="boundary-guide"]')[0]!.attributes("style"))
+      .toContain("top: 180px");
+
+    const image = wrapper.get('[data-test="original-image"]').element;
+    Object.defineProperty(image, "clientHeight", { configurable: true, value: 300 });
+    resizeCallback([], {} as ResizeObserver);
+    await nextTick();
+
+    const guides = wrapper.findAll('[data-test="boundary-guide"]');
+    expect(guides[0]!.attributes("style")).toContain("top: 90px");
+    expect(guides[1]!.attributes("style")).toContain("top: 200px");
+  });
+
+  it("observes image size and disconnects on unmount", async () => {
+    const { store, wrapper } = await mountNode();
+    await showAnalyzedResult(store, wrapper);
+
+    const image = wrapper.get('[data-test="original-image"]').element;
+    expect(observe).toHaveBeenCalledWith(image);
+    expect(wrapper.get('[data-test="boundary-guides"]').attributes("aria-hidden")).toBe("true");
+
+    wrapper.unmount();
+    expect(disconnect).toHaveBeenCalled();
   });
 
   it("ignores duplicate uploads while busy", async () => {
