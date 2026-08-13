@@ -1,8 +1,10 @@
 import { computed, ref, shallowRef } from "vue";
 import {
   adjustBoundary, areAdjacent, canAdjustBoundary, canSplitAt,
-  mergeRegions, renameRegion, splitRegion,
-  type ModelConfigView, type Region, type RegionSplitDoc,
+  addElement as addElementToDoc, changeElementType as changeElementTypeInDoc,
+  deleteElementTree, mergeRegions, moveElementTree, renameElement as renameElementInDoc,
+  renameRegion, reparentElement as reparentElementInDoc, resizeElement as resizeElementInDoc, splitRegion,
+  type ElementNode, type ElementType, type ModelConfigView, type Rect, type Region, type RegionSplitDoc,
 } from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
 
@@ -17,8 +19,12 @@ export function createStore(api: StoreApi) {
   const projectId = ref("");
   const doc = shallowRef<RegionSplitDoc | null>(null);
   const regions = shallowRef<Region[]>([]);
+  const elements = shallowRef<ElementNode[]>([]);
   const selectedIds = ref<string[]>([]);
+  const selectedElementId = ref<string | null>(null);
+  const hoveredElementId = ref<string | null>(null);
   const mode = ref<"idle" | "split">("idle");
+  const canvasMode = ref<"select" | "split-region" | "add-element">("select");
   // busyLabel 是单一来源，busy 作为可写 computed 保留旧的布尔用法：
   // 组件里的 `:disabled="busy"` 和守卫里的 `if (busy.value) return` 都不用改，
   // 而遮罩层可以拿到"上传中"还是"AI 分析中"这样的具体文案。
@@ -103,8 +109,15 @@ export function createStore(api: StoreApi) {
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
     if (!projectId.value) return;
     try {
-      const result = await api.putRegions(projectId.value, regions.value);
+      const current = doc.value;
+      if (!current) return;
+      const result = await api.putDocument(projectId.value, {
+        expectedRevision: current.revision, regions: regions.value, elements: elements.value,
+        elementAnalysis: current.elementAnalysis,
+      });
       doc.value = result.doc;
+      regions.value = result.doc.regions;
+      elements.value = result.doc.elements;
     } catch (err) {
       error.value = (err as Error).message;
       // 落盘失败后尝试用服务端当前状态纠正本地——但这个纠正本身也可能失败
@@ -129,6 +142,7 @@ export function createStore(api: StoreApi) {
   function setDoc(next: RegionSplitDoc, id?: string) {
     doc.value = next;
     regions.value = next.regions;
+    elements.value = next.elements;
     if (id) projectId.value = id;
     selectedIds.value = [];
     mode.value = "idle";
@@ -173,10 +187,23 @@ export function createStore(api: StoreApi) {
   }
 
   return {
-    projectId, doc, regions, selectedIds, mode, busy, busyLabel, error, pendingRenameIds, renamingId,
-    modelConfig,
+    projectId, doc, regions, elements, selectedIds, selectedElementId, hoveredElementId,
+    mode, canvasMode, busy, busyLabel, error, pendingRenameIds, renamingId, modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
     isModelConfigured, candidateLines, needsAnalysis, canExpandRegion,
+
+    selectElement(id: string | null) { selectedElementId.value = id; if (id) selectedIds.value = []; },
+    hoverElement(id: string | null) { hoveredElementId.value = id; },
+    setCanvasMode(next: "select" | "split-region" | "add-element") { canvasMode.value = next; mode.value = next === "split-region" ? "split" : "idle"; },
+    addElement(element: ElementNode) { if (!doc.value) return; pushUndo(); doc.value = addElementToDoc({ ...doc.value, regions: regions.value, elements: elements.value }, element); elements.value = doc.value.elements; schedulePersist(); },
+    moveElement(id: string, dx: number, dy: number) { if (!doc.value) return; doc.value = moveElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id, dx, dy); elements.value = doc.value.elements; },
+    resizeElement(id: string, bounds: Rect) { if (!doc.value) return; pushUndo(); doc.value = resizeElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, bounds); elements.value = doc.value.elements; schedulePersist(); },
+    deleteElement(id: string) { if (!doc.value) return; pushUndo(); doc.value = deleteElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id); elements.value = doc.value.elements; if (selectedElementId.value === id) selectedElementId.value = null; schedulePersist(); },
+    renameElement(id: string, name: string) { if (!doc.value) return; pushUndo(); doc.value = renameElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, name); elements.value = doc.value.elements; schedulePersist(); },
+    changeElementType(id: string, type: ElementType) { if (!doc.value) return; pushUndo(); doc.value = changeElementTypeInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, type); elements.value = doc.value.elements; schedulePersist(); },
+    reparentElement(id: string, parentId: string | null) { if (!doc.value) return; pushUndo(); doc.value = reparentElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, parentId); elements.value = doc.value.elements; schedulePersist(); },
+    beginElementGesture() { if (!boundaryGestureActive) pushUndo(); boundaryGestureActive = true; if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; } },
+    endElementGesture() { if (!boundaryGestureActive) return; boundaryGestureActive = false; schedulePersist(); },
 
     startRename(id: string) { renamingId.value = id; },
     stopRename() { renamingId.value = null; },
