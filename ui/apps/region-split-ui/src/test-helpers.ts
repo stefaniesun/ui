@@ -22,6 +22,8 @@ export function makeDoc(regions: Region[], candidateLines: CandidateLine[] = [])
 export function makeFakeApi(initial: () => Region[], candidateLines: CandidateLine[] = []): StoreApi {
   return {
     putRegions: vi.fn(async (_id: string, regions: Region[]) => ({ doc: makeDoc(regions, candidateLines) })),
+    putDocument: vi.fn(async (_id, payload) => ({ doc: { ...makeDoc(payload.regions, candidateLines), revision: payload.expectedRevision + 1, elements: payload.elements, elementAnalysis: payload.elementAnalysis } })),
+    retryElementAnalysis: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),
     upload: vi.fn(async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) })),
     getProject: vi.fn(async () => ({ projectId: "p1", doc: makeDoc(initial(), candidateLines) })),
     analyze: vi.fn(async () => ({ doc: makeDoc(initial(), candidateLines) })),

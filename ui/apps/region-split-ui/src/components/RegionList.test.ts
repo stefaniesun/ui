@@ -10,8 +10,8 @@ async function mounted() {
   const analyzed = makeDoc(initial());
   analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
   const api = makeFakeApi(initial);
-  api.putRegions = vi.fn(async (_projectId, regions) => ({
-    doc: { ...analyzed, regions },
+  api.putDocument = vi.fn(async (_projectId, payload) => ({
+    doc: { ...analyzed, revision: payload.expectedRevision + 1, regions: payload.regions, elements: payload.elements, elementAnalysis: payload.elementAnalysis },
   }));
   const store = createStore(api);
   await store.load("p1");
@@ -162,8 +162,8 @@ describe("RegionList", () => {
     const analyzed = makeDoc(initial());
     analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
     const api = makeFakeApi(initial);
-    api.putRegions = vi.fn(async (_projectId, regions) => ({
-      doc: { ...analyzed, regions },
+    api.putDocument = vi.fn(async (_projectId, payload) => ({
+      doc: { ...analyzed, revision: payload.expectedRevision + 1, regions: payload.regions, elements: payload.elements, elementAnalysis: payload.elementAnalysis },
     }));
     const store = createStore(api);
     await store.load("p1");
@@ -173,13 +173,13 @@ describe("RegionList", () => {
 
     await button.trigger("pointerdown", { button: 0 });
     await vi.advanceTimersByTimeAsync(580);
-    expect(api.putRegions).not.toHaveBeenCalled();
+    expect(api.putDocument).not.toHaveBeenCalled();
 
     await button.trigger("pointerup");
     await vi.advanceTimersByTimeAsync(399);
-    expect(api.putRegions).not.toHaveBeenCalled();
+    expect(api.putDocument).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
-    expect(api.putRegions).toHaveBeenCalledTimes(1);
+    expect(api.putDocument).toHaveBeenCalledTimes(1);
   });
 
   it("stops a held adjustment on pointer cancel and component unmount", async () => {
