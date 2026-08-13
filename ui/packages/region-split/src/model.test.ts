@@ -94,3 +94,66 @@ describe("createOpenAiModel.nameRegion", () => {
     expect(await model.nameRegion({ cropBase64: "BB" })).toMatchObject({ scrollX: true, scrollY: false });
   });
 });
+
+describe("createOpenAiModel.classifyChildren", () => {
+  const twoChildren = JSON.stringify({
+    children: [
+      { kind: "icon", displayName: "客服图标" },
+      { kind: "text", displayName: "联系客服" },
+    ],
+  });
+
+  it("returns one classification per child in reading order", async () => {
+    const model = createOpenAiModel(cfg(fakeFetch(twoChildren)));
+    const result = await model.classifyChildren({
+      cropBase64: "AA", count: 2, direction: "column",
+    });
+    expect(result).toEqual([
+      { kind: "icon", displayName: "客服图标" },
+      { kind: "text", displayName: "联系客服" },
+    ]);
+  });
+
+  // 模型的空间定位不可靠，所以永远不给它坐标——顺序由树提供
+  it("never sends coordinates to the model", async () => {
+    const fetchImpl = fakeFetch(JSON.stringify({
+      children: [{ kind: "text", displayName: "标题" }],
+    }));
+    const model = createOpenAiModel(cfg(fetchImpl));
+    await model.classifyChildren({ cropBase64: "AA", count: 1, direction: "row" });
+    const body = String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body);
+    expect(body).not.toContain("坐标");
+    expect(body).not.toMatch(/\\"(x|y|w|h)\\":/);
+    expect(body).toContain("1 个并列子元素");
+    expect(body).toContain("横排");
+  });
+
+  it("rejects a list whose length does not match the child count", async () => {
+    const short = JSON.stringify({ children: [{ kind: "text", displayName: "只有一个" }] });
+    const model = createOpenAiModel(cfg(fakeFetch(short, short)));
+    await expect(model.classifyChildren({
+      cropBase64: "AA", count: 3, direction: "row",
+    })).rejects.toThrow(/count 3/);
+  });
+
+  it("retries once before giving up", async () => {
+    const fetchImpl = fakeFetch(
+      JSON.stringify({ children: [] }),
+      JSON.stringify({ children: [{ kind: "icon", displayName: "图标" }] }),
+    );
+    const model = createOpenAiModel(cfg(fetchImpl));
+    const result = await model.classifyChildren({
+      cropBase64: "AA", count: 1, direction: "row",
+    });
+    expect(result).toHaveLength(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an unknown kind", async () => {
+    const bad = JSON.stringify({ children: [{ kind: "button", displayName: "按钮" }] });
+    const model = createOpenAiModel(cfg(fakeFetch(bad, bad)));
+    await expect(model.classifyChildren({
+      cropBase64: "AA", count: 1, direction: "row",
+    })).rejects.toThrow();
+  });
+});

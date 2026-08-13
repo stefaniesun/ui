@@ -14,9 +14,20 @@ export interface SegmentInput {
   panels: { top: number; bottom: number }[];
 }
 
+/** 模型对一个容器里各子元素的判断。顺序即阅读顺序，与传入的子节点一一对应。 */
+export interface ChildClassification {
+  kind: "text" | "icon" | "image";
+  displayName: string;
+}
+
 export interface SegmentModel {
   segment(input: SegmentInput): Promise<RawSegment[]>;
   nameRegion(input: { cropBase64: string }): Promise<RegionNaming>;
+  classifyChildren(input: {
+    cropBase64: string;
+    count: number;
+    direction: "row" | "column";
+  }): Promise<ChildClassification[]>;
 }
 
 const segmentsSchema = z.object({
@@ -38,6 +49,13 @@ const namingSchema = z.object({
   type: z.enum(regionTypes),
   scrollX: z.boolean().default(false),
   scrollY: z.boolean().default(false),
+});
+
+const childrenSchema = z.object({
+  children: z.array(z.object({
+    kind: z.enum(["text", "icon", "image"]),
+    displayName: z.string().min(1),
+  })),
 });
 
 const SCROLL_RULES = [
@@ -71,6 +89,21 @@ const NAMING_PROMPT = [
   "displayName 用简短中文，id 用 kebab-case 英文。",
   `type 只能取以下之一：${regionTypes.join("、")}。`,
   SCROLL_RULES,
+].join("\n");
+
+/**
+ * 叶子分类是这一步唯一需要模型的地方：实测 icon 高度 21–74 对文字 3–34、
+ * 填充率 0.38 对 0.47，两组特征区间重叠，任何阈值都切不干净。
+ *
+ * 提问时**绝不给坐标**——模型的空间定位不可靠，那是整个项目一直在绕开的短板。
+ * 位置全部由工具测得，这里只要模型按阅读顺序输出一个等长列表，顺序由树提供。
+ */
+const CLASSIFY_PROMPT = [
+  "这是一张移动端 UI 中某个盒子的裁图，盒子里的子元素已经由图像分析切分好了。",
+  "只输出一个 JSON 对象，格式为 {\"children\":[{\"kind\":string,\"displayName\":string}]}。",
+  "kind 只能取 text（文字）、icon（可矢量化的图形）、image（必须切图的位图）之一。",
+  "displayName 用简短中文，描述这个子元素是什么。",
+  "数组长度必须与告知你的子元素个数完全一致，多一个少一个都不行。",
 ].join("\n");
 
 function extractJson(raw: string): unknown {
@@ -162,6 +195,27 @@ export function createOpenAiModel(cfg: {
       const parsed = await askParsed(SEGMENT_PROMPT, userText, input.imageBase64, segmentsSchema);
       return parsed.regions as RawSegment[];
     },
+    async classifyChildren(input) {
+      const order = input.direction === "row" ? "从左到右" : "从上到下";
+      const userText = [
+        `这个盒子里有 ${input.count} 个并列子元素，排列方向为${
+          input.direction === "row" ? "横排" : "竖排"}。`,
+        `请按${order}的顺序，依次说明每个子元素的类型并各给一个名字。`,
+      ].join("\n");
+      // 长度不符就是错配，重试一次仍不符则抛错，由调用方降级为存疑。
+      // 宁可留空让人工填，也不能把名字和类型对错位置。
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const raw = await ask(CLASSIFY_PROMPT, userText, input.cropBase64);
+        try {
+          const parsed = childrenSchema.parse(extractJson(raw));
+          if (parsed.children.length === input.count) return parsed.children;
+        } catch {
+          // 解析失败与长度不符走同一条重试路径
+        }
+      }
+      throw new Error(`model returned a child list that does not match count ${input.count}`);
+    },
+
     async nameRegion(input) {
       // 断言到 RegionNaming：zod 的 .default() 让推断出的类型把这两个字段标成可选，
       // 但解析后它们必定有值。
