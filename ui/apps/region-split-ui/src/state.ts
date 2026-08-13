@@ -40,6 +40,7 @@ export function createStore(api: StoreApi) {
   const redoDepth = ref(0);
   let lastNudgeAt = 0;
   let lastNudgeBoundary = -1;
+  let boundaryGestureActive = false;
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   function syncDepths() {
@@ -252,6 +253,17 @@ export function createStore(api: StoreApi) {
       lastNudgeAt = now;
       lastNudgeBoundary = move.boundaryIndex;
       regions.value = next;
+      if (!boundaryGestureActive) schedulePersist();
+    },
+
+    beginBoundaryGesture() {
+      boundaryGestureActive = true;
+      if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+    },
+
+    endBoundaryGesture() {
+      if (!boundaryGestureActive) return;
+      boundaryGestureActive = false;
       schedulePersist();
     },
 

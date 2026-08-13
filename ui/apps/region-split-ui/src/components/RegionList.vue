@@ -104,23 +104,23 @@ function startExpand(event: PointerEvent, id: string, direction: RegionExpandDir
   clearRepeatTimers();
   suppressClick = false;
   pointerActivated = true;
+  props.store.beginBoundaryGesture();
   props.store.expandRegion(id, direction);
   repeatDelay = setTimeout(() => {
     suppressClick = true;
-    const repeat = () => {
+    repeatInterval = setInterval(() => {
       if (!props.store.canExpandRegion(id, direction)) {
-        clearRepeatTimers();
+        stopExpand();
         return;
       }
       props.store.expandRegion(id, direction);
-    };
-    repeat();
-    repeatInterval = setInterval(repeat, REPEAT_INTERVAL_MS);
+    }, REPEAT_INTERVAL_MS);
   }, REPEAT_DELAY_MS);
 }
 
 function stopExpand() {
   clearRepeatTimers();
+  if (pointerActivated) props.store.endBoundaryGesture();
 }
 
 function onExpandClick(event: MouseEvent, id: string, direction: RegionExpandDirection) {
@@ -137,7 +137,10 @@ function onExpandClick(event: MouseEvent, id: string, direction: RegionExpandDir
   props.store.expandRegion(id, direction);
 }
 
-onBeforeUnmount(clearRepeatTimers);
+onBeforeUnmount(() => {
+  clearRepeatTimers();
+  if (pointerActivated) props.store.endBoundaryGesture();
+});
 </script>
 
 <template>

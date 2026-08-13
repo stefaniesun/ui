@@ -7,10 +7,10 @@ import { makeDoc, makeFakeApi, makeRegion } from "../test-helpers.js";
 const initial = () => [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
 
 async function mounted() {
-  const analyzed = makeDoc(initial);
+  const analyzed = makeDoc(initial());
   analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
-  const api = makeFakeApi(initial, { doc: analyzed });
-  api.putRegions.mockImplementation(async (_projectId, regions) => ({
+  const api = makeFakeApi(initial);
+  api.putRegions = vi.fn(async (_projectId, regions) => ({
     doc: { ...analyzed, regions },
   }));
   const store = createStore(api);
@@ -40,6 +40,15 @@ describe("RegionList", () => {
     expect(rows[0]!.get("[data-test=expand-down]").attributes("disabled")).toBeUndefined();
     expect(rows[1]!.get("[data-test=expand-up]").attributes("disabled")).toBeUndefined();
     expect(rows[1]!.get("[data-test=expand-down]").attributes("disabled")).toBeDefined();
+  });
+
+  it("disables expansion when the neighboring region reaches minimum height", async () => {
+    const { store, wrapper } = await mounted();
+    store.regions.value = [makeRegion("a", 0, 8), makeRegion("b", 8, 592)];
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll("[data-test=row]")[1]!
+      .get("[data-test=expand-up]").attributes("disabled")).toBeDefined();
   });
 
   it("badges regions that scroll, and leaves static ones unmarked", async () => {
@@ -137,23 +146,23 @@ describe("RegionList", () => {
     expect(store.regions.value[1]!.bounds.h).toBe(301);
 
     await vi.advanceTimersByTimeAsync(61);
-    expect(store.regions.value[1]!.bounds.h).toBe(303);
+    expect(store.regions.value[1]!.bounds.h).toBe(302);
 
     await button.trigger("pointerup");
     button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
     await wrapper.vm.$nextTick();
-    expect(store.regions.value[1]!.bounds.h).toBe(303);
+    expect(store.regions.value[1]!.bounds.h).toBe(302);
 
     await vi.advanceTimersByTimeAsync(120);
-    expect(store.regions.value[1]!.bounds.h).toBe(303);
+    expect(store.regions.value[1]!.bounds.h).toBe(302);
   });
 
   it("debounces persistence during a held adjustment", async () => {
     vi.useFakeTimers();
-    const analyzed = makeDoc(initial);
+    const analyzed = makeDoc(initial());
     analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
-    const api = makeFakeApi(initial, { doc: analyzed });
-    api.putRegions.mockImplementation(async (_projectId, regions) => ({
+    const api = makeFakeApi(initial);
+    api.putRegions = vi.fn(async (_projectId, regions) => ({
       doc: { ...analyzed, regions },
     }));
     const store = createStore(api);
@@ -164,11 +173,32 @@ describe("RegionList", () => {
 
     await button.trigger("pointerdown", { button: 0 });
     await vi.advanceTimersByTimeAsync(580);
-    expect(api.putRegions).toHaveBeenCalledTimes(1);
+    expect(api.putRegions).not.toHaveBeenCalled();
 
     await button.trigger("pointerup");
-    await vi.advanceTimersByTimeAsync(400);
-    expect(api.putRegions).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(399);
+    expect(api.putRegions).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(api.putRegions).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops a held adjustment on pointer cancel and component unmount", async () => {
+    vi.useFakeTimers();
+    const { store, wrapper } = await mounted();
+    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
+
+    await button.trigger("pointerdown", { button: 0 });
+    await vi.advanceTimersByTimeAsync(460);
+    await button.trigger("pointercancel");
+    const afterCancel = store.regions.value[1]!.bounds.h;
+    await vi.advanceTimersByTimeAsync(120);
+    expect(store.regions.value[1]!.bounds.h).toBe(afterCancel);
+
+    await button.trigger("pointerdown", { button: 0 });
+    await wrapper.unmount();
+    const afterUnmount = store.regions.value[1]!.bounds.h;
+    await vi.advanceTimersByTimeAsync(600);
+    expect(store.regions.value[1]!.bounds.h).toBe(afterUnmount);
   });
 
   it("supports keyboard activation without pointerdown", async () => {
