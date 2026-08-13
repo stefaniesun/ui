@@ -5,7 +5,8 @@ import { applyNaming } from "./operations.js";
 import { initialRegionsFromCandidateLines, reconcile } from "./reconcile.js";
 import type { SegmentModel } from "./model.js";
 import { analyzeOneRegionElements, analyzeRegionElements, elementInputFingerprint } from "./element-analysis.js";
-import type { ProjectStore } from "./store.js";
+import { RevisionConflictError, type ProjectStore } from "./store.js";
+import type { ProjectWriteCoordinator } from "./write-coordinator.js";
 import type { Panel } from "./panels.js";
 import type { CandidateLine, RegionSplitDoc } from "./types.js";
 
@@ -205,6 +206,25 @@ export async function analyzeProject(
   };
   store.writeDoc(projectId, next);
   return next;
+}
+
+export async function retryRegionElementAnalysis(
+  deps: { store: ProjectStore; coordinator: ProjectWriteCoordinator; model: SegmentModel },
+  projectId: string, regionId: string, expectedRevision: number, expectedFingerprint: string,
+): Promise<RegionSplitDoc> {
+  const { store, coordinator, model } = deps;
+  const before = store.readDoc(projectId);
+  if (before.revision !== expectedRevision) throw new RevisionConflictError(before);
+  const region = before.regions.find(item => item.id === regionId);
+  if (!region) throw new Error("region not found");
+  const imageVersion = `${before.image.width}x${before.image.height}:${before.image.removedChrome.length}`;
+  if (elementInputFingerprint(region, imageVersion) !== expectedFingerprint) throw new RevisionConflictError(before);
+  const elements = await analyzeOneRegionElements(store, projectId, region, model);
+  return coordinator.run(projectId, () => store.commitDocument(projectId, expectedRevision, current => ({
+    ...current,
+    elements: [...current.elements.filter(item => item.regionId !== regionId), ...elements],
+    elementAnalysis: { ...current.elementAnalysis, [regionId]: { status: "ready", analyzedAt: new Date().toISOString(), inputFingerprint: expectedFingerprint } },
+  })));
 }
 
 export async function renameRegionWithModel(
