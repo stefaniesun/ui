@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { ensureCleanImage } from "./analyze.js";
-import { detectTopLevel } from "./element-detect.js";
+import { detectElementTree } from "./element-detect.js";
 import type { ElementTree } from "./element-types.js";
 import type { ProjectStore } from "./store.js";
 import type { Rect } from "./types.js";
@@ -21,7 +21,7 @@ export async function detectElements(
   await ensureCleanImage(store, projectId);
   const { data, info } = await sharp(store.cleanImagePath(projectId))
     .removeAlpha().raw().toBuffer({ resolveWithObject: true });
-  const tree = detectTopLevel(
+  const tree = detectElementTree(
     { data, width: info.width, height: info.height, channels: info.channels },
     region, new Date().toISOString(),
   );

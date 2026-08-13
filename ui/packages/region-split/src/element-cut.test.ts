@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { CUT_INSET, cutChildren, measureLayout, occupancy } from "./element-cut.js";
+import {
+  CUT_INSET, cutChildren, looksLikeTextRun, measureLayout, occupancy,
+} from "./element-cut.js";
 import type { RawImage } from "./panels.js";
 
 async function raw(image: sharp.Sharp): Promise<RawImage> {
@@ -146,5 +148,29 @@ describe("measureLayout", () => {
     );
     expect(layout.gap).toBeGreaterThanOrEqual(0);
     expect(Object.values(layout.padding).every(v => v >= 0)).toBe(true);
+  });
+});
+
+describe("looksLikeTextRun", () => {
+  const runs = (spans: [number, number][]) =>
+    spans.map(([start, length]) => ({ start, end: start + length }));
+
+  // 实测「猜你喜欢」这个 216×90 的胶囊被逐字切成 4 个 34×90 的块，字距只有 2
+  it("recognises a line of glyphs by its tiny tracking", () => {
+    expect(looksLikeTextRun(runs([[37, 34], [73, 34], [109, 34], [145, 34]]))).toBe(true);
+  });
+
+  // 判别量是"间隙 / 子块尺寸"，不是间隙绝对值——下面这些都是真正的并列元素
+  it("does not mistake real columns for text", () => {
+    // 常用服务五格：间隙 98，子块约 140
+    expect(looksLikeTextRun(runs([[38, 142], [257, 141], [496, 103]]))).toBe(false);
+    // 关注领券两列：间隙 55，子块 182 / 89
+    expect(looksLikeTextRun(runs([[32, 182], [269, 89]]))).toBe(false);
+    // 关注领券文案列两行：间隙 19，子块 40 / 34
+    expect(looksLikeTextRun(runs([[45, 40], [104, 34]]))).toBe(false);
+  });
+
+  it("returns false for a single run", () => {
+    expect(looksLikeTextRun(runs([[0, 100]]))).toBe(false);
   });
 });

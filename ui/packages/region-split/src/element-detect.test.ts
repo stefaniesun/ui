@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import {
-  connectedBoxes, detectTopLevel, regionBackground, toHex, uniformity,
+  connectedBoxes, detectElementTree, regionBackground, toHex, uniformity,
 } from "./element-detect.js";
 import { checkElementTreeInvariants } from "./element-types.js";
 import type { RawImage } from "./panels.js";
@@ -76,11 +76,12 @@ describe("connectedBoxes", () => {
   });
 });
 
-describe("detectTopLevel", () => {
+describe("detectElementTree", () => {
   const region: Rect = { x: 0, y: 0, w: 200, h: 300 };
+  const topLevel = (tree: ElementTree) => tree.nodes.filter(node => node.parentId === null);
 
   it("produces a flat tree of containers", async () => {
-    const tree = detectTopLevel(await raw(page()), region, NOW);
+    const tree = detectElementTree(await raw(page()), region, NOW);
     expect(tree.regionKey).toBe("0-300");
     expect(tree.detectedAt).toBe(NOW);
     expect(tree.nodes).toHaveLength(2);
@@ -89,7 +90,7 @@ describe("detectTopLevel", () => {
   });
 
   it("records the flat container background", async () => {
-    const tree = detectTopLevel(await raw(page()), region, NOW);
+    const tree = detectElementTree(await raw(page()), region, NOW);
     expect(tree.nodes[0]!.kind).toBe("component");
     expect(tree.nodes[0]!.style.background).toBe("#ffffff");
   });
@@ -99,7 +100,7 @@ describe("detectTopLevel", () => {
     const image = await raw(
       sharp({ create: { width: 300, height: 200, channels: 3, background: "#f5f5f5" } })
         .composite([{ input: await noiseImage(200, 120), top: 40, left: 50 }]).png());
-    const tree = detectTopLevel(image, { x: 0, y: 0, w: 300, h: 200 }, NOW);
+    const tree = detectElementTree(image, { x: 0, y: 0, w: 300, h: 200 }, NOW);
     expect(tree.nodes).toHaveLength(1);
     expect(tree.nodes[0]!.kind).toBe("image");
     expect(tree.nodes[0]!.style.background).toBeUndefined();
@@ -108,11 +109,11 @@ describe("detectTopLevel", () => {
   it("returns no nodes for a blank region", async () => {
     const image = await raw(
       sharp({ create: { width: 200, height: 100, channels: 3, background: "#f5f5f5" } }).png());
-    expect(detectTopLevel(image, { x: 0, y: 0, w: 200, h: 100 }, NOW).nodes).toEqual([]);
+    expect(detectElementTree(image, { x: 0, y: 0, w: 200, h: 100 }, NOW).nodes).toEqual([]);
   });
 
   it("gives every node a placeholder name", async () => {
-    const tree = detectTopLevel(await raw(page()), region, NOW);
+    const tree = detectElementTree(await raw(page()), region, NOW);
     expect(tree.nodes.every(node => node.displayName.length > 0)).toBe(true);
     expect(tree.nodes.every(node => node.source === "auto")).toBe(true);
   });
@@ -128,7 +129,7 @@ describe("detectTopLevel", () => {
           { input: { create: { width: 120, height: 51, channels: 3, background: "#303030" } }, top: 130, left: 100 },
         ]).png());
     const target = { x: 0, y: 0, w: 300, h: 300 };
-    const tree = detectTopLevel(image, target, NOW);
+    const tree = detectElementTree(image, target, NOW);
     expect(tree.nodes).toHaveLength(1);
     expect(tree.nodes[0]!.box).toEqual({ x: 40, y: 40, w: 180, h: 141 });
     expect(checkElementTreeInvariants(tree, target)).toEqual([]);
@@ -147,7 +148,7 @@ describe("detectTopLevel", () => {
           { input: { create: { width: 120, height: 60, channels: 3, background: "#303030" } }, top: 90, left: 80 },
         ]).png());
     const target = { x: 0, y: 0, w: 300, h: 300 };
-    const tree = detectTopLevel(image, target, NOW);
+    const tree = detectElementTree(image, target, NOW);
     expect(tree.nodes).toHaveLength(2);
     const outer = tree.nodes.find(node => node.parentId === null)!;
     const inner = tree.nodes.find(node => node.parentId !== null)!;
@@ -166,7 +167,7 @@ describe("detectTopLevel", () => {
           { input: { create: { width: 100, height: 40, channels: 3, background: "#f5f5f5" } }, top: 100, left: 80 },
         ]).png());
     const target = { x: 0, y: 0, w: 300, h: 300 };
-    const tree = detectTopLevel(image, target, NOW);
+    const tree = detectElementTree(image, target, NOW);
     expect(tree.nodes).toHaveLength(1);
     expect(tree.nodes[0]!.kind).toBe("image");
     expect(checkElementTreeInvariants(tree, target)).toEqual([]);
@@ -183,34 +184,35 @@ describe("real screenshot", () => {
   };
 
   it("frames the common-service card exactly", async () => {
-    const tree = detectTopLevel(await fixture(), { x: 0, y: 1131, w: 1170, h: 255 }, NOW);
-    expect(tree.nodes).toHaveLength(1);
-    expect(tree.nodes[0]!.box).toEqual({ x: 36, y: 1131, w: 1098, h: 255 });
-    expect(tree.nodes[0]!.kind).toBe("component");
+    const tree = detectElementTree(await fixture(), { x: 0, y: 1131, w: 1170, h: 255 }, NOW);
+    const roots = tree.nodes.filter(node => node.parentId === null);
+    expect(roots).toHaveLength(1);
+    expect(roots[0]!.box).toEqual({ x: 36, y: 1131, w: 1098, h: 255 });
   });
 
   it("frames the card-wallet card exactly", async () => {
-    const tree = detectTopLevel(await fixture(), { x: 0, y: 396, w: 1170, h: 222 }, NOW);
+    const tree = detectElementTree(await fixture(), { x: 0, y: 396, w: 1170, h: 222 }, NOW);
     expect(tree.nodes[0]!.box).toEqual({ x: 36, y: 396, w: 1098, h: 222 });
   });
 
   it("treats the promotional banner as an image", async () => {
     const image = await fixture();
     expect(uniformity(image, { x: 36, y: 1413, w: 1098, h: 216 }).ratio).toBeLessThan(0.1);
-    const tree = detectTopLevel(image, { x: 0, y: 1413, w: 1170, h: 216 }, NOW);
+    const tree = detectElementTree(image, { x: 0, y: 1413, w: 1170, h: 216 }, NOW);
     expect(tree.nodes[0]!.kind).toBe("image");
   });
 
   it("finds three separate coupon cards", async () => {
-    const tree = detectTopLevel(await fixture(), { x: 0, y: 921, w: 1170, h: 183 }, NOW);
-    expect(tree.nodes).toHaveLength(3);
-    expect(tree.nodes.map(node => node.box.x)).toEqual([36, 459, 882]);
+    const tree = detectElementTree(await fixture(), { x: 0, y: 921, w: 1170, h: 183 }, NOW);
+    const roots = tree.nodes.filter(node => node.parentId === null);
+    expect(roots).toHaveLength(3);
+    expect(roots.map(node => node.box.x)).toEqual([36, 459, 882]);
   });
 
   // 已知失败面：白底连白底会并块。如实断言，不要假装不存在——
   // 拆开它是阶段二递归切分的事，阶段一由人工框选处理。
   it("merges the product grid with the tab bar, as expected at this stage", async () => {
-    const tree = detectTopLevel(await fixture(), { x: 0, y: 1937, w: 1170, h: 595 }, NOW);
+    const tree = detectElementTree(await fixture(), { x: 0, y: 1937, w: 1170, h: 595 }, NOW);
     expect(tree.nodes).toHaveLength(1);
     expect(tree.nodes[0]!.box.h).toBeGreaterThan(500);
   });

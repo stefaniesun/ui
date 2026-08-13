@@ -1,5 +1,7 @@
-import { uniformity, type Rgb } from "./element-detect.js";
-import { medianOf, mergeByGap, repairMissedMerge, runsFromOccupancy } from "./element-runs.js";
+import { uniformity, type Rgb } from "./element-pixels.js";
+import {
+  medianOf, mergeByGap, repairMissedMerge, runsFromOccupancy, type Run,
+} from "./element-runs.js";
 import type { RawImage } from "./panels.js";
 import type { Rect } from "./types.js";
 
@@ -19,6 +21,19 @@ export const CUT_INSET = 6;
 const CUT_THRESHOLD = 10;
 /** 列游程最短长度，滤掉单列噪声 */
 const MIN_COLUMN_RUN = 4;
+/**
+ * 间隙占子块尺寸的比例低于它，就认为这一层是**一整行文字**而不是并列的元素，
+ * 不再切分。
+ *
+ * 双峰判据只在间隙真有两个峰时才合并；一行文字的字距是均匀的，因此不会被合并，
+ * 会被逐字切成子节点——实测「猜你喜欢」这个 216×90 的胶囊被切成 4 个 34×90 的块。
+ *
+ * 判别量取"间隙 / 子块尺寸"而不是间隙绝对值：字距占字宽的比例天然远小于
+ * UI 元素间距占元素宽的比例，这是排版事实不是拟合。实测——
+ * 胶囊内的字 2/34 = 0.06；关注领券两行 19/37 = 0.51、两列 55/135 = 0.41；
+ * 常用服务五格 98/140 = 0.70；订单入口五列 101/105 = 0.96。
+ */
+const TEXT_RUN_GAP_RATIO = 0.15;
 
 export interface LayoutInfo {
   direction: Direction;
@@ -51,6 +66,16 @@ export function occupancy(
   return { rows, cols };
 }
 
+/** 这批游程看起来是一整行文字（字距远小于字宽），而不是并列的元素 */
+export function looksLikeTextRun(runs: Run[]): boolean {
+  if (runs.length < 2) return false;
+  const gaps = runs.slice(1).map((run, i) => run.start - runs[i]!.end);
+  const sizes = runs.map(run => run.end - run.start);
+  const size = medianOf(sizes);
+  if (size <= 0) return false;
+  return medianOf(gaps) < size * TEXT_RUN_GAP_RATIO;
+}
+
 /**
  * 沿指定方向把容器切成子块。
  *
@@ -69,6 +94,7 @@ export function cutChildren(raw: RawImage, rect: Rect, direction: Direction): Re
   const merged = mergeByGap(rawRuns);
   const runs = repairMissedMerge(merged, rawRuns) ?? merged;
   if (runs.length < 2) return [];
+  if (looksLikeTextRun(runs)) return [];
   return runs.map(run => direction === "row"
     ? { x: rect.x + CUT_INSET + run.start, y: rect.y, w: run.end - run.start, h: rect.h }
     : { x: rect.x, y: rect.y + CUT_INSET + run.start, w: rect.w, h: run.end - run.start });
