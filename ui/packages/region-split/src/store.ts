@@ -1,7 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  checkInvariants, regionSplitDocSchema, type Region, type RegionSplitDoc,
+  checkElementTreeInvariants, elementsDocSchema,
+  type ElementsDoc, type ElementTree,
+} from "./element-types.js";
+import {
+  checkInvariants, regionSplitDocSchema, type Rect, type Region, type RegionSplitDoc,
 } from "./types.js";
 
 export class ProjectStore {
@@ -31,6 +35,43 @@ export class ProjectStore {
   cleanImagePath(projectId: string): string { return join(this.projectDir(projectId), "image.clean.png"); }
   analyzedImagePath(projectId: string): string { return join(this.projectDir(projectId), "image.analyzed.png"); }
   private docPath(projectId: string): string { return join(this.projectDir(projectId), "regions.json"); }
+
+  /**
+   * 元素树存独立文件，不进 regions.json。
+   * 这样 regionSplitDocSchema 与 checkInvariants 一行都不用改，
+   * 区域撤销栈仍然只承载 Region[]，两种编辑互不污染。
+   */
+  elementsPath(projectId: string): string {
+    return join(this.projectDir(projectId), "elements.json");
+  }
+
+  readElements(projectId: string): ElementsDoc {
+    const path = this.elementsPath(projectId);
+    if (!existsSync(path)) return { schemaVersion: "1", trees: [] };
+    return elementsDocSchema.parse(JSON.parse(readFileSync(path, "utf8"))) as ElementsDoc;
+  }
+
+  readElementTree(projectId: string, key: string): ElementTree | null {
+    return this.readElements(projectId).trees.find(tree => tree.regionKey === key) ?? null;
+  }
+
+  writeElementTree(projectId: string, tree: ElementTree, region: Rect): ElementTree {
+    const violations = checkElementTreeInvariants(tree, region);
+    if (violations.length > 0) {
+      throw new Error(`invariant violated: ${violations.map(v => v.code).join(", ")}`);
+    }
+    const doc = this.readElements(projectId);
+    const trees = doc.trees.filter(item => item.regionKey !== tree.regionKey);
+    trees.push(tree);
+    trees.sort((a, b) => a.regionKey.localeCompare(b.regionKey));
+    mkdirSync(this.projectDir(projectId), { recursive: true });
+    writeFileSync(
+      this.elementsPath(projectId),
+      JSON.stringify({ ...doc, trees }, null, 2) + "\n",
+      "utf8",
+    );
+    return tree;
+  }
 
   exists(projectId: string): boolean { return existsSync(this.docPath(projectId)); }
 

@@ -3,10 +3,12 @@ import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
+import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
+import { elementTreeSchema, regionKey } from "./element-types.js";
 import type { SegmentModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
 import type { ProjectStore } from "./store.js";
-import type { Region } from "./types.js";
+import type { Rect, Region } from "./types.js";
 
 export interface ServerDeps {
   store: ProjectStore;
@@ -103,6 +105,51 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       return { ok: false, error: (err as Error).message };
     }
   });
+
+  app.get<{ Params: ProjectParams; Querystring: { y?: string; h?: string } }>(
+    "/api/projects/:projectId/elements", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const y = Number(req.query.y);
+      const h = Number(req.query.h);
+      if (!Number.isInteger(y) || !Number.isInteger(h)) {
+        return reply.code(400).send({ error: "invalid region" });
+      }
+      // 没解析过返回 null 而不是 404：这是正常状态，不是错误。
+      // 键只由纵向跨度决定，x/w 传 0 是刻意的。
+      return { tree: store.readElementTree(projectId, regionKey({ x: 0, y, w: 0, h })) };
+    });
+
+  app.post<{ Params: ProjectParams; Body: { region: Rect } }>(
+    "/api/projects/:projectId/elements/detect", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const region = req.body?.region;
+      if (!region || region.w < MIN_ANALYZABLE_SIZE || region.h < MIN_ANALYZABLE_SIZE) {
+        return reply.code(400).send({ error: "region is too small to analyse" });
+      }
+      // 检测是纯本地像素计算，不需要模型配置——没配模型也该拿得到层级。
+      try {
+        return { tree: await detectElements({ store }, projectId, region) };
+      } catch (err) {
+        return reply.code(502).send({ error: (err as Error).message });
+      }
+    });
+
+  app.put<{ Params: ProjectParams; Body: { region: Rect; tree: unknown } }>(
+    "/api/projects/:projectId/elements", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const parsed = elementTreeSchema.safeParse(req.body?.tree);
+      if (!parsed.success || !req.body?.region) {
+        return reply.code(422).send({ error: "invalid element tree" });
+      }
+      try {
+        return { tree: store.writeElementTree(projectId, parsed.data, req.body.region) };
+      } catch (err) {
+        return reply.code(422).send({ error: (err as Error).message });
+      }
+    });
 
   app.get<{ Params: ProjectParams; Querystring: { rect?: string; original?: string } }>(
     "/api/projects/:projectId/image", async (req, reply) => {

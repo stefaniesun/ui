@@ -37,3 +37,28 @@ describe("canvas state", () => {
       .not.toThrow();
   });
 });
+
+describe("two node positions", () => {
+  it("places the detail node to the right of the workspace", () => {
+    expect(DEFAULT_NODE_POSITIONS.detail.x)
+      .toBeGreaterThan(DEFAULT_NODE_POSITIONS.workspace.x);
+  });
+
+  // 旧的 v2 存档只有 workspace，必须能正常载入并给新节点用缺省位置，
+  // 所以不需要提升 storage key 的版本号——升了反而会丢掉用户摆好的位置
+  it("falls back for a node missing from an older payload", () => {
+    const storage = { getItem: () => JSON.stringify({ workspace: { x: 5, y: 6 } }) };
+    const loaded = loadNodePositions(storage, "nodes", DEFAULT_NODE_POSITIONS);
+    expect(loaded.workspace).toEqual({ x: 5, y: 6 });
+    expect(loaded.detail).toEqual(DEFAULT_NODE_POSITIONS.detail);
+  });
+
+  it("round trips both node positions", () => {
+    const written: Record<string, string> = {};
+    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 } };
+    saveNodePositions({ setItem: (k, v) => { written[k] = v; } }, "nodes", positions);
+    const loaded = loadNodePositions(
+      { getItem: (k: string) => written[k] ?? null }, "nodes", DEFAULT_NODE_POSITIONS);
+    expect(loaded).toEqual(positions);
+  });
+});

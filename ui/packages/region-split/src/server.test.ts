@@ -257,3 +257,101 @@ describe("model config routes", () => {
       .toEqual({ ok: false, error: "model not configured" });
   });
 });
+
+describe("element routes", () => {
+  async function project() {
+    const { app } = makeApp();
+    const created = await upload(app);
+    return { app, projectId: created.json().projectId as string };
+  }
+  const REGION = { x: 0, y: 0, w: 375, h: 400 };
+  const node = (over: Record<string, unknown>) => ({
+    parentId: null, kind: "component", displayName: "x", style: {},
+    uniformity: 1, source: "manual", classification: "human",
+    scrollX: false, scrollY: false, positioning: "flow", ...over,
+  });
+
+  it("returns null before detection", async () => {
+    const { app, projectId } = await project();
+    const res = await app.inject({
+      method: "GET", url: `/api/projects/${projectId}/elements?y=0&h=400`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tree).toBeNull();
+  });
+
+  it("404s for an unknown project", async () => {
+    const { app } = makeApp();
+    const res = await app.inject({
+      method: "POST", url: "/api/projects/ghost/elements/detect", payload: { region: REGION },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("detects and then reads back a tree", async () => {
+    const { app, projectId } = await project();
+    const detect = await app.inject({
+      method: "POST", url: `/api/projects/${projectId}/elements/detect`, payload: { region: REGION },
+    });
+    expect(detect.statusCode).toBe(200);
+    const read = await app.inject({
+      method: "GET", url: `/api/projects/${projectId}/elements?y=0&h=400`,
+    });
+    expect(read.json().tree.regionKey).toBe("0-400");
+  });
+
+  // 检测是纯本地像素计算，不依赖模型配置
+  it("detects without a configured model", async () => {
+    const { app } = makeApp(undefined, false);
+    const created = await upload(app);
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/projects/${created.json().projectId}/elements/detect`,
+      payload: { region: REGION },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("saves an edited tree", async () => {
+    const { app, projectId } = await project();
+    const res = await app.inject({
+      method: "PUT", url: `/api/projects/${projectId}/elements`,
+      payload: {
+        region: REGION,
+        tree: {
+          regionKey: "0-400", detectedAt: "2026-08-13T00:00:00.000Z",
+          nodes: [node({ id: "n1", box: { x: 0, y: 0, w: 50, h: 50 } })],
+        },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().tree.nodes).toHaveLength(1);
+  });
+
+  it("422s a tree whose child escapes its parent", async () => {
+    const { app, projectId } = await project();
+    const res = await app.inject({
+      method: "PUT", url: `/api/projects/${projectId}/elements`,
+      payload: {
+        region: REGION,
+        tree: {
+          regionKey: "0-400", detectedAt: "2026-08-13T00:00:00.000Z",
+          nodes: [
+            node({ id: "n1", box: { x: 0, y: 0, w: 50, h: 50 } }),
+            node({ id: "n2", parentId: "n1", kind: "text", box: { x: 40, y: 0, w: 50, h: 50 } }),
+          ],
+        },
+      },
+    });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it("400s a region smaller than the minimum", async () => {
+    const { app, projectId } = await project();
+    const res = await app.inject({
+      method: "POST", url: `/api/projects/${projectId}/elements/detect`,
+      payload: { region: { x: 0, y: 0, w: 10, h: 10 } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
