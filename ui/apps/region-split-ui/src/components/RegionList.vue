@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
+import {
+  computed, nextTick, onBeforeUnmount, ref, watch, type ComponentPublicInstance,
+} from "vue";
 import type { RegionExpandDirection, Store } from "../state.js";
 
 const props = defineProps<{ store: Store; hoveredId?: string | null }>();
@@ -83,9 +85,59 @@ function onRowClick(id: string, event: MouseEvent) {
   props.store.select(id, event.ctrlKey || event.metaKey || event.shiftKey);
 }
 
-function expand(id: string, direction: RegionExpandDirection) {
+const REPEAT_DELAY_MS = 400;
+const REPEAT_INTERVAL_MS = 60;
+let repeatDelay: ReturnType<typeof setTimeout> | null = null;
+let repeatInterval: ReturnType<typeof setInterval> | null = null;
+let suppressClick = false;
+let pointerActivated = false;
+
+function clearRepeatTimers() {
+  if (repeatDelay) clearTimeout(repeatDelay);
+  if (repeatInterval) clearInterval(repeatInterval);
+  repeatDelay = null;
+  repeatInterval = null;
+}
+
+function startExpand(event: PointerEvent, id: string, direction: RegionExpandDirection) {
+  if (event.button !== 0 || !props.store.canExpandRegion(id, direction)) return;
+  clearRepeatTimers();
+  suppressClick = false;
+  pointerActivated = true;
+  props.store.expandRegion(id, direction);
+  repeatDelay = setTimeout(() => {
+    suppressClick = true;
+    const repeat = () => {
+      if (!props.store.canExpandRegion(id, direction)) {
+        clearRepeatTimers();
+        return;
+      }
+      props.store.expandRegion(id, direction);
+    };
+    repeat();
+    repeatInterval = setInterval(repeat, REPEAT_INTERVAL_MS);
+  }, REPEAT_DELAY_MS);
+}
+
+function stopExpand() {
+  clearRepeatTimers();
+}
+
+function onExpandClick(event: MouseEvent, id: string, direction: RegionExpandDirection) {
+  if (suppressClick) {
+    suppressClick = false;
+    pointerActivated = false;
+    event.preventDefault();
+    return;
+  }
+  if (pointerActivated) {
+    pointerActivated = false;
+    return;
+  }
   props.store.expandRegion(id, direction);
 }
+
+onBeforeUnmount(clearRepeatTimers);
 </script>
 
 <template>
@@ -142,7 +194,11 @@ function expand(id: string, direction: RegionExpandDirection) {
           aria-label="向上扩展区域"
           title="向上扩展区域"
           :disabled="!props.store.canExpandRegion(region.id, 'up')"
-          @click.stop="expand(region.id, 'up')"
+          @pointerdown.stop="startExpand($event, region.id, 'up')"
+          @pointerup.stop="stopExpand"
+          @pointercancel.stop="stopExpand"
+          @pointerleave="stopExpand"
+          @click.stop="onExpandClick($event, region.id, 'up')"
         >▲</button>
         <button
           type="button"
@@ -150,7 +206,11 @@ function expand(id: string, direction: RegionExpandDirection) {
           aria-label="向下扩展区域"
           title="向下扩展区域"
           :disabled="!props.store.canExpandRegion(region.id, 'down')"
-          @click.stop="expand(region.id, 'down')"
+          @pointerdown.stop="startExpand($event, region.id, 'down')"
+          @pointerup.stop="stopExpand"
+          @pointercancel.stop="stopExpand"
+          @pointerleave="stopExpand"
+          @click.stop="onExpandClick($event, region.id, 'down')"
         >▼</button>
       </span>
     </li>

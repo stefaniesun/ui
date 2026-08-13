@@ -1,19 +1,27 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import RegionList from "./RegionList.vue";
 import { createStore } from "../state.js";
-import { makeFakeApi, makeRegion } from "../test-helpers.js";
+import { makeDoc, makeFakeApi, makeRegion } from "../test-helpers.js";
 
 const initial = () => [makeRegion("a", 0, 300), makeRegion("b", 300, 300)];
 
 async function mounted() {
-  const store = createStore(makeFakeApi(initial));
+  const analyzed = makeDoc(initial);
+  analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
+  const api = makeFakeApi(initial, { doc: analyzed });
+  api.putRegions.mockImplementation(async (_projectId, regions) => ({
+    doc: { ...analyzed, regions },
+  }));
+  const store = createStore(api);
   await store.load("p1");
-  store.doc.value = { ...store.doc.value!, analyzedAt: "2026-08-13T00:00:00.000Z" };
+  store.doc.value = analyzed;
   return { store, wrapper: mount(RegionList, { props: { store } }) };
 }
 
 describe("RegionList", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("lists every region with type and boundary controls instead of confidence", async () => {
     const { wrapper } = await mounted();
     const rows = wrapper.findAll("[data-test=row]");
@@ -115,6 +123,77 @@ describe("RegionList", () => {
     store.beginSplit();
     await wrapper.vm.$nextTick();
     expect(controlsDisabled()).toBe(true);
+  });
+
+  it("repeats expansion after 400ms while held and suppresses the trailing click", async () => {
+    vi.useFakeTimers();
+    const { store, wrapper } = await mounted();
+    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
+
+    await button.trigger("pointerdown", { button: 0 });
+    expect(store.regions.value[1]!.bounds.h).toBe(301);
+
+    await vi.advanceTimersByTimeAsync(399);
+    expect(store.regions.value[1]!.bounds.h).toBe(301);
+
+    await vi.advanceTimersByTimeAsync(61);
+    expect(store.regions.value[1]!.bounds.h).toBe(303);
+
+    await button.trigger("pointerup");
+    button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+    await wrapper.vm.$nextTick();
+    expect(store.regions.value[1]!.bounds.h).toBe(303);
+
+    await vi.advanceTimersByTimeAsync(120);
+    expect(store.regions.value[1]!.bounds.h).toBe(303);
+  });
+
+  it("debounces persistence during a held adjustment", async () => {
+    vi.useFakeTimers();
+    const analyzed = makeDoc(initial);
+    analyzed.analyzedAt = "2026-08-13T00:00:00.000Z";
+    const api = makeFakeApi(initial, { doc: analyzed });
+    api.putRegions.mockImplementation(async (_projectId, regions) => ({
+      doc: { ...analyzed, regions },
+    }));
+    const store = createStore(api);
+    await store.load("p1");
+    store.doc.value = analyzed;
+    const wrapper = mount(RegionList, { props: { store } });
+    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
+
+    await button.trigger("pointerdown", { button: 0 });
+    await vi.advanceTimersByTimeAsync(580);
+    expect(api.putRegions).toHaveBeenCalledTimes(1);
+
+    await button.trigger("pointerup");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.putRegions).toHaveBeenCalledTimes(2);
+  });
+
+  it("supports keyboard activation without pointerdown", async () => {
+    const { store, wrapper } = await mounted();
+    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
+
+    button.element.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+    await wrapper.vm.$nextTick();
+
+    expect(store.regions.value[1]!.bounds.h).toBe(301);
+  });
+
+  it("coalesces one held adjustment into one undo step", async () => {
+    vi.useFakeTimers();
+    const { store, wrapper } = await mounted();
+    const button = wrapper.findAll("[data-test=row]")[1]!.get("[data-test=expand-up]");
+
+    await button.trigger("pointerdown", { button: 0 });
+    await vi.advanceTimersByTimeAsync(580);
+    await button.trigger("pointerup");
+    expect(store.regions.value[1]!.bounds.h).toBeGreaterThan(301);
+
+    store.undo();
+    expect(store.regions.value[1]!.bounds).toMatchObject({ y: 300, h: 300 });
+    expect(store.canUndo.value).toBe(false);
   });
 
   it("renames inline on double click", async () => {
