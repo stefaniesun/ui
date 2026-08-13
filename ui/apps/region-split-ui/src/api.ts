@@ -15,7 +15,7 @@ export interface StoreApi {
   putRegions(projectId: string, regions: Region[]): Promise<{ doc: RegionSplitDoc }>;
   putDocument(projectId: string, payload: EditablePayload): Promise<{ doc: RegionSplitDoc }>;
   retryElementAnalysis(projectId: string, regionId: string, expectedRevision: number, inputFingerprint: string): Promise<{ doc: RegionSplitDoc }>;
-  analyze(projectId: string): Promise<{ doc: RegionSplitDoc }>;
+  analyze(projectId: string, expectedRevision?: number): Promise<{ doc: RegionSplitDoc }>;
   renameAi(projectId: string, regionId: string): Promise<{ doc: RegionSplitDoc }>;
   getModelConfig(): Promise<ModelConfigView>;
 }
@@ -54,8 +54,8 @@ export const httpApi: StoreApi = {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedRevision, inputFingerprint }),
     });
   },
-  analyze(projectId) {
-    return json(`/api/projects/${projectId}/analyze`, { method: "POST" });
+  analyze(projectId, expectedRevision = 0) {
+    return json(`/api/projects/${projectId}/analyze`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedRevision }) });
   },
   renameAi(projectId, regionId) {
     return json(`/api/projects/${projectId}/regions/${regionId}/rename-ai`, { method: "POST" });

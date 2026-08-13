@@ -149,8 +149,10 @@ export async function analyzeProject(
     store: ProjectStore;
     model: SegmentModel;
     detectSurface?: DetectSurface;
+    coordinator?: ProjectWriteCoordinator;
   },
   projectId: string,
+  expectedRevision?: number,
 ): Promise<RegionSplitDoc> {
   const { store, model } = deps;
   await ensureCleanImage(store, projectId);
@@ -204,6 +206,9 @@ export async function analyzeProject(
   const next: RegionSplitDoc = {
     ...doc, regions, elements, elementAnalysis, candidateLines, panels, analyzedAt: now, updatedAt: now,
   };
+  if (deps.coordinator && expectedRevision !== undefined) {
+    return deps.coordinator.run(projectId, () => store.commitDocument(projectId, expectedRevision, current => ({ ...next, revision: current.revision })));
+  }
   store.writeDoc(projectId, next);
   return next;
 }
