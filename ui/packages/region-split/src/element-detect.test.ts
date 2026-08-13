@@ -116,6 +116,61 @@ describe("detectTopLevel", () => {
     expect(tree.nodes.every(node => node.displayName.length > 0)).toBe(true);
     expect(tree.nodes.every(node => node.source === "auto")).toBe(true);
   });
+
+  // 连通块的外接矩形会互相重叠——实测账户顶部的头像圆被切成两块，
+  // 后者只差 1px 没被前者完全包含。同层重叠会直接撞上不变量。
+  it("merges two partially overlapping blocks into one", async () => {
+    const image = await raw(
+      sharp({ create: { width: 300, height: 300, channels: 3, background: "#f5f5f5" } })
+        .composite([
+          { input: { create: { width: 160, height: 100, channels: 3, background: "#303030" } }, top: 40, left: 40 },
+          // 与上一块横向错开、纵向搭住 10px，且底边比它低 1px：既不包含也不被包含
+          { input: { create: { width: 120, height: 51, channels: 3, background: "#303030" } }, top: 130, left: 100 },
+        ]).png());
+    const target = { x: 0, y: 0, w: 300, h: 300 };
+    const tree = detectTopLevel(image, target, NOW);
+    expect(tree.nodes).toHaveLength(1);
+    expect(tree.nodes[0]!.box).toEqual({ x: 40, y: 40, w: 180, h: 141 });
+    expect(checkElementTreeInvariants(tree, target)).toEqual([]);
+  });
+
+  // 完整包含是真实层级，应该变成父子而不是被合并掉。
+  // 描边卡片就是这个形态：边框是一个连通块，框内内容是另一个，
+  // 两者被页底色隔开，但边框的外接矩形包住了内容。
+  it("nests a fully contained block under its container", async () => {
+    const image = await raw(
+      sharp({ create: { width: 300, height: 300, channels: 3, background: "#f5f5f5" } })
+        .composite([
+          { input: { create: { width: 200, height: 200, channels: 3, background: "#303030" } }, top: 40, left: 40 },
+          // 掏空中间，只留 10px 的边框
+          { input: { create: { width: 180, height: 180, channels: 3, background: "#f5f5f5" } }, top: 50, left: 50 },
+          { input: { create: { width: 120, height: 60, channels: 3, background: "#303030" } }, top: 90, left: 80 },
+        ]).png());
+    const target = { x: 0, y: 0, w: 300, h: 300 };
+    const tree = detectTopLevel(image, target, NOW);
+    expect(tree.nodes).toHaveLength(2);
+    const outer = tree.nodes.find(node => node.parentId === null)!;
+    const inner = tree.nodes.find(node => node.parentId !== null)!;
+    expect(outer.box).toEqual({ x: 40, y: 40, w: 200, h: 200 });
+    expect(inner.parentId).toBe(outer.id);
+    expect(checkElementTreeInvariants(tree, target)).toEqual([]);
+  });
+
+  // image 是叶子类型，挂子节点会撞上 leaf-with-children
+  it("drops blocks that fall inside a raster image", async () => {
+    const noise = await noiseImage(200, 200);
+    const image = await raw(
+      sharp({ create: { width: 300, height: 300, channels: 3, background: "#f5f5f5" } })
+        .composite([
+          { input: noise, top: 40, left: 40 },
+          { input: { create: { width: 100, height: 40, channels: 3, background: "#f5f5f5" } }, top: 100, left: 80 },
+        ]).png());
+    const target = { x: 0, y: 0, w: 300, h: 300 };
+    const tree = detectTopLevel(image, target, NOW);
+    expect(tree.nodes).toHaveLength(1);
+    expect(tree.nodes[0]!.kind).toBe("image");
+    expect(checkElementTreeInvariants(tree, target)).toEqual([]);
+  });
 });
 
 // 真实截图回归：这些数值是这套算法唯一的事实基准，不得为了让测试变绿而放宽

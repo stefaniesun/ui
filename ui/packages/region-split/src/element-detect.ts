@@ -147,23 +147,89 @@ export function connectedBoxes(raw: RawImage, rect: Rect, background: Rgb): Rect
   return boxes.sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
+const contains = (outer: Rect, inner: Rect) =>
+  inner.x >= outer.x && inner.y >= outer.y
+  && inner.x + inner.w <= outer.x + outer.w
+  && inner.y + inner.h <= outer.y + outer.h;
+
+const overlaps = (a: Rect, b: Rect) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+function union(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x, y,
+    w: Math.max(a.x + a.w, b.x + b.w) - x,
+    h: Math.max(a.y + a.h, b.y + b.h) - y,
+  };
+}
+
 /**
- * 阶段一只产出顶层容器，是一棵扁平的树（全部 parentId 为 null）。
- * 递归切分留到阶段二——先把界面跑通，再加深算法。
+ * 连通块的外接矩形之间会出现两种关系，都必须处理掉，否则兄弟重叠会撞上不变量：
+ *
+ * - **部分重叠**（既不包含也不被包含）：两个块在视觉上交织在一起，是同一个元素
+ *   被抗锯齿或细缝切开的。合并成并集。实测头像圆就被切成了 (54,177,168×140)
+ *   和 (79,289,118×29) 两块，后者只差 1px 没被前者完全包含。
+ * - **包含**：这是真实的层级，交给 nestByContainment 变成父子。
+ */
+function mergePartialOverlaps(boxes: Rect[]): Rect[] {
+  const out = [...boxes];
+  for (let merged = true; merged; ) {
+    merged = false;
+    search: for (let i = 0; i < out.length; i++) {
+      for (let j = i + 1; j < out.length; j++) {
+        const a = out[i]!, b = out[j]!;
+        if (!overlaps(a, b) || contains(a, b) || contains(b, a)) continue;
+        out[i] = union(a, b);
+        out.splice(j, 1);
+        merged = true;
+        break search;
+      }
+    }
+  }
+  return out.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+/** 被完整包含的块成为包含它的**最小**那个块的子节点 */
+function parentIndexOf(boxes: Rect[], index: number): number {
+  let best = -1;
+  for (let i = 0; i < boxes.length; i++) {
+    if (i === index || !contains(boxes[i]!, boxes[index]!)) continue;
+    // 面积相同（互相包含）时保留先出现的那个当父，避免互指成环
+    if (contains(boxes[index]!, boxes[i]!) && i > index) continue;
+    if (best < 0 || boxes[i]!.w * boxes[i]!.h < boxes[best]!.w * boxes[best]!.h) best = i;
+  }
+  return best;
+}
+
+/**
+ * 阶段一只产出顶层容器。多数情况下是一棵扁平的树，但当一个块被另一个完整包含时
+ * 会自然产生一层父子——那是真实的层级，不该丢掉。递归切分留到阶段二。
  */
 export function detectTopLevel(raw: RawImage, region: Rect, now: string): ElementTree {
   const background = regionBackground(raw, region);
-  const nodes: ElementNode[] = connectedBoxes(raw, region, background).map((box, index) => {
-    const { fill, ratio } = uniformity(raw, box);
-    const isImage = ratio <= IMAGE_UNIFORMITY_MAX;
+  const merged = mergePartialOverlaps(connectedBoxes(raw, region, background));
+  const measured = merged.map(box => ({ box, ...uniformity(raw, box) }));
+
+  // 落在位图内部的块是这张图的一部分，不该单独成节点——
+  // image 是叶子类型，给它挂子节点会直接撞上 leaf-with-children。
+  const kept = measured.filter((item, index) => {
+    const parent = parentIndexOf(merged, index);
+    return parent < 0 || measured[parent]!.ratio > IMAGE_UNIFORMITY_MAX;
+  });
+  const boxes = kept.map(item => item.box);
+
+  const nodes: ElementNode[] = kept.map((item, index) => {
+    const parent = parentIndexOf(boxes, index);
     return {
       id: `n${index + 1}`,
-      parentId: null,
-      box,
-      kind: isImage ? "image" : "component",
+      parentId: parent < 0 ? null : `n${parent + 1}`,
+      box: item.box,
+      kind: item.ratio <= IMAGE_UNIFORMITY_MAX ? "image" : "component",
       displayName: `节点 ${index + 1}`,
-      style: ratio >= FLAT_UNIFORMITY_MIN ? { background: toHex(fill) } : {},
-      uniformity: ratio,
+      style: item.ratio >= FLAT_UNIFORMITY_MIN ? { background: toHex(item.fill) } : {},
+      uniformity: item.ratio,
       source: "auto",
       classification: "tool",
       scrollX: false,

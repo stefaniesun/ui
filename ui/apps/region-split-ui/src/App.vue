@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import PipelineCanvas from "./canvas/PipelineCanvas.vue";
+import DetailNode from "./canvas/nodes/DetailNode.vue";
 import RegionsNode, { type RegionNodeError } from "./canvas/nodes/RegionsNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
 import ErrorDialog from "./components/ErrorDialog.vue";
 import { httpApi } from "./api.js";
+import { createElementStore } from "./element-state.js";
 import { createStore } from "./state.js";
 
 const store = createStore(httpApi);
+const elementStore = createElementStore(httpApi);
 const hoveredId = ref<string | null>(null);
+const hoveredElementId = ref<string | null>(null);
 const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
 const dialogError = ref<RegionNodeError | null>(null);
 const showPanels = ref(true);
@@ -16,6 +20,10 @@ const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
 const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
 const analyzing = computed(() => store.busy.value && store.busyLabel.value === "AI 分析中…");
+const selectedRegions = computed(() =>
+  store.regions.value.filter(region => store.selectedIds.value.includes(region.id)));
+const detailStatus = computed(() =>
+  elementStore.tree.value ? "done" : selectedRegions.value.length === 1 ? "active" : "idle");
 
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
 function isEditingTarget(target: EventTarget | null) {
@@ -35,6 +43,14 @@ function onKeydown(event: KeyboardEvent) {
   if (store.busy.value || isEditingTarget(event.target)) return;
   const mod = event.ctrlKey || event.metaKey;
   if (store.mode.value === "split" && event.key !== "Escape") return;
+  // 元素删除走 Delete；Ctrl+Z 仍然只属于区域编辑，不接管元素
+  if (event.key === "Delete" && elementStore.selectedId.value && selectedRegions.value.length === 1) {
+    event.preventDefault();
+    void elementStore.removeNode(
+      store.projectId.value, selectedRegions.value[0]!.bounds, elementStore.selectedId.value,
+    );
+    return;
+  }
   if (mod && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) void store.redo(); else void store.undo();
@@ -63,7 +79,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       <span class="brand-mark">RS</span>
       <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
     </div>
-    <PipelineCanvas :status="workspaceStatus">
+    <PipelineCanvas
+      :status="workspaceStatus"
+      :detail-status="detailStatus"
+      :show-detail="analyzed"
+    >
       <template #status>{{ analyzed ? `${store.regions.value.length} 个区域` : hasImage ? "自动分析中" : "等待上传" }}</template>
       <RegionsNode
         ref="regionsNode"
@@ -74,6 +94,18 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         @uploaded="store.projectId.value && syncHash(store.projectId.value)"
         @error="dialogError = $event"
       />
+      <template #detail-status>
+        {{ elementStore.tree.value ? `${elementStore.nodes.value.length} 个元素` : "待解析" }}
+      </template>
+      <template #detail>
+        <DetailNode
+          :project-id="store.projectId.value"
+          :selected-regions="selectedRegions"
+          :element-store="elementStore"
+          :hovered-id="hoveredElementId"
+          @hover="hoveredElementId = $event"
+        />
+      </template>
     </PipelineCanvas>
     <BusyOverlay v-if="store.busy.value && !analyzing" :label="store.busyLabel.value" />
     <ErrorDialog

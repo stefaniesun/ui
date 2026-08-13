@@ -9,6 +9,7 @@ import {
   loadNodePositions,
   saveNodePositions,
   zoomAtPoint,
+  type NodeId,
   type NodePositions,
   type Point,
   type Viewport,
@@ -16,7 +17,9 @@ import {
 
 const props = withDefaults(defineProps<{
   status?: "idle" | "active" | "done" | "warn";
-}>(), { status: "idle" });
+  detailStatus?: "idle" | "active" | "done" | "warn";
+  showDetail?: boolean;
+}>(), { status: "idle", detailStatus: "idle", showDetail: false });
 
 const rootEl = ref<HTMLElement | null>(null);
 const workspaceEl = ref<HTMLElement | null>(null);
@@ -28,11 +31,14 @@ const positions = reactive<NodePositions>(loadNodePositions(
   DEFAULT_NODE_POSITIONS,
 ));
 const fallbackSize = { width: 1105, height: 700 };
+/** 详情节点的宽度，与模板里 PipelineNode 的 :width 保持一致 */
+const DETAIL_WIDTH = 760;
 const worldTransform = computed(() => `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`);
 const zoomLabel = computed(() => `${Math.round(viewport.zoom * 100)}%`);
 
 let interaction: null | {
   kind: "pan" | "node";
+  nodeId: NodeId;
   start: Point;
   origin: Point;
 } = null;
@@ -44,14 +50,21 @@ function pointerPoint(event: PointerEvent | WheelEvent): Point {
 
 function onCanvasPointerDown(event: PointerEvent) {
   if (event.button !== 0 && event.button !== 1) return;
-  interaction = { kind: "pan", start: pointerPoint(event), origin: { x: viewport.x, y: viewport.y } };
+  // pan 分支不读 nodeId，填 workspace 只为满足类型
+  interaction = {
+    kind: "pan", nodeId: "workspace",
+    start: pointerPoint(event), origin: { x: viewport.x, y: viewport.y },
+  };
   rootEl.value?.setPointerCapture?.(event.pointerId);
   event.preventDefault();
 }
 
-function onNodeDragStart(event: PointerEvent) {
+function onNodeDragStart(event: PointerEvent, nodeId: string) {
   if (event.button !== 0) return;
-  interaction = { kind: "node", start: pointerPoint(event), origin: { ...positions.workspace } };
+  const id = nodeId as NodeId;
+  interaction = {
+    kind: "node", nodeId: id, start: pointerPoint(event), origin: { ...positions[id] },
+  };
   rootEl.value?.setPointerCapture?.(event.pointerId);
   event.preventDefault();
 }
@@ -65,7 +78,7 @@ function onPointerMove(event: PointerEvent) {
     viewport.x = interaction.origin.x + dx;
     viewport.y = interaction.origin.y + dy;
   } else {
-    positions.workspace = {
+    positions[interaction.nodeId] = {
       x: interaction.origin.x + dx / viewport.zoom,
       y: interaction.origin.y + dy / viewport.zoom,
     };
@@ -90,11 +103,23 @@ function onWheel(event: WheelEvent) {
   setZoom(viewport.zoom * Math.exp(-event.deltaY * .0015), pointerPoint(event));
 }
 
+/** 两个节点的并集包围盒——只算 workspace 会把详情节点挡在视口外 */
 function contentBounds() {
-  const node = workspaceEl.value?.querySelector<HTMLElement>('[data-node-id="workspace"]');
-  const width = node?.offsetWidth || fallbackSize.width;
-  const height = node?.offsetHeight || fallbackSize.height;
-  return { ...positions.workspace, width, height };
+  const measure = (id: NodeId, fallbackWidth: number) => {
+    const node = workspaceEl.value?.querySelector<HTMLElement>(`[data-node-id="${id}"]`);
+    return {
+      ...positions[id],
+      width: node?.offsetWidth || fallbackWidth,
+      height: node?.offsetHeight || fallbackSize.height,
+    };
+  };
+  const boxes = [measure("workspace", fallbackSize.width)];
+  if (props.showDetail) boxes.push(measure("detail", DETAIL_WIDTH));
+  const left = Math.min(...boxes.map(box => box.x));
+  const top = Math.min(...boxes.map(box => box.y));
+  const right = Math.max(...boxes.map(box => box.x + box.width));
+  const bottom = Math.max(...boxes.map(box => box.y + box.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 function fitAll() {
@@ -154,6 +179,21 @@ defineExpose({ fitAll, refreshLayout, viewport, positions });
         >
           <template #status><slot name="status" /></template>
           <slot />
+        </PipelineNode>
+        <PipelineNode
+          v-if="props.showDetail"
+          node-id="detail"
+          title="区域详情"
+          :position="positions.detail"
+          :width="DETAIL_WIDTH"
+          :min-height="420"
+          :status="props.detailStatus"
+          :input="false"
+          :output="false"
+          @drag-start="onNodeDragStart"
+        >
+          <template #status><slot name="detail-status" /></template>
+          <slot name="detail" />
         </PipelineNode>
       </div>
     </div>
