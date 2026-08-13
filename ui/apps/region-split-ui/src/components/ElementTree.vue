@@ -12,7 +12,7 @@ function updateParent(id: string, event: Event) { props.store.reparentElement(id
 <template>
   <ul class="tree" :class="{ nested: (level ?? 1) > 1 }">
     <li v-for="node in nodes" :key="node.id" :data-element-id="node.id" :aria-level="level ?? 1" :aria-selected="store.selectedElementId.value === node.id"
-      :class="{ selected: store.selectedElementId.value === node.id, conflict: node.conflict }"
+      :class="{ selected: store.selectedElementId.value === node.id, conflict: node.conflict }" role="treeitem" tabindex="0" @keydown.enter.stop="store.selectElement(node.id)" @keydown.space.prevent.stop="store.selectElement(node.id)"
       @click.stop="store.selectElement(node.id)" @mouseenter="store.hoverElement(node.id)" @mouseleave="store.hoverElement(null)">
       <div class="node-row"><span>{{ node.displayName }}</span><small>{{ node.type }}</small></div>
       <div v-if="store.selectedElementId.value === node.id" class="properties" @click.stop>

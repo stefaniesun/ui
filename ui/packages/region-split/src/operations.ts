@@ -124,7 +124,7 @@ export function applyRegionEdit(
     if (!old) { analysis[region.id] = { status: "pending" }; continue; }
     const changed = JSON.stringify(old.bounds) !== JSON.stringify(region.bounds)
       || old.displayName !== region.displayName || old.type !== region.type;
-    if (changed) analysis[region.id] = { status: kind === "split" || kind === "merge" ? "pending" : "stale" };
+    if (changed) analysis[region.id] = { status: kind === "split" || kind === "merge" ? "pending" : "stale", inputFingerprint: analysis[region.id]?.inputFingerprint };
   }
   if (kind === "split" || kind === "merge") {
     for (const region of regions.filter(item => {
