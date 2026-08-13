@@ -20,6 +20,7 @@ const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
     { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
+  analyzeElements: async () => [],
   ...overrides,
 });
 
