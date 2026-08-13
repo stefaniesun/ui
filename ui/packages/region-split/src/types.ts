@@ -173,6 +173,9 @@ export function checkDocumentInvariants(doc: RegionSplitDoc): InvariantViolation
   const out = checkInvariants(doc.regions, doc.image);
   const regions = new Map(doc.regions.map(region => [region.id, region]));
   const elements = new Map<string, ElementNode>();
+  for (const regionId of Object.keys(doc.elementAnalysis)) {
+    if (!regions.has(regionId)) out.push({ code: "orphan-element-analysis", message: `element analysis references unknown region ${regionId}` });
+  }
   for (const element of doc.elements) {
     if (elements.has(element.id)) out.push({ code: "duplicate-element-id", message: `duplicate element id ${element.id}` });
     elements.set(element.id, element);

@@ -6,7 +6,7 @@ import {
   renameRegion, reparentElement as reparentElementInDoc, resizeElement as resizeElementInDoc, splitRegion,
   type ElementNode, type ElementType, type ModelConfigView, type Rect, type Region, type RegionSplitDoc,
 } from "@region-split/core/browser";
-import type { StoreApi } from "./api.js";
+import { ApiError, type StoreApi } from "./api.js";
 
 export type { StoreApi };
 export type RegionExpandDirection = "up" | "down";
@@ -34,6 +34,8 @@ export function createStore(api: StoreApi) {
     set: (value: boolean) => { busyLabel.value = value ? "处理中…" : ""; },
   });
   const error = ref("");
+  const saveConflict = ref<RegionSplitDoc | null>(null);
+  let persistInFlight: Promise<void> | null = null;
   const pendingRenameIds = ref<string[]>([]);
   const renamingId = ref<string | null>(null);
   const modelConfig = ref<ModelConfigView | null>(null);
@@ -121,21 +123,24 @@ export function createStore(api: StoreApi) {
 
   async function persistNow() {
     if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
-    if (!projectId.value) return;
-    try {
-      const current = doc.value;
-      if (!current) return;
-      const result = await api.putDocument(projectId.value, {
-        expectedRevision: current.revision, regions: regions.value, elements: elements.value,
-        elementAnalysis: current.elementAnalysis,
-      });
-      doc.value = result.doc;
-      regions.value = result.doc.regions;
-      elements.value = result.doc.elements;
-    } catch (err) {
-      error.value = (err as Error).message;
-      // 保存失败时保留完整本地快照，禁止静默采用服务端状态覆盖用户修改。
-    }
+    if (!projectId.value || saveConflict.value) return;
+    const run = async () => {
+      try {
+        const current = doc.value;
+        if (!current) return;
+        const result = await api.putDocument(projectId.value, {
+          expectedRevision: current.revision, regions: regions.value, elements: elements.value,
+          elementAnalysis: current.elementAnalysis,
+        });
+        doc.value = result.doc; regions.value = result.doc.regions; elements.value = result.doc.elements;
+      } catch (err) {
+        error.value = (err as Error).message;
+        if (err instanceof ApiError && err.status === 409 && err.latestDoc) saveConflict.value = err.latestDoc;
+      }
+    };
+    if (persistInFlight) await persistInFlight;
+    persistInFlight = run();
+    try { await persistInFlight; } finally { persistInFlight = null; }
   }
 
   function schedulePersist() {
@@ -159,7 +164,7 @@ export function createStore(api: StoreApi) {
   // 语义不同（前者压一步撤销、失败要报错；后者复用调用方已压的那一步、
   // 失败要静默保留占位名），由各自的调用方处理。
   async function applyAiRename(id: string): Promise<void> {
-    const result = await api.renameAi(projectId.value, id);
+    const result = await api.renameAi(projectId.value, id, doc.value?.revision ?? 0);
     doc.value = result.doc;
     regions.value = result.doc.regions;
   }
@@ -194,7 +199,7 @@ export function createStore(api: StoreApi) {
 
   return {
     projectId, doc, regions, elements, selectedIds, selectedElementId, hoveredElementId,
-    mode, canvasMode, busy, busyLabel, error, pendingRenameIds, renamingId, modelConfig,
+    mode, canvasMode, busy, busyLabel, error, saveConflict, pendingRenameIds, renamingId, modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
     isModelConfigured, candidateLines, needsAnalysis, canExpandRegion,
 
@@ -203,13 +208,22 @@ export function createStore(api: StoreApi) {
     setCanvasMode(next: "select" | "split-region" | "add-element") { canvasMode.value = next; mode.value = next === "split-region" ? "split" : "idle"; },
     addElement(element: ElementNode) { if (!doc.value) return; pushUndo(); doc.value = addElementToDoc({ ...doc.value, regions: regions.value, elements: elements.value }, element); elements.value = doc.value.elements; schedulePersist(); },
     moveElement(id: string, dx: number, dy: number) { if (!doc.value) return; doc.value = moveElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id, dx, dy); elements.value = doc.value.elements; },
-    resizeElement(id: string, bounds: Rect) { if (!doc.value) return; pushUndo(); doc.value = resizeElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, bounds); elements.value = doc.value.elements; schedulePersist(); },
+    resizeElement(id: string, bounds: Rect) { if (!doc.value) return; if (!boundaryGestureActive) pushUndo(); doc.value = resizeElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, bounds); elements.value = doc.value.elements; if (!boundaryGestureActive) schedulePersist(); },
     deleteElement(id: string) { if (!doc.value) return; pushUndo(); doc.value = deleteElementTree({ ...doc.value, regions: regions.value, elements: elements.value }, id); elements.value = doc.value.elements; if (selectedElementId.value === id) selectedElementId.value = null; schedulePersist(); },
     renameElement(id: string, name: string) { if (!doc.value) return; pushUndo(); doc.value = renameElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, name); elements.value = doc.value.elements; schedulePersist(); },
     changeElementType(id: string, type: ElementType) { if (!doc.value) return; pushUndo(); doc.value = changeElementTypeInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, type); elements.value = doc.value.elements; schedulePersist(); },
     reparentElement(id: string, parentId: string | null) { if (!doc.value) return; pushUndo(); doc.value = reparentElementInDoc({ ...doc.value, regions: regions.value, elements: elements.value }, id, parentId); elements.value = doc.value.elements; schedulePersist(); },
     beginElementGesture() { if (!boundaryGestureActive) pushUndo(); boundaryGestureActive = true; if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; } },
     endElementGesture() { if (!boundaryGestureActive) return; boundaryGestureActive = false; schedulePersist(); },
+    async retryElementAnalysis(regionId: string) {
+      const current = doc.value; const state = current?.elementAnalysis[regionId];
+      if (!current || !projectId.value || !state?.inputFingerprint || saveConflict.value) return;
+      await persistNow();
+      if (saveConflict.value) return;
+      const result = await api.retryElementAnalysis(projectId.value, regionId, doc.value!.revision, state.inputFingerprint);
+      setDoc(result.doc);
+    },
+    loadServerVersion() { if (saveConflict.value) { setDoc(saveConflict.value); saveConflict.value = null; error.value = ""; } },
 
     startRename(id: string) { renamingId.value = id; },
     stopRename() { renamingId.value = null; },

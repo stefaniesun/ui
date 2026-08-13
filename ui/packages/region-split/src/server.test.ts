@@ -75,7 +75,7 @@ describe("region split server", () => {
   it("analyzes and then reads back the regions", async () => {
     const { app } = makeApp();
     const { projectId } = (await upload(app)).json();
-    const analyzed = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
+    const analyzed = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
     expect(analyzed.statusCode).toBe(200);
     expect(analyzed.json().doc.regions.map((r: { id: string }) => r.id)).toEqual(["top", "body"]);
     const read = await app.inject({ method: "GET", url: `/api/projects/${projectId}` });
@@ -85,7 +85,7 @@ describe("region split server", () => {
   it("returns 502 when the model fails during analyze", async () => {
     const { app } = makeApp(model({ segment: async () => { throw new Error("llm down"); } }));
     const { projectId } = (await upload(app)).json();
-    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
+    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
     expect(res.statusCode).toBe(502);
     expect(res.json().error).toMatch(/llm down/);
   });
@@ -114,8 +114,8 @@ describe("region split server", () => {
   it("renames a region with the model", async () => {
     const { app } = makeApp();
     const { projectId } = (await upload(app)).json();
-    await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
-    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/body/rename-ai` });
+    await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
+    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/body/rename-ai`, payload: { expectedRevision: 1 } });
     expect(res.statusCode).toBe(200);
     expect(res.json().doc.regions[1]).toMatchObject({ id: "body", displayName: "权益表", type: "grid" });
     const missing = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/ghost/rename-ai` });
@@ -171,7 +171,7 @@ describe("region split server", () => {
   it("refuses to analyze while the model is not configured", async () => {
     const { app } = makeApp(model(), false);
     const { projectId } = (await upload(app)).json();
-    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
+    const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze`, payload: { expectedRevision: 0 } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe("model not configured");
   });

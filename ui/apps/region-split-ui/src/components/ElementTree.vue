@@ -19,6 +19,7 @@ function updateParent(id: string, event: Event) { props.store.reparentElement(id
         <input aria-label="元素名称" :value="node.displayName" @change="store.renameElement(node.id, ($event.target as HTMLInputElement).value)" />
         <select aria-label="元素类型" :value="node.type" @change="updateType(node.id, $event)"><option v-for="type in elementTypes" :key="type" :value="type">{{ type }}</option></select>
         <select aria-label="父元素" :value="node.parentId ?? ''" @change="updateParent(node.id, $event)"><option value="">区域直属</option><option v-for="parent in parentOptions(node)" :key="parent.id" :value="parent.id">{{ parent.displayName }}</option></select>
+        <div class="bounds"><input v-for="key in (['x','y','w','h'] as const)" :key="key" :aria-label="`元素${key}`" type="number" step="1" :min="key === 'w' || key === 'h' ? 4 : 0" :value="node.bounds[key]" @change="store.resizeElement(node.id, { ...node.bounds, [key]: Number(($event.target as HTMLInputElement).value) })" /></div>
         <button type="button" aria-label="删除元素" @click="store.deleteElement(node.id)">删除</button>
       </div>
       <ElementTree :store="store" :region-id="regionId" :parent-id="node.id" :level="(level ?? 1) + 1" />
@@ -29,5 +30,5 @@ function updateParent(id: string, event: Event) { props.store.reparentElement(id
 .tree { list-style: none; margin: 3px 0; padding: 0; }.tree.nested { padding-left: 14px; border-left: 1px solid #d5dce8; }
 li { padding: 4px 6px; border-radius: 4px; font-size: 12px; } li.selected { background: #eaf2ff; outline: 1px solid #2f6fed; } li.conflict { color: #b45309; }
 .node-row { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }.node-row small { color: #788397; }
-.properties { display: grid; gap: 4px; margin-top: 5px; }.properties input,.properties select,.properties button { min-width: 0; font-size: 11px; }
+.properties { display: grid; gap: 4px; margin-top: 5px; }.properties input,.properties select,.properties button { min-width: 0; font-size: 11px; }.bounds { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 3px; }
 </style>

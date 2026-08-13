@@ -52,13 +52,13 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     return { projectId, doc: store.readDoc(projectId) };
   });
 
-  app.post<{ Params: ProjectParams; Body: { expectedRevision?: number } }>("/api/projects/:projectId/analyze", async (req, reply) => {
+  app.post<{ Params: ProjectParams; Body: { expectedRevision: number } }>("/api/projects/:projectId/analyze", async (req, reply) => {
     const { projectId } = req.params;
     if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
     if (!configStore.isConfigured()) return reply.code(400).send({ error: "model not configured" });
     try {
       return {
-        doc: await analyzeProject({ store, model: currentModel(), detectSurface: deps.detectSurface, coordinator }, projectId, req.body?.expectedRevision ?? store.readDoc(projectId).revision),
+        doc: await analyzeProject({ store, model: currentModel(), detectSurface: deps.detectSurface, coordinator }, projectId, req.body.expectedRevision),
       };
     } catch (err) {
       if (err instanceof RevisionConflictError) return reply.code(409).send({ error: err.message, doc: err.latest });
@@ -106,7 +106,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       }
     });
 
-  app.post<{ Params: ProjectParams & { regionId: string } }>(
+  app.post<{ Params: ProjectParams & { regionId: string }; Body: { expectedRevision: number } }>(
     "/api/projects/:projectId/regions/:regionId/rename-ai", async (req, reply) => {
       const { projectId, regionId } = req.params;
       if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
@@ -115,8 +115,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         return reply.code(404).send({ error: "region not found" });
       }
       try {
-        return { doc: await renameRegionWithModel({ store, model: currentModel() }, projectId, regionId) };
+        return { doc: await renameRegionWithModel({ store, model: currentModel(), coordinator }, projectId, regionId, req.body.expectedRevision) };
       } catch (err) {
+        if (err instanceof RevisionConflictError) return reply.code(409).send({ error: err.message, doc: err.latest });
         return reply.code(502).send({ error: (err as Error).message });
       }
     });
