@@ -4,6 +4,7 @@ import { preprocessScreenshot } from "./preprocess.js";
 import { applyNaming } from "./operations.js";
 import { initialRegionsFromCandidateLines, reconcile } from "./reconcile.js";
 import type { SegmentModel } from "./model.js";
+import { analyzeOneRegionElements, analyzeRegionElements, elementInputFingerprint } from "./element-analysis.js";
 import type { ProjectStore } from "./store.js";
 import type { Panel } from "./panels.js";
 import type { CandidateLine, RegionSplitDoc } from "./types.js";
@@ -186,9 +187,21 @@ export async function analyzeProject(
     analyzedScale: doc.image.analyzedScale,
     candidateLines,
   });
+  const imageVersion = `${doc.image.width}x${doc.image.height}:${doc.image.removedChrome.length}`;
+  const analyzed = await analyzeRegionElements(regions, region => analyzeOneRegionElements(store, projectId, region, model));
+  const elements = regions.flatMap(region => {
+    const result = analyzed.get(region.id);
+    return result?.ok ? result.value : [];
+  });
+  const elementAnalysis = Object.fromEntries(regions.map(region => {
+    const result = analyzed.get(region.id);
+    return [region.id, result?.ok
+      ? { status: "ready" as const, analyzedAt: new Date().toISOString(), inputFingerprint: elementInputFingerprint(region, imageVersion) }
+      : { status: "failed" as const, error: result?.error ?? "element analysis failed", inputFingerprint: elementInputFingerprint(region, imageVersion) }];
+  }));
   const now = new Date().toISOString();
   const next: RegionSplitDoc = {
-    ...doc, regions, candidateLines, panels, analyzedAt: now, updatedAt: now,
+    ...doc, regions, elements, elementAnalysis, candidateLines, panels, analyzedAt: now, updatedAt: now,
   };
   store.writeDoc(projectId, next);
   return next;

@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./operations.js";
 export * from "./elements.js";
+export * from "./element-analysis.js";
 export * from "./reconcile.js";
 export * from "./model.js";
 export * from "./model-config.js";
