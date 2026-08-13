@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { medianOf, mergeByGap, runsFromOccupancy, type Run } from "./element-runs.js";
+import {
+  medianOf, mergeByGap, repairMissedMerge, runsFromOccupancy, type Run,
+} from "./element-runs.js";
 
 /** 用 [起点, 长度] 描述游程，和实测数据的记法一致 */
 function fromSpans(spans: [number, number][]): Run[] {
@@ -86,5 +88,47 @@ describe("medianOf", () => {
     const values = [9, 1, 5];
     medianOf(values);
     expect(values).toEqual([9, 1, 5]);
+  });
+});
+
+describe("repairMissedMerge", () => {
+  // 实测订单状态卡片：末段是两项粘连，间距序列 219 / 220 / 324.5 里那个
+  // 324.5 就是漏合并的信号。边界不从间距反推，而是回到原始游程里最大的间隙。
+  const original = fromSpans([
+    [57, 10], [68, 94],                                  // 第 1 项
+    [277, 103],                                          // 第 2 项
+    [496, 10], [507, 94],                                // 第 3 项
+    [688, 34], [724, 86],                                // 第 4 项
+    [877, 18], [917, 34], [953, 70], [1026, 32],         // 第 5 项
+  ]);
+
+  it("splits an over merged run at the widest internal gap", () => {
+    const merged = fromSpans([[57, 105], [277, 103], [496, 105], [688, 370]]);
+    const repaired = repairMissedMerge(merged, original);
+    expect(repaired).not.toBeNull();
+    expect(repaired!).toHaveLength(5);
+    // 第 4 项止于 810（724+86），第 5 项起于 877——正是那道最宽的间隙
+    expect(repaired![3]).toEqual({ start: 57 + 631, end: 810 });
+    expect(repaired![4]).toEqual({ start: 877, end: 1058 });
+  });
+
+  it("returns null when every pitch is already even", () => {
+    const merged = fromSpans([[0, 100], [220, 100], [440, 100]]);
+    expect(repairMissedMerge(merged, merged)).toBeNull();
+  });
+
+  it("returns null when more than one run is oversized", () => {
+    const merged = fromSpans([[0, 300], [400, 60], [800, 300]]);
+    expect(repairMissedMerge(merged, merged)).toBeNull();
+  });
+
+  it("returns null with fewer than three runs", () => {
+    const merged = fromSpans([[0, 100], [220, 300]]);
+    expect(repairMissedMerge(merged, merged)).toBeNull();
+  });
+
+  it("returns null when the oversized run has no internal gap to use", () => {
+    const merged = fromSpans([[0, 100], [220, 100], [440, 400]]);
+    expect(repairMissedMerge(merged, fromSpans([[0, 100], [220, 100], [440, 400]]))).toBeNull();
   });
 });

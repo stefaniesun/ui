@@ -1,5 +1,5 @@
 import { uniformity, type Rgb } from "./element-detect.js";
-import { medianOf, mergeByGap, runsFromOccupancy } from "./element-runs.js";
+import { medianOf, mergeByGap, repairMissedMerge, runsFromOccupancy } from "./element-runs.js";
 import type { RawImage } from "./panels.js";
 import type { Rect } from "./types.js";
 
@@ -61,9 +61,13 @@ export function occupancy(
 export function cutChildren(raw: RawImage, rect: Rect, direction: Direction): Rect[] {
   const { fill } = uniformity(raw, rect);
   const { rows, cols } = occupancy(raw, rect, fill);
-  const runs = direction === "row"
-    ? mergeByGap(runsFromOccupancy(cols, MIN_COLUMN_RUN))
-    : mergeByGap(runsFromOccupancy(rows, 1));
+  const rawRuns = direction === "row"
+    ? runsFromOccupancy(cols, MIN_COLUMN_RUN)
+    : runsFromOccupancy(rows, 1);
+  // 单元间隙偏小时自适应阈值会把相邻两项并成一段；修复必须在这一层做，
+  // 因为只有这里还握着合并前的原始游程——边界得从真实空白里量出来，不能猜。
+  const merged = mergeByGap(rawRuns);
+  const runs = repairMissedMerge(merged, rawRuns) ?? merged;
   if (runs.length < 2) return [];
   return runs.map(run => direction === "row"
     ? { x: rect.x + CUT_INSET + run.start, y: rect.y, w: run.end - run.start, h: rect.h }
