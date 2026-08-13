@@ -128,11 +128,16 @@ export function createStore(api: StoreApi) {
       try {
         const current = doc.value;
         if (!current) return;
+        const submittedRegions = regions.value;
+        const submittedElements = elements.value;
         const result = await api.putDocument(projectId.value, {
-          expectedRevision: current.revision, regions: regions.value, elements: elements.value,
+          expectedRevision: current.revision, regions: submittedRegions, elements: submittedElements,
           elementAnalysis: current.elementAnalysis,
         });
-        doc.value = result.doc; regions.value = result.doc.regions; elements.value = result.doc.elements;
+        doc.value = { ...result.doc, regions: regions.value, elements: elements.value };
+        if (regions.value === submittedRegions && elements.value === submittedElements) {
+          regions.value = result.doc.regions; elements.value = result.doc.elements;
+        } else schedulePersist();
       } catch (err) {
         error.value = (err as Error).message;
         if (err instanceof ApiError && err.status === 409 && err.latestDoc) saveConflict.value = err.latestDoc;
@@ -164,9 +169,12 @@ export function createStore(api: StoreApi) {
   // 语义不同（前者压一步撤销、失败要报错；后者复用调用方已压的那一步、
   // 失败要静默保留占位名），由各自的调用方处理。
   async function applyAiRename(id: string): Promise<void> {
-    const result = await api.renameAi(projectId.value, id, doc.value?.revision ?? 0);
+    const revision = doc.value?.revision ?? 0;
+    const result = await api.renameAi(projectId.value, id, revision);
+    if ((doc.value?.revision ?? 0) !== revision) return;
     doc.value = result.doc;
     regions.value = result.doc.regions;
+    elements.value = result.doc.elements;
   }
 
   // 拆分/合并后的自动重命名：模型未配置时直接跳过（不发请求也不报错，新块保持
@@ -177,6 +185,7 @@ export function createStore(api: StoreApi) {
   // 读写服务端同一份磁盘文档，产生互相覆盖的竞态。
   async function autoRenameStructuralResult(ids: string[]): Promise<void> {
     if (!projectId.value || !isModelConfigured.value || ids.length === 0) return;
+    await persistNow();
     pendingRenameIds.value = [...pendingRenameIds.value, ...ids];
     for (const id of ids) {
       const indexBefore = regions.value.findIndex(region => region.id === id);

@@ -50,7 +50,7 @@ function finish(event: PointerEvent) {
   }
   gesture = null;
 }
-function cancel() { if (gesture?.kind === "move") props.store.endElementGesture(); gesture = null; }
+function cancel() { if (gesture?.kind === "move" || gesture?.kind === "resize") props.store.endElementGesture(); gesture = null; }
 onBeforeUnmount(cancel);
 </script>
 
@@ -58,7 +58,7 @@ onBeforeUnmount(cancel);
   <div ref="root" class="element-overlay" :class="{ disabled }" @pointerdown="startCreate" @pointermove="move" @pointerup="finish" @pointercancel="cancel">
     <div v-for="element in store.elements.value" :key="element.id" class="element-box"
       :class="{ selected: store.selectedElementId.value === element.id, conflict: element.conflict, hovered: store.hoveredElementId.value === element.id }"
-      :data-element-id="element.id" :aria-label="`元素 ${element.displayName}`" :aria-selected="store.selectedElementId.value === element.id"
+      :data-element-id="element.id" :aria-label="`元素 ${element.displayName}`" :aria-selected="store.selectedElementId.value === element.id" role="button" tabindex="0" @keydown.enter.stop="store.selectElement(element.id)" @keydown.space.prevent.stop="store.selectElement(element.id)"
       :style="{ left: `${imageRectToDisplay(element.bounds, scaleX, scaleY).x}px`, top: `${imageRectToDisplay(element.bounds, scaleX, scaleY).y}px`, width: `${imageRectToDisplay(element.bounds, scaleX, scaleY).w}px`, height: `${imageRectToDisplay(element.bounds, scaleX, scaleY).h}px` }"
       @pointerdown="startMove($event, element.id)" @mouseenter="store.hoverElement(element.id)" @mouseleave="store.hoverElement(null)">
       <span class="element-label">{{ element.displayName }} · {{ element.type }}</span>
