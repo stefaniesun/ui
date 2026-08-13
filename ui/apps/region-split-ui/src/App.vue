@@ -21,7 +21,8 @@ async function onPickFile(file: File) {
 
 function onKeydown(event: KeyboardEvent) {
   const target = event.target;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+  if (event.key === "Delete" && store.selectedElementId.value) { event.preventDefault(); store.deleteElement(store.selectedElementId.value); return; }
   if (event.key === "ArrowUp") { event.preventDefault(); store.nudge(-1); return; }
   if (event.key === "ArrowDown") { event.preventDefault(); store.nudge(1); return; }
   // Esc 先退出拆分模式，没在拆分才清空选中——否则拆到一半按 Esc 会连选中一起丢掉
@@ -60,6 +61,11 @@ onUnmounted(() => {
       <RegionList :store="store" :hovered-id="hoveredId" @hover="id => (hoveredId = id)" />
     </aside>
     <BusyOverlay :store="store" />
+    <div v-if="store.saveConflict.value" role="dialog" aria-modal="true" class="conflict-dialog">
+      <strong>文档已在其他操作中更新</strong>
+      <p>本地修改尚未覆盖服务端版本。可载入服务端版本后继续编辑。</p>
+      <button type="button" @click="store.loadServerVersion()">载入服务端版本</button>
+    </div>
   </div>
 </template>
 
@@ -68,6 +74,7 @@ html, body, #app { height: 100%; margin: 0; font-family: system-ui, sans-serif; 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; grid-template-rows: auto minmax(0, 1fr); height: 100%; }
 header { grid-column: 1 / -1; border-bottom: 1px solid #ddd; }
 main { min-width: 0; overflow: auto; background: #f0f1f3; }
+.conflict-dialog { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); z-index: 30; width: 320px; padding: 18px; border: 1px solid #d6dbe5; border-radius: 10px; background: white; box-shadow: 0 18px 50px #0004; }
 aside { border-left: 1px solid #ddd; overflow: auto; background: #fff; }
 
 @media (max-width: 900px) {

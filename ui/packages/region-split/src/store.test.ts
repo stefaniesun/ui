@@ -73,8 +73,8 @@ describe("ProjectStore", () => {
 
   it("normalizes old documents and interrupted analysis when reading", () => {
     const store = freshStore();
-    store.writeDoc("p1", { ...doc(), schemaVersion: "1", elementAnalysis: { a: { status: "analyzing" } } });
-    expect(store.readDoc("p1")).toMatchObject({ schemaVersion: "2", revision: 0, elements: [], elementAnalysis: { a: { status: "failed" } } });
+    store.writeDoc("p1", { ...doc(), schemaVersion: "1", elementAnalysis: { "region-1": { status: "analyzing" } } });
+    expect(store.readDoc("p1")).toMatchObject({ schemaVersion: "2", revision: 0, elements: [], elementAnalysis: { "region-1": { status: "failed" } } });
   });
 
   it("rejects project ids that escape the root", () => {

@@ -233,9 +233,10 @@ export async function retryRegionElementAnalysis(
 }
 
 export async function renameRegionWithModel(
-  deps: { store: ProjectStore; model: SegmentModel },
+  deps: { store: ProjectStore; model: SegmentModel; coordinator?: ProjectWriteCoordinator },
   projectId: string,
   regionId: string,
+  expectedRevision?: number,
 ): Promise<RegionSplitDoc> {
   const { store, model } = deps;
   await ensureCleanImage(store, projectId);
@@ -248,5 +249,10 @@ export async function renameRegionWithModel(
     width: region.bounds.w, height: region.bounds.h,
   });
   const naming = await model.nameRegion({ cropBase64 });
-  return store.writeRegions(projectId, applyNaming(doc.regions, regionId, naming));
+  if (deps.coordinator && expectedRevision !== undefined) {
+    return deps.coordinator.run(projectId, () => store.commitDocument(projectId, expectedRevision, current => ({
+      ...current, regions: applyNaming(current.regions, regionId, naming),
+    })));
+  }
+  return store.commitDocument(projectId, doc.revision, current => ({ ...current, regions: applyNaming(current.regions, regionId, naming) }));
 }

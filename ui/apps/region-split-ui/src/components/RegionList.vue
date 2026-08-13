@@ -223,6 +223,8 @@ onBeforeUnmount(() => {
           @click.stop="onExpandClick($event, region.id, 'down')"
         >▼</button>
       </span>
+      <span v-if="props.store.doc.value?.elementAnalysis[region.id]?.status === 'analyzing'" class="analysis-status">元素分析中…</span>
+      <button v-else-if="['failed', 'stale'].includes(props.store.doc.value?.elementAnalysis[region.id]?.status ?? '')" type="button" class="retry-elements" aria-label="重新分析当前区域元素" @click.stop="props.store.retryElementAnalysis(region.id)">重试元素分析</button>
       <ElementTree :store="props.store" :region-id="region.id" />
     </li>
   </ul>
