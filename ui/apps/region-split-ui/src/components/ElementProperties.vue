@@ -11,11 +11,17 @@ const emit = defineEmits<{
   "set-kind": [id: string, kind: ElementKind];
   "set-scroll": [id: string, axis: "x" | "y", value: boolean];
   "set-box": [id: string, box: Rect];
+  "set-radius": [id: string, radius: number];
 }>();
 
 // 滚动是容器的属性，叶子上没有意义
 const isContainer = computed(() =>
   props.node?.kind === "component" || props.node?.kind === "grid");
+
+/** 圆角只对容器和位图有意义：文字和图标是内容本身，圆角属于承载它的盒子 */
+const hasRadius = computed(() => props.node?.kind === "component"
+  || props.node?.kind === "grid" || props.node?.kind === "image");
+const radius = computed(() => props.node?.style.borderRadius ?? 0);
 
 const KIND_LABEL: Record<ElementKind, string> = {
   component: "组件", grid: "网格", text: "文字",
@@ -69,6 +75,18 @@ function onBox(axis: "x" | "y" | "w" | "h", event: Event) {
   submit({ ...props.node.box, [axis]: value });
 }
 
+function onRadius(event: Event) {
+  const raw = (event.target as HTMLInputElement).value.trim();
+  const value = Number(raw);
+  if (!props.node) return;
+  if (raw === "" || !Number.isFinite(value)) return;
+  emit("set-radius", props.node.id, value);
+}
+
+function nudgeRadius(delta: number) {
+  if (props.node) emit("set-radius", props.node.id, radius.value + delta);
+}
+
 /** 按住不放时连续微调，与区域那层的边界按钮行为一致 */
 const REPEAT_MS = 120;
 let repeatTimer: number | undefined;
@@ -82,6 +100,11 @@ function startNudge(axis: "x" | "y" | "w" | "h", delta: number) {
   nudge(axis, delta);
   window.clearInterval(repeatTimer);
   repeatTimer = window.setInterval(() => nudge(axis, delta), REPEAT_MS);
+}
+function startRadius(delta: number) {
+  nudgeRadius(delta);
+  window.clearInterval(repeatTimer);
+  repeatTimer = window.setInterval(() => nudgeRadius(delta), REPEAT_MS);
 }
 function stopNudge() {
   window.clearInterval(repeatTimer);
@@ -179,6 +202,26 @@ onBeforeUnmount(stopNudge);
         </span>
       </div>
 
+      <div v-if="hasRadius" class="field">
+        <span class="name">圆角</span>
+        <span class="axes">
+          <label><input
+            data-test="property-radius" type="number" min="0" :value="radius"
+            @change="onRadius"
+          /></label>
+        </span>
+        <span class="pad radius-pad">
+          <button
+            data-test="radius-minus" title="减小圆角（按住连续）"
+            @pointerdown="startRadius(-1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >−</button>
+          <button
+            data-test="radius-plus" title="增大圆角（按住连续）"
+            @pointerdown="startRadius(1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >＋</button>
+        </span>
+      </div>
+
       <div class="field">
         <span class="name">背景色</span>
         <code>
@@ -259,6 +302,7 @@ onBeforeUnmount(stopNudge);
 .pad { flex: 1; min-width: 0; display: flex; gap: 4px; }
 .pad button { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 0; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
 .pad button:active { border-color: var(--accent); color: var(--accent); }
+.radius-pad { flex: none; width: 84px; }
 .toggles { display: flex; gap: 4px; }
 .toggles button { min-height: 0; padding: 2px 8px; border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .toggles button.on { border-color: var(--accent); color: var(--accent); }

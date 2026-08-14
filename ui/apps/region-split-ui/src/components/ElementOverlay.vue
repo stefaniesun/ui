@@ -31,12 +31,15 @@ const src = computed(() => regionImageUrl(props.projectId, props.region));
  * max-height 配 object-fit，那会让图的渲染矩形不再等于容器矩形，标注就必须
  * 改回测量式定位。
  */
-function boxStyle(box: Rect) {
+function boxStyle(box: Rect, radius = 0) {
+  // 圆角按显示比例换算，标注框才会和图上的实际弧度对得上
+  const scale = props.region.w > 0 ? 100 / props.region.w : 0;
   return {
     left: `${((box.x - props.region.x) / props.region.w) * 100}%`,
     top: `${((box.y - props.region.y) / props.region.h) * 100}%`,
     width: `${(box.w / props.region.w) * 100}%`,
     height: `${(box.h / props.region.h) * 100}%`,
+    ...(radius > 0 ? { borderRadius: `${radius * scale}cqw` } : {}),
   };
 }
 
@@ -102,7 +105,7 @@ defineExpose({ cancel: onCancel });
         selected: node.id === props.selectedId,
         hovered: node.id === props.hoveredId,
       }]"
-      :style="boxStyle(node.box)"
+      :style="boxStyle(node.box, node.style.borderRadius ?? 0)"
       @click.stop="emit('select', node.id)"
       @mouseenter="emit('hover', node.id)"
       @mouseleave="emit('hover', null)"
@@ -112,7 +115,7 @@ defineExpose({ cancel: onCancel });
 </template>
 
 <style scoped>
-.stage { position: relative; width: 100%; overflow: hidden; background: #0a0d13; cursor: crosshair; touch-action: none; }
+.stage { container-type: inline-size; position: relative; width: 100%; overflow: hidden; background: #0a0d13; cursor: crosshair; touch-action: none; }
 .crop { display: block; width: 100%; height: auto; }
 .box { position: absolute; border: 1px solid #4c8dff88; }
 .box.kind-image { border-style: dashed; border-color: #e2a400cc; }

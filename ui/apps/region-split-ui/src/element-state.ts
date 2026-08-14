@@ -118,6 +118,25 @@ export function createElementStore(api: StoreApi) {
         node.id === id ? { ...node, box: clamped } : node)));
     },
 
+    /**
+     * 人工调圆角。半径不可能超过短边的一半，超了就贴到上限；
+     * 0 表示直角，这时把字段删掉而不是存 0，保持文档干净。
+     */
+    async setRadius(projectId: string, region: Rect, id: string, radius: number) {
+      const current = nodes.value.find(node => node.id === id);
+      if (!current) return;
+      const cap = Math.floor(Math.min(current.box.w, current.box.h) / 2);
+      const next = Math.max(0, Math.min(Math.round(radius), cap));
+      if ((current.style.borderRadius ?? 0) === next) return;
+      await commit(projectId, region, nodes.value.map(node => {
+        if (node.id !== id) return node;
+        const style = { ...node.style };
+        if (next > 0) style.borderRadius = next;
+        else delete style.borderRadius;
+        return { ...node, style };
+      }));
+    },
+
     /** 删除一层：子节点上提到父节点，不级联删除 */
     async removeNode(projectId: string, region: Rect, id: string) {
       const target = nodes.value.find(node => node.id === id);

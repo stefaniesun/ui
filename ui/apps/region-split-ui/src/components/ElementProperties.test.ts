@@ -205,3 +205,54 @@ describe("ElementProperties nudge buttons", () => {
     expect(wrapper.find('[data-test="nudge-right"]').exists()).toBe(false);
   });
 });
+
+describe("ElementProperties border radius", () => {
+  const card: ElementNode = { ...node, style: { background: "#ffffff", borderRadius: 34 } };
+
+  it("shows the measured radius", () => {
+    const wrapper = mount(ElementProperties, { props: { node: card } });
+    expect((wrapper.find('[data-test="property-radius"]').element as HTMLInputElement).value)
+      .toBe("34");
+  });
+
+  it("emits a new radius from the input", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: card } });
+    const input = wrapper.find('[data-test="property-radius"]');
+    await input.setValue("20");
+    await input.trigger("change");
+    expect(wrapper.emitted("set-radius")![0]).toEqual(["n1", 20]);
+  });
+
+  it("nudges the radius one pixel per press", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: card } });
+    const plus = wrapper.find('[data-test="radius-plus"]');
+    await plus.trigger("pointerdown");
+    await plus.trigger("pointerup");
+    expect(wrapper.emitted("set-radius")![0]).toEqual(["n1", 35]);
+    const minus = wrapper.find('[data-test="radius-minus"]');
+    await minus.trigger("pointerdown");
+    await minus.trigger("pointerup");
+    expect(wrapper.emitted("set-radius")![1]).toEqual(["n1", 33]);
+  });
+
+  it("shows zero when the node has no radius", () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    expect((wrapper.find('[data-test="property-radius"]').element as HTMLInputElement).value)
+      .toBe("0");
+  });
+
+  // 圆角属于承载内容的盒子，文字和图标本身没有这个属性
+  it("hides the radius row on a text leaf", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: { ...node, kind: "text" as const } },
+    });
+    expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(false);
+  });
+
+  it("shows the radius row on an image", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: { ...node, kind: "image" as const } },
+    });
+    expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(true);
+  });
+});

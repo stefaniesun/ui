@@ -93,6 +93,53 @@ export function uniformity(
   );
 }
 
+/**
+ * 从四个角量圆角半径。
+ *
+ * 判据是"角上的像素被啃掉了"：一个圆角矩形在**最顶那一行**只覆盖
+ * `[x+r, x+w-r]`，所以从这一行的两端往里扫，第一个不等于外部色的像素
+ * 的内缩距离就是 r。底边同理。
+ *
+ * 实测四角高度一致：三张白卡片都是 34/34/34/34，采购横幅 27/27/28/27，
+ * 分类胶囊 12/12/12/12。
+ *
+ * **单个值表达不了上圆下方**：商品图实测 21/21/0/0，取中位数会得到 11 这种
+ * 两头不讨好的数。这是刻意接受的局限——schema 里 borderRadius 是一个数，
+ * 人工可在属性面板里改。
+ */
+export function measureBorderRadius(raw: RawImage, rect: Rect, outside: Rgb): number {
+  if (rect.w < 4 || rect.h < 4) return 0;
+
+  /** 沿一行从一端扫进去，返回第一个与外部色不同的像素的内缩距离 */
+  const scan = (y: number, from: number, step: number): number => {
+    const limit = Math.floor(rect.w / 2);
+    for (let n = 0; n <= limit; n++) {
+      const x = from + step * n;
+      const i = (y * raw.width + x) * raw.channels;
+      const distance = Math.max(
+        Math.abs(raw.data[i]! - outside[0]),
+        Math.abs(raw.data[i + 1]! - outside[1]),
+        Math.abs(raw.data[i + 2]! - outside[2]),
+      );
+      if (distance > CONTENT_THRESHOLD) return n;
+    }
+    return limit;
+  };
+
+  const top = rect.y;
+  const bottom = rect.y + rect.h - 1;
+  const left = rect.x;
+  const right = rect.x + rect.w - 1;
+  const corners = [
+    scan(top, left, 1), scan(top, right, -1),
+    scan(bottom, left, 1), scan(bottom, right, -1),
+  ].sort((a, b) => a - b);
+
+  const median = Math.round((corners[1]! + corners[2]!) / 2);
+  // 半径不可能超过短边的一半
+  return Math.max(0, Math.min(median, Math.floor(Math.min(rect.w, rect.h) / 2)));
+}
+
 /** 与底色不同的像素的四连通块外接矩形，按从上到下、从左到右排序 */
 export function connectedBoxes(raw: RawImage, rect: Rect, background: Rgb): Rect[] {
   const { w, h } = rect;

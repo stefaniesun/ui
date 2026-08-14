@@ -4,7 +4,7 @@ import {
 import { detectRepeat, detectScroll } from "./element-grid.js";
 import {
   CONTENT_THRESHOLD, FLAT_UNIFORMITY_MIN, IMAGE_UNIFORMITY_MAX,
-  connectedBoxes, regionBackground, toHex, uniformity, type Rgb,
+  connectedBoxes, measureBorderRadius, regionBackground, toHex, uniformity, type Rgb,
 } from "./element-pixels.js";
 import { regionKey, type ElementNode, type ElementTree } from "./element-types.js";
 import type { RawImage } from "./panels.js";
@@ -103,16 +103,24 @@ function parentIndexOf(boxes: Rect[], index: number): number {
   return best;
 }
 
-/** 按矩形建一个节点，类型由内部主色占比决定 */
+/**
+ * 按矩形建一个节点，类型由内部主色占比决定。
+ * `outside` 是这个框**外面**的颜色，量圆角要用它——角上被啃掉的那部分
+ * 露出来的就是外部色。
+ */
 function makeNode(
-  raw: RawImage, box: Rect, id: string, parentId: string | null,
+  raw: RawImage, box: Rect, id: string, parentId: string | null, outside: Rgb,
 ): ElementNode {
   const { fill, ratio } = uniformity(raw, box);
+  const radius = measureBorderRadius(raw, box, outside);
   return {
     id, parentId, box,
     kind: ratio <= IMAGE_UNIFORMITY_MAX ? "image" : "component",
     displayName: `节点 ${id.slice(1)}`,
-    style: ratio >= FLAT_UNIFORMITY_MIN ? { background: toHex(fill) } : {},
+    style: {
+      ...(ratio >= FLAT_UNIFORMITY_MIN ? { background: toHex(fill) } : {}),
+      ...(radius > 0 ? { borderRadius: radius } : {}),
+    },
     uniformity: ratio,
     source: "auto",
     classification: "tool",
@@ -164,7 +172,9 @@ function expand(
   if (direction === "row") parent.scrollX = scrolls;
   else parent.scrollY = scrolls;
 
-  const children = boxes.map(box => makeNode(raw, box, nextId(), parent.id));
+  // 子块的"外部"就是父块自己的底色
+  const parentFill = uniformity(raw, parent.box).fill;
+  const children = boxes.map(box => makeNode(raw, box, nextId(), parent.id, parentFill));
   nodes.push(...children);
 
   // 等距同构的层是一次循环渲染，不是 N 段复制粘贴的标签
@@ -205,7 +215,7 @@ export function detectElementTree(raw: RawImage, region: Rect, now: string): Ele
   // 没有可见容器时（元素直接摆在页面底色上），把区域自己当容器切。
   // 否则文字和图标各自的连通块都小于顶层最小尺寸，会被整批当噪声滤掉。
   if (uncoveredContentRatio(raw, region, background, boxes) > REGION_FALLBACK_RATIO) {
-    const virtual = makeNode(raw, region, "region", null);
+    const virtual = makeNode(raw, region, "region", null, background);
     expand(raw, virtual, 0, "row", nodes, nextId);
     // 虚拟容器本身不进树——它就是区域，没有像素证据说明它是个元素。
     // 它的直接子节点提升为顶层。
@@ -215,7 +225,9 @@ export function detectElementTree(raw: RawImage, region: Rect, now: string): Ele
 
   nodes.push(...kept.map((item, index) => {
     const parent = parentIndexOf(boxes, index);
-    return makeNode(raw, item.box, nextId(), parent < 0 ? null : `n${parent + 1}`);
+    // 被包含的块，其"外部"是包住它的那个块的底色
+    const outside = parent < 0 ? background : uniformity(raw, boxes[parent]!).fill;
+    return makeNode(raw, item.box, nextId(), parent < 0 ? null : `n${parent + 1}`, outside);
   }));
 
   // 顶层节点已经全部建好（id 与下标一一对应），再逐个展开内部

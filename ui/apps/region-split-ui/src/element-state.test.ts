@@ -240,3 +240,39 @@ describe("setBox", () => {
     expect(store.tree.value!.nodes.find(n => n.id === "p")!.layout!.gap).toBe(100);
   });
 });
+
+describe("setRadius", () => {
+  const card = (id: string, w: number, h: number, radius?: number) =>
+    node({ id, box: { x: 0, y: 0, w, h }, style: radius ? { borderRadius: radius } : {} });
+
+  it("stores a new radius", async () => {
+    const store = createElementStore(loaded([card("n1", 200, 120, 34)]));
+    await store.load("p1", REGION);
+    await store.setRadius("p1", REGION, "n1", 20);
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(20);
+  });
+
+  // 半径不可能超过短边的一半
+  it("caps at half the shorter side", async () => {
+    const store = createElementStore(loaded([card("n1", 200, 120)]));
+    await store.load("p1", REGION);
+    await store.setRadius("p1", REGION, "n1", 999);
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(60);
+  });
+
+  // 0 表示直角，这时删字段而不是存 0，保持文档干净
+  it("drops the field when set to zero", async () => {
+    const store = createElementStore(loaded([card("n1", 200, 120, 34)]));
+    await store.load("p1", REGION);
+    await store.setRadius("p1", REGION, "n1", 0);
+    expect("borderRadius" in store.tree.value!.nodes[0]!.style).toBe(false);
+  });
+
+  it("does nothing when the value is unchanged", async () => {
+    const api = loaded([card("n1", 200, 120, 34)]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setRadius("p1", REGION, "n1", 34);
+    expect(api.putElements).not.toHaveBeenCalled();
+  });
+});
