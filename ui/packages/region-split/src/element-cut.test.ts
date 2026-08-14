@@ -40,14 +40,15 @@ describe("occupancy", () => {
 });
 
 describe("cutChildren", () => {
-  // 横切出来的列在交叉轴上继承父块的完整高度——这是 X-Y cut 的固有形态，
-  // 交叉轴边界由下一层反方向切分收紧，好处是兄弟天然不重叠
-  it("cuts a row into its columns", async () => {
+  // 切完就地把子块沿交叉轴收紧到真实内容范围：三个 40×40 的黑块位于 y=30，
+  // 结果就该是 40×40 而不是继承父高的 40×100。
+  // 不收紧的话叶子的 Y 轴数据全是假的——它们没有"下一层"去收紧。
+  it("cuts a row into its columns and tightens them vertically", async () => {
     const image = await raw(threeColumns());
     expect(cutChildren(image, { x: 0, y: 0, w: 300, h: 100 }, "row")).toEqual([
-      { x: 30, y: 0, w: 40, h: 100 },
-      { x: 130, y: 0, w: 40, h: 100 },
-      { x: 230, y: 0, w: 40, h: 100 },
+      { x: 30, y: 30, w: 40, h: 40 },
+      { x: 130, y: 30, w: 40, h: 40 },
+      { x: 230, y: 30, w: 40, h: 40 },
     ]);
   });
 
@@ -58,9 +59,10 @@ describe("cutChildren", () => {
           { input: { create: { width: 60, height: 20, channels: 3, background: "#202020" } }, top: 20, left: 20 },
           { input: { create: { width: 60, height: 20, channels: 3, background: "#202020" } }, top: 120, left: 20 },
         ]).png());
+    // 纵切的交叉轴是 X，同样收紧到内容真实横向范围（黑块在 x=20 宽 60）
     expect(cutChildren(image, { x: 0, y: 0, w: 100, h: 200 }, "column")).toEqual([
-      { x: 0, y: 20, w: 100, h: 20 },
-      { x: 0, y: 120, w: 100, h: 20 },
+      { x: 20, y: 20, w: 60, h: 20 },
+      { x: 20, y: 120, w: 60, h: 20 },
     ]);
   });
 

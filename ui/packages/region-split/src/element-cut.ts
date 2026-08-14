@@ -88,6 +88,47 @@ export function looksLikeTextRun(runs: Run[]): boolean {
 }
 
 /**
+ * 沿**交叉轴**把子块收紧到真实内容范围。
+ *
+ * 横切出来的子块在交叉轴上继承父块的完整高度，这是 X-Y cut 的固有形态。原本指望
+ * 下一层的纵切去收紧，但**叶子没有下一层**——实测账户顶部的头像和「登录/注册」
+ * 都停在 338（整个区域高），真实内容只有 140 上下，位置尺寸和上下内边距全是错的。
+ *
+ * 所以切完就地收紧，不等下一层。只会缩小不会放大，兄弟不重叠的保证不受影响。
+ */
+function tightenToContent(
+  raw: RawImage, box: Rect, direction: Direction, fill: Rgb,
+): Rect {
+  // 交叉轴两端要避开父块的边框与圆角；主轴方向上子块边界就是内容边界，不必内缩
+  const x0 = box.x + (direction === "column" ? CUT_INSET : 0);
+  const x1 = box.x + box.w - (direction === "column" ? CUT_INSET : 0);
+  const y0 = box.y + (direction === "row" ? CUT_INSET : 0);
+  const y1 = box.y + box.h - (direction === "row" ? CUT_INSET : 0);
+  if (x1 <= x0 || y1 <= y0) return box;
+
+  let min = Infinity;
+  let max = -Infinity;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * raw.width + x) * raw.channels;
+      const distance = Math.max(
+        Math.abs(raw.data[i]! - fill[0]),
+        Math.abs(raw.data[i + 1]! - fill[1]),
+        Math.abs(raw.data[i + 2]! - fill[2]),
+      );
+      if (distance <= CUT_THRESHOLD) continue;
+      const along = direction === "row" ? y : x;
+      if (along < min) min = along;
+      if (along > max) max = along;
+    }
+  }
+  if (min > max) return box;                       // 全是底色，保持原样
+  return direction === "row"
+    ? { ...box, y: min, h: max - min + 1 }
+    : { ...box, x: min, w: max - min + 1 };
+}
+
+/**
  * 沿指定方向把容器切成子块。
  *
  * 子块在**交叉轴上继承父块的完整范围**——横切出来的列高度等于父高。这是 X-Y cut
@@ -106,9 +147,11 @@ export function cutChildren(raw: RawImage, rect: Rect, direction: Direction): Re
   const runs = repairMissedMerge(merged, rawRuns) ?? merged;
   if (runs.length < 2) return [];
   if (looksLikeTextRun(runs)) return [];
-  return runs.map(run => direction === "row"
-    ? { x: rect.x + CUT_INSET + run.start, y: rect.y, w: run.end - run.start, h: rect.h }
-    : { x: rect.x, y: rect.y + CUT_INSET + run.start, w: rect.w, h: run.end - run.start });
+  return runs
+    .map(run => direction === "row"
+      ? { x: rect.x + CUT_INSET + run.start, y: rect.y, w: run.end - run.start, h: rect.h }
+      : { x: rect.x, y: rect.y + CUT_INSET + run.start, w: rect.w, h: run.end - run.start })
+    .map(box => tightenToContent(raw, box, direction, fill));
 }
 
 /**
