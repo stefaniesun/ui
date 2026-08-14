@@ -2,7 +2,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import {
-  connectedBoxes, detectElementTree, regionBackground, toHex, uniformity,
+  connectedBoxes, detectElementTree, regionBackground, toHex,
+  uncoveredContentRatio, uniformity,
 } from "./element-detect.js";
 import { checkElementTreeInvariants } from "./element-types.js";
 import type { RawImage } from "./panels.js";
@@ -214,5 +215,49 @@ describe("real screenshot", () => {
     const tree = detectElementTree(await fixture(), { x: 0, y: 1937, w: 1170, h: 595 }, NOW);
     expect(tree.nodes).toHaveLength(1);
     expect(tree.nodes[0]!.box.h).toBeGreaterThan(500);
+  });
+});
+
+describe("region fallback when no container is visible", () => {
+  const FIXTURE = join(import.meta.dirname, "..", "test-fixtures", "maicai.png");
+  const fixture = async (): Promise<RawImage> => {
+    const { data, info } = await sharp(FIXTURE).removeAlpha().raw()
+      .toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height, channels: info.channels };
+  };
+
+  it("reports how much content the boxes miss", async () => {
+    const image = await raw(page());
+    const region = { x: 0, y: 0, w: 200, h: 300 };
+    const bg: [number, number, number] = [245, 245, 245];
+    // 两张卡片盖住了全部内容
+    expect(uncoveredContentRatio(image, region, bg, connectedBoxes(image, region, bg)))
+      .toBeCloseTo(0, 2);
+    // 一个框都没有时，内容全部未覆盖
+    expect(uncoveredContentRatio(image, region, bg, [])).toBeCloseTo(1, 2);
+  });
+
+  // 账户顶部没有卡片，元素直接摆在页面底色上，各自的连通块都小于顶层最小尺寸。
+  // 不回退的话整个区域一个节点都出不来。
+  it("cuts the account header region that has no card", async () => {
+    const region = { x: 0, y: 0, w: 1170, h: 338 };
+    const tree = detectElementTree(await fixture(), region, NOW);
+    expect(tree.nodes.length).toBeGreaterThan(5);
+    expect(tree.nodes.filter(node => node.parentId === null).length).toBeGreaterThan(1);
+    expect(checkElementTreeInvariants(tree, region)).toEqual([]);
+  });
+
+  it("cuts the tab bar region that has no card", async () => {
+    const region = { x: 0, y: 2283, w: 1170, h: 249 };
+    const tree = detectElementTree(await fixture(), region, NOW);
+    expect(tree.nodes.length).toBeGreaterThan(3);
+    expect(checkElementTreeInvariants(tree, region)).toEqual([]);
+  });
+
+  // 反向：横幅那一个框盖住了全部内容，不该触发回退
+  it("does not fall back when one box covers the region", async () => {
+    const tree = detectElementTree(await fixture(), { x: 0, y: 1413, w: 1170, h: 216 }, NOW);
+    expect(tree.nodes).toHaveLength(1);
+    expect(tree.nodes[0]!.kind).toBe("image");
   });
 });

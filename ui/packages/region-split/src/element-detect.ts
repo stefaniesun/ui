@@ -3,8 +3,8 @@ import {
 } from "./element-cut.js";
 import { detectRepeat, detectScroll } from "./element-grid.js";
 import {
-  FLAT_UNIFORMITY_MIN, IMAGE_UNIFORMITY_MAX,
-  connectedBoxes, regionBackground, toHex, uniformity,
+  CONTENT_THRESHOLD, FLAT_UNIFORMITY_MIN, IMAGE_UNIFORMITY_MAX,
+  connectedBoxes, regionBackground, toHex, uniformity, type Rgb,
 } from "./element-pixels.js";
 import { regionKey, type ElementNode, type ElementTree } from "./element-types.js";
 import type { RawImage } from "./panels.js";
@@ -55,6 +55,40 @@ function mergePartialOverlaps(boxes: Rect[]): Rect[] {
     }
   }
   return out.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+/**
+ * 内容没被任何顶层框盖住的比例超过它，就说明这个区域根本没有可见容器——
+ * 元素直接摆在页面底色上，各自的连通块又小于顶层最小尺寸，被当噪声滤掉了。
+ * 这时改为把**区域自己当容器**切分。
+ *
+ * 实测九个区域的分布没有中间值：账户顶部 53.5%、底部导航 52.8% 需要回退；
+ * 商品推荐分类 6.1%，其余七个 ≤ 0.1%。25% 落在 6.1% 与 52.8% 之间，
+ * 两侧各留约一倍余量。
+ */
+const REGION_FALLBACK_RATIO = 0.25;
+
+/** 区域内的内容像素有多大比例落在所有框之外 */
+export function uncoveredContentRatio(
+  raw: RawImage, region: Rect, background: Rgb, boxes: Rect[],
+): number {
+  let content = 0;
+  let uncovered = 0;
+  for (let y = region.y; y < region.y + region.h; y++) {
+    for (let x = region.x; x < region.x + region.w; x++) {
+      const i = (y * raw.width + x) * raw.channels;
+      const distance = Math.max(
+        Math.abs(raw.data[i]! - background[0]),
+        Math.abs(raw.data[i + 1]! - background[1]),
+        Math.abs(raw.data[i + 2]! - background[2]),
+      );
+      if (distance <= CONTENT_THRESHOLD) continue;
+      content++;
+      if (!boxes.some(box =>
+        x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h)) uncovered++;
+    }
+  }
+  return content === 0 ? 0 : uncovered / content;
 }
 
 /** 被完整包含的块成为包含它的**最小**那个块的子节点 */
@@ -150,10 +184,23 @@ export function detectElementTree(raw: RawImage, region: Rect, now: string): Ele
 
   let counter = 0;
   const nextId = () => `n${++counter}`;
-  const nodes: ElementNode[] = kept.map((item, index) => {
+  const nodes: ElementNode[] = [];
+
+  // 没有可见容器时（元素直接摆在页面底色上），把区域自己当容器切。
+  // 否则文字和图标各自的连通块都小于顶层最小尺寸，会被整批当噪声滤掉。
+  if (uncoveredContentRatio(raw, region, background, boxes) > REGION_FALLBACK_RATIO) {
+    const virtual = makeNode(raw, region, "region", null);
+    expand(raw, virtual, 0, "row", nodes, nextId);
+    // 虚拟容器本身不进树——它就是区域，没有像素证据说明它是个元素。
+    // 它的直接子节点提升为顶层。
+    for (const node of nodes) if (node.parentId === virtual.id) node.parentId = null;
+    return { regionKey: regionKey(region), detectedAt: now, nodes };
+  }
+
+  nodes.push(...kept.map((item, index) => {
     const parent = parentIndexOf(boxes, index);
     return makeNode(raw, item.box, nextId(), parent < 0 ? null : `n${parent + 1}`);
-  });
+  }));
 
   // 顶层节点已经全部建好（id 与下标一一对应），再逐个展开内部
   for (const top of [...nodes]) expand(raw, top, 1, "row", nodes, nextId);

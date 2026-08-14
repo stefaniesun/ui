@@ -70,9 +70,16 @@ export function occupancy(
   return { rows, cols };
 }
 
-/** 这批游程看起来是一整行文字（字距远小于字宽），而不是并列的元素 */
+/**
+ * 这批游程看起来是一整行文字（字距远小于字宽），而不是并列的元素。
+ *
+ * 只有两段时一律不判为文字：实测「账户顶部」整区横切成 `[头像+登录注册 678, 图标组 295]`
+ * 两段、比值 0.208，「关注领券」卡切成 `[文案 182, 图标 89]`、比值 0.406——
+ * 都是极常见的左右布局，误判会让整个区域一个节点都出不来。
+ * 而一行文字很少只有两个游程（合并后更少）。
+ */
 export function looksLikeTextRun(runs: Run[]): boolean {
-  if (runs.length < 2) return false;
+  if (runs.length < 3) return false;
   const gaps = runs.slice(1).map((run, i) => run.start - runs[i]!.end);
   const sizes = runs.map(run => run.end - run.start);
   const size = medianOf(sizes);
