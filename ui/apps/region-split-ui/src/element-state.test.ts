@@ -382,3 +382,40 @@ describe("setRegionBackground", () => {
     expect(api.putElements).not.toHaveBeenCalled();
   });
 });
+
+describe("setFont", () => {
+  const leaf = () => node({ id: "n1", kind: "text" });
+
+  it("stores size and weight together", async () => {
+    const store = createElementStore(loaded([leaf()]));
+    await store.load("p1", REGION);
+    await store.setFont("p1", REGION, "n1", { fontSize: 29.8, fontWeight: 500 });
+    expect(store.tree.value!.nodes[0]!.style.fontSize).toBe(29.8);
+    expect(store.tree.value!.nodes[0]!.style.fontWeight).toBe(500);
+  });
+
+  it("rounds the size to one decimal", async () => {
+    const store = createElementStore(loaded([leaf()]));
+    await store.load("p1", REGION);
+    await store.setFont("p1", REGION, "n1", { fontSize: 29.7777 });
+    expect(store.tree.value!.nodes[0]!.style.fontSize).toBe(29.8);
+  });
+
+  it("rejects a non positive size", async () => {
+    const api = loaded([leaf()]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setFont("p1", REGION, "n1", { fontSize: 0 });
+    expect(api.putElements).not.toHaveBeenCalled();
+  });
+
+  it("changes only what was given", async () => {
+    const store = createElementStore(loaded([
+      node({ id: "n1", kind: "text", style: { fontSize: 30, fontWeight: 400 } }),
+    ]));
+    await store.load("p1", REGION);
+    await store.setFont("p1", REGION, "n1", { fontWeight: 700 });
+    expect(store.tree.value!.nodes[0]!.style.fontSize).toBe(30);
+    expect(store.tree.value!.nodes[0]!.style.fontWeight).toBe(700);
+  });
+});

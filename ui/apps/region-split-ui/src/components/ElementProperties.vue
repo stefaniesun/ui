@@ -5,7 +5,11 @@ import {
   type ElementKind, type ElementNode, type Rect,
 } from "@region-split/core/browser";
 
-const props = defineProps<{ node: ElementNode | null; picking?: boolean }>();
+const props = defineProps<{
+  node: ElementNode | null;
+  picking?: boolean;
+  fontNote?: string;
+}>();
 const emit = defineEmits<{
   rename: [id: string, displayName: string];
   "set-kind": [id: string, kind: ElementKind];
@@ -14,6 +18,8 @@ const emit = defineEmits<{
   "set-radius": [id: string, radius: number];
   "set-color": [id: string, color: string];
   "toggle-picking": [];
+  "set-font": [id: string, font: { fontSize?: number; fontWeight?: number }];
+  "measure-font": [];
 }>();
 
 // 滚动是容器的属性，叶子上没有意义
@@ -29,6 +35,26 @@ const radius = computed(() => props.node?.style.borderRadius ?? 0);
 const hasColor = computed(() => props.node?.kind === "text"
   || props.node?.kind === "icon" || props.node?.kind === "decoration");
 const color = computed(() => props.node?.style.color ?? "#000000");
+
+/** 字号字重只对文字有意义 */
+const isText = computed(() => props.node?.kind === "text");
+const fontSize = computed(() => props.node?.style.fontSize ?? 0);
+const fontWeight = computed(() => props.node?.style.fontWeight ?? 400);
+const WEIGHTS = [300, 400, 500, 600, 700, 800];
+
+function onFontSize(event: Event) {
+  const raw = (event.target as HTMLInputElement).value.trim();
+  const value = Number(raw);
+  if (props.node && raw !== "" && Number.isFinite(value) && value > 0) {
+    emit("set-font", props.node.id, { fontSize: value });
+  }
+}
+function onFontWeight(event: Event) {
+  const value = Number((event.target as HTMLSelectElement).value);
+  if (props.node && Number.isFinite(value)) {
+    emit("set-font", props.node.id, { fontWeight: value });
+  }
+}
 
 const KIND_LABEL: Record<ElementKind, string> = {
   component: "组件", grid: "网格", text: "文字",
@@ -252,6 +278,30 @@ onBeforeUnmount(stopNudge);
         </span>
       </div>
 
+      <template v-if="isText">
+        <div class="field">
+          <span class="name">字号</span>
+          <span class="axes">
+            <input
+              data-test="property-font-size" type="number" min="1" step="0.5"
+              :value="fontSize || ''" placeholder="未测" @change="onFontSize"
+            />
+            <select data-test="property-font-weight" :value="fontWeight" @change="onFontWeight">
+              <option v-for="w in WEIGHTS" :key="w" :value="w">{{ w }}</option>
+            </select>
+          </span>
+        </div>
+        <div class="field">
+          <span class="name" />
+          <span class="axes">
+            <button data-test="measure-font" class="wide" @click="emit('measure-font')">
+              渲染比对测字号字重
+            </button>
+          </span>
+        </div>
+        <p v-if="props.fontNote" data-test="font-note" class="note">{{ props.fontNote }}</p>
+      </template>
+
       <div class="field">
         <span class="name">背景色</span>
         <code>
@@ -336,6 +386,8 @@ onBeforeUnmount(stopNudge);
 .picker { flex: none; width: 30px; padding: 0 2px; }
 .picker-button { flex: none; min-height: 0; height: 26px; padding: 0 8px; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
 .picker-button.on { border-color: var(--accent); color: var(--accent); }
+.axes .wide { flex: 1; height: 26px; min-height: 26px; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
+.note { margin: 0 0 6px 64px; color: var(--text-faint); font-size: 9px; line-height: 1.5; }
 .toggles { display: flex; gap: 4px; }
 .toggles button { min-height: 0; padding: 2px 8px; border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .toggles button.on { border-color: var(--accent); color: var(--accent); }

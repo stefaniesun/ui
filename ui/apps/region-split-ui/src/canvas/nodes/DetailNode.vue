@@ -6,6 +6,7 @@ import ElementOverlay from "../../components/ElementOverlay.vue";
 import ElementProperties from "../../components/ElementProperties.vue";
 import ElementTree from "../../components/ElementTree.vue";
 import type { ElementStore } from "../../element-state.js";
+import { REFERENCE_SIZE, matchFont, type MetricsSource } from "../../font-metrics.js";
 
 const props = defineProps<{
   projectId: string;
@@ -114,6 +115,116 @@ function togglePicking() {
 }
 
 watch(sourceUrl, () => { picking.value = false; hoverColor.value = null; });
+
+/**
+ * 只数**明显是笔画**的像素：抗锯齿边缘不算，否则覆盖率会随字号漂移。
+ * 阈值 40 是实测选的——低于它的边缘像素在小字上占比很高。
+ */
+const STROKE_THRESHOLD = 40;
+
+/** 从原图裁图里量一个框的真实墨迹高度与覆盖率 */
+function inkStats(box: Rect): { height: number; coverage: number } | null {
+  if (!context || !region.value) return null;
+  const x0 = box.x - region.value.x;
+  const y0 = box.y - region.value.y;
+  if (box.w <= 0 || box.h <= 0) return null;
+  const data = context.getImageData(x0, y0, box.w, box.h).data;
+
+  const counts = new Map<number, number>();
+  for (let i = 0; i < data.length; i += 4) {
+    const key = (data[i]! << 16) | (data[i + 1]! << 8) | data[i + 2]!;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let backgroundKey = 0;
+  let best = -1;
+  for (const [key, count] of counts) if (count > best) { best = count; backgroundKey = key; }
+  const bg = [(backgroundKey >> 16) & 0xff, (backgroundKey >> 8) & 0xff, backgroundKey & 0xff];
+
+  let count = 0, minX = box.w, maxX = -1, minY = box.h, maxY = -1;
+  for (let y = 0; y < box.h; y++) {
+    for (let x = 0; x < box.w; x++) {
+      const i = (y * box.w + x) * 4;
+      const away = Math.max(
+        Math.abs(data[i]! - bg[0]!), Math.abs(data[i + 1]! - bg[1]!),
+        Math.abs(data[i + 2]! - bg[2]!));
+      if (away <= STROKE_THRESHOLD) continue;
+      count++;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (count === 0 || maxX < minX) return null;
+  const w = maxX - minX + 1;
+  const h = maxY - minY + 1;
+  return { height: h, coverage: count / (w * h) };
+}
+
+/** 用页面自己的 canvas 当渲染源——浏览器里装的才是用户真正看到的字体 */
+function createMetricsSource(): MetricsSource | null {
+  const surface = document.createElement("canvas");
+  const paint = surface.getContext("2d", { willReadFrequently: true });
+  if (!paint) return null;
+  const family = "sans-serif";
+  return {
+    inkHeightAtReference(text, weight) {
+      paint.font = `${weight} ${REFERENCE_SIZE}px ${family}`;
+      const m = paint.measureText(text);
+      return m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    },
+    coverage(text, weight, size) {
+      const pad = Math.ceil(size * 0.6);
+      paint.font = `${weight} ${size}px ${family}`;
+      const width = Math.ceil(paint.measureText(text).width) + pad * 2;
+      const height = Math.ceil(size * 2) + pad * 2;
+      surface.width = Math.max(1, width);
+      surface.height = Math.max(1, height);
+      paint.fillStyle = "#ffffff";
+      paint.fillRect(0, 0, surface.width, surface.height);
+      paint.fillStyle = "#000000";
+      paint.font = `${weight} ${size}px ${family}`;
+      paint.textBaseline = "alphabetic";
+      paint.fillText(text, pad, pad + size);
+      const data = paint.getImageData(0, 0, surface.width, surface.height).data;
+      let count = 0, minX = surface.width, maxX = -1, minY = surface.height, maxY = -1;
+      for (let y = 0; y < surface.height; y++) {
+        for (let x = 0; x < surface.width; x++) {
+          const i = (y * surface.width + x) * 4;
+          if (255 - data[i]! <= STROKE_THRESHOLD) continue;
+          count++;
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+      if (count === 0 || maxX < minX) return 0;
+      return count / ((maxX - minX + 1) * (maxY - minY + 1));
+    },
+  };
+}
+
+const fontNote = ref("");
+
+/** 对选中的文字叶子做一次渲染比对，写回字号字重 */
+function measureFont() {
+  const node = props.elementStore.selectedNode.value;
+  if (!node || !region.value) return;
+  if (!prepareCanvas()) { fontNote.value = "原图还没加载好"; return; }
+  const stats = inkStats(node.box);
+  if (!stats) { fontNote.value = "这个框里没有笔画像素"; return; }
+  const source = createMetricsSource();
+  if (!source) { fontNote.value = "浏览器不支持 canvas 测量"; return; }
+  const match = matchFont(source, node.displayName, stats.height, stats.coverage);
+  if (!match) { fontNote.value = "这段文字量不出来"; return; }
+  fontNote.value = match.margin < 0.02
+    ? `字重把握不大（与次优仅差 ${match.margin.toFixed(3)}），请人工确认`
+    : `误差 ${match.error.toFixed(3)}，领先次优 ${match.margin.toFixed(3)}`;
+  void props.elementStore.setFont(props.projectId, region.value, node.id, {
+    fontSize: match.fontSize, fontWeight: match.fontWeight,
+  });
+}
+
+function onSetFont(id: string, font: { fontSize?: number; fontWeight?: number }) {
+  if (region.value) void props.elementStore.setFont(props.projectId, region.value, id, font);
+}
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key === "Escape" && picking.value) {
@@ -265,6 +376,9 @@ function onRenamePrompt(id: string) {
           @set-box="onSetBox"
           @set-radius="onSetRadius"
           @set-color="onSetColor"
+          @set-font="onSetFont"
+          @measure-font="measureFont"
+          :font-note="fontNote"
           :picking="picking"
           @toggle-picking="togglePicking"
         />

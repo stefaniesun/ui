@@ -322,3 +322,61 @@ describe("ElementProperties eyedropper", () => {
     expect(wrapper.find('[data-test="pick-color"]').exists()).toBe(false);
   });
 });
+
+describe("ElementProperties font", () => {
+  const label: ElementNode = {
+    ...node, kind: "text", style: { fontSize: 29.8, fontWeight: 500 },
+  };
+
+  it("shows the fitted size and weight", () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    expect((wrapper.find('[data-test="property-font-size"]').element as HTMLInputElement).value)
+      .toBe("29.8");
+    expect((wrapper.find('[data-test="property-font-weight"]').element as HTMLSelectElement).value)
+      .toBe("500");
+  });
+
+  it("shows an empty size before it has been measured", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: { ...node, kind: "text" as const } },
+    });
+    expect((wrapper.find('[data-test="property-font-size"]').element as HTMLInputElement).value)
+      .toBe("");
+  });
+
+  it("emits a size change", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    const input = wrapper.find('[data-test="property-font-size"]');
+    await input.setValue("32");
+    await input.trigger("change");
+    expect(wrapper.emitted("set-font")![0]).toEqual(["n1", { fontSize: 32 }]);
+  });
+
+  it("emits a weight change", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    await wrapper.find('[data-test="property-font-weight"]').setValue("700");
+    expect(wrapper.emitted("set-font")![0]).toEqual(["n1", { fontWeight: 700 }]);
+  });
+
+  it("asks for a measurement", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    await wrapper.find('[data-test="measure-font"]').trigger("click");
+    expect(wrapper.emitted("measure-font")).toHaveLength(1);
+  });
+
+  // 把握不大时要说出来，而不是给个看起来很确定的数字
+  it("surfaces the confidence note", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: label, fontNote: "字重把握不大" },
+    });
+    expect(wrapper.find('[data-test="font-note"]').text()).toContain("把握不大");
+  });
+
+  // 字号字重属于文字；图标和容器没有这个概念
+  it("hides the font rows on non text nodes", () => {
+    for (const kind of ["icon", "image", "component"] as const) {
+      const wrapper = mount(ElementProperties, { props: { node: { ...node, kind } } });
+      expect(wrapper.find('[data-test="property-font-size"]').exists()).toBe(false);
+    }
+  });
+});

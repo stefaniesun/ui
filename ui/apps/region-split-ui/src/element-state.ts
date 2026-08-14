@@ -171,6 +171,27 @@ export function createElementStore(api: StoreApi) {
       }
     },
 
+    /** 写入字号字重。两者一起改——它们是同一次拟合的产物。 */
+    async setFont(
+      projectId: string, region: Rect, id: string,
+      font: { fontSize?: number; fontWeight?: number },
+    ) {
+      const current = nodes.value.find(node => node.id === id);
+      if (!current) return;
+      const size = font.fontSize;
+      const weight = font.fontWeight;
+      if (size !== undefined && !(Number.isFinite(size) && size > 0)) return;
+      if (weight !== undefined && !(Number.isFinite(weight) && weight > 0)) return;
+      if (current.style.fontSize === size && current.style.fontWeight === weight) return;
+      await commit(projectId, region, nodes.value.map(node => {
+        if (node.id !== id) return node;
+        const style = { ...node.style };
+        if (size !== undefined) style.fontSize = Math.round(size * 10) / 10;
+        if (weight !== undefined) style.fontWeight = Math.round(weight);
+        return { ...node, style };
+      }));
+    },
+
     /** 删除一层：子节点上提到父节点，不级联删除 */
     async removeNode(projectId: string, region: Rect, id: string) {
       const target = nodes.value.find(node => node.id === id);

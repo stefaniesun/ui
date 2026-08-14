@@ -26,6 +26,9 @@ export const elementNodeSchema = z.object({
     borderRadius: z.number().int().nonnegative().optional(),
     /** 墨色：文字的字色、图标的线条色、装饰的颜色 */
     color: z.string().optional(),
+    /** 字号，原图像素。由渲染比对拟合而来，不是墨迹高度本身。 */
+    fontSize: z.number().positive().optional(),
+    fontWeight: z.number().int().positive().optional(),
   }).default({}),
   uniformity: z.number().min(0).max(1),
   source: z.enum(["auto", "manual"]).default("auto"),
