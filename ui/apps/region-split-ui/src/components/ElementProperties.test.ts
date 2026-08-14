@@ -297,3 +297,28 @@ describe("ElementProperties ink colour", () => {
     }
   });
 });
+
+describe("ElementProperties eyedropper", () => {
+  const label: ElementNode = { ...node, kind: "text", style: { color: "#191919" } };
+
+  it("offers an eyedropper next to the colour field", () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    expect(wrapper.find('[data-test="pick-color"]').exists()).toBe(true);
+  });
+
+  it("emits toggle-picking when clicked", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    await wrapper.find('[data-test="pick-color"]').trigger("click");
+    expect(wrapper.emitted("toggle-picking")).toHaveLength(1);
+  });
+
+  it("marks the button active while picking", () => {
+    const wrapper = mount(ElementProperties, { props: { node: label, picking: true } });
+    expect(wrapper.find('[data-test="pick-color"]').classes()).toContain("on");
+  });
+
+  it("hides the eyedropper on a container", () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    expect(wrapper.find('[data-test="pick-color"]').exists()).toBe(false);
+  });
+});

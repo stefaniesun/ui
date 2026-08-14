@@ -103,3 +103,27 @@ describe("DetailNode", () => {
     parent.remove();
   });
 });
+
+describe("DetailNode eyedropper", () => {
+  const one = [region("a", 0, 300)];
+
+  it("shows no picking hint by default", () => {
+    const wrapper = mountNode({ selectedRegions: one });
+    expect(wrapper.find('[data-test="picking-hint"]').exists()).toBe(false);
+    expect(wrapper.find(".source-frame").classes()).not.toContain("picking");
+  });
+
+  // 读不到像素就别假装进入取色态。jsdom 没有真实 canvas，正好覆盖这条路径；
+  // 真实浏览器里的取色行为由手工验收覆盖，单测碰不到 getImageData。
+  it("refuses to enter picking mode when pixels cannot be read", async () => {
+    const wrapper = mountNode({ selectedRegions: one });
+    await wrapper.findComponent({ name: "ElementProperties" }).vm.$emit("toggle-picking");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="picking-hint"]').exists()).toBe(false);
+  });
+
+  it("keeps the source image clean when not picking", () => {
+    const wrapper = mountNode({ selectedRegions: one });
+    expect(wrapper.find('[data-test="pick-preview"]').exists()).toBe(false);
+  });
+});

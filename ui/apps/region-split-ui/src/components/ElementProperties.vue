@@ -5,7 +5,7 @@ import {
   type ElementKind, type ElementNode, type Rect,
 } from "@region-split/core/browser";
 
-const props = defineProps<{ node: ElementNode | null }>();
+const props = defineProps<{ node: ElementNode | null; picking?: boolean }>();
 const emit = defineEmits<{
   rename: [id: string, displayName: string];
   "set-kind": [id: string, kind: ElementKind];
@@ -13,6 +13,7 @@ const emit = defineEmits<{
   "set-box": [id: string, box: Rect];
   "set-radius": [id: string, radius: number];
   "set-color": [id: string, color: string];
+  "toggle-picking": [];
 }>();
 
 // 滚动是容器的属性，叶子上没有意义
@@ -241,6 +242,13 @@ onBeforeUnmount(stopNudge);
             :value="color" @input="onColor"
           />
           <input data-test="property-color" :value="color" @change="onColor" />
+          <button
+            data-test="pick-color"
+            class="picker-button"
+            :class="{ on: props.picking }"
+            title="在上方原图上点像素取色"
+            @click="emit('toggle-picking')"
+          >吸管</button>
         </span>
       </div>
 
@@ -326,6 +334,8 @@ onBeforeUnmount(stopNudge);
 .pad button:active { border-color: var(--accent); color: var(--accent); }
 .radius-pad { flex: none; width: 84px; }
 .picker { flex: none; width: 30px; padding: 0 2px; }
+.picker-button { flex: none; min-height: 0; height: 26px; padding: 0 8px; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
+.picker-button.on { border-color: var(--accent); color: var(--accent); }
 .toggles { display: flex; gap: 4px; }
 .toggles button { min-height: 0; padding: 2px 8px; border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .toggles button.on { border-color: var(--accent); color: var(--accent); }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { ElementKind, Rect, Region } from "@region-split/core/browser";
 import { regionImageUrl } from "../../api.js";
 import ElementOverlay from "../../components/ElementOverlay.vue";
@@ -58,6 +58,92 @@ function onSetRadius(id: string, radius: number) {
 function onSetColor(id: string, color: string) {
   if (region.value) void props.elementStore.setColor(props.projectId, region.value, id, color);
 }
+
+/**
+ * 取色器：在**上面那张干净原图**上点一个像素，把颜色填给当前选中的元素。
+ *
+ * 自动测出来的是"整个框的墨色"；遇到渐变、或者框里混了别的颜色导致测偏时，
+ * 人工指一个具体像素最直接。
+ *
+ * 像素值只能从 canvas 读，所以把原图画进一张离屏 canvas 再取。同源图片不会
+ * 污染 canvas，getImageData 可用。
+ */
+const picking = ref(false);
+const sourceImg = ref<HTMLImageElement | null>(null);
+const hoverColor = ref<{ x: number; y: number; color: string } | null>(null);
+let canvas: HTMLCanvasElement | null = null;
+let context: CanvasRenderingContext2D | null = null;
+
+/**
+ * 每次打开吸管都重画一次，不做跨次缓存。
+ *
+ * 缓存过一版，结果取到的全是白色——画的时候图还没解码完，之后又因为
+ * "src 没变"再不重画。取色一次就几十毫秒，省这一次重画不值得冒这个险。
+ *
+ * 判断图片可用只看 `complete` 和 `naturalWidth`，**不要用 `img.decode()`**：
+ * 实测标签页不可见时它会永远不 resolve，把整个取色流程挂死。
+ */
+function prepareCanvas(): boolean {
+  const img = sourceImg.value;
+  if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return false;
+  canvas ??= document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return false;
+  context.drawImage(img, 0, 0);
+  return true;
+}
+
+function togglePicking() {
+  if (picking.value) {
+    picking.value = false;
+    hoverColor.value = null;
+    return;
+  }
+  picking.value = prepareCanvas();
+}
+
+watch(sourceUrl, () => { picking.value = false; hoverColor.value = null; });
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && picking.value) {
+    picking.value = false;
+    hoverColor.value = null;
+  }
+}
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
+
+function sampleAt(event: MouseEvent): string | null {
+  const img = sourceImg.value;
+  if (!img || !context || !img.naturalWidth) return null;
+  const rect = img.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return null;
+  const x = Math.floor((event.clientX - rect.left) / rect.width * img.naturalWidth);
+  const y = Math.floor((event.clientY - rect.top) / rect.height * img.naturalHeight);
+  if (x < 0 || y < 0 || x >= img.naturalWidth || y >= img.naturalHeight) return null;
+  const [r, g, b] = context.getImageData(x, y, 1, 1).data;
+  return `#${[r, g, b].map(v => (v ?? 0).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function onSourceMove(event: MouseEvent) {
+  if (!picking.value) return;
+  const color = sampleAt(event);
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  hoverColor.value = color
+    ? { x: event.clientX - rect.left, y: event.clientY - rect.top, color }
+    : null;
+}
+
+function onSourceClick(event: MouseEvent) {
+  if (!picking.value) return;
+  const color = sampleAt(event);
+  const selected = props.elementStore.selectedNode.value;
+  if (color && selected) onSetColor(selected.id, color);
+  picking.value = false;
+  hoverColor.value = null;
+}
 function onSetScroll(id: string, axis: "x" | "y", value: boolean) {
   if (region.value) {
     void props.elementStore.setScroll(props.projectId, region.value, id, axis, value);
@@ -96,9 +182,29 @@ function onRenamePrompt(id: string) {
       <!-- 上下两张图：上面是干净的原图，下面是带标注的解析图。
            调整结构时要能立刻看出"标注有没有框对"，只有一张叠了标注的图对不了。 -->
       <section data-test="detail-source" class="image-section">
-        <header>区域原图</header>
-        <div class="source-frame" :style="{ aspectRatio: `${region.w} / ${region.h}` }">
-          <img class="source-crop" :src="sourceUrl" alt="区域原图" />
+        <header>
+          区域原图
+          <span v-if="picking" data-test="picking-hint" class="hint-inline">
+            在图上点一个像素取色，Esc 取消
+          </span>
+        </header>
+        <div
+          class="source-frame"
+          :class="{ picking }"
+          :style="{ aspectRatio: `${region.w} / ${region.h}` }"
+          @mousemove="onSourceMove"
+          @mouseleave="hoverColor = null"
+          @click="onSourceClick"
+        >
+          <img ref="sourceImg" class="source-crop" :src="sourceUrl" alt="区域原图" />
+          <span
+            v-if="hoverColor"
+            data-test="pick-preview"
+            class="pick-preview"
+            :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
+          >
+            <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
+          </span>
         </div>
       </section>
 
@@ -139,6 +245,8 @@ function onRenamePrompt(id: string) {
           @set-box="onSetBox"
           @set-radius="onSetRadius"
           @set-color="onSetColor"
+          :picking="picking"
+          @toggle-picking="togglePicking"
         />
       </section>
     </template>
@@ -157,6 +265,10 @@ function onRenamePrompt(id: string) {
 /* 与 ElementOverlay 的 .stage 保持同宽同比例，上下两张图才能逐像素对齐 */
 .source-frame { position: relative; width: 100%; overflow: hidden; background: #0a0d13; }
 .source-crop { display: block; width: 100%; height: auto; }
+.source-frame.picking { cursor: crosshair; }
+.hint-inline { margin-left: 8px; color: var(--accent); }
+.pick-preview { position: absolute; z-index: 5; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; background: #16181dee; color: white; font-size: 10px; pointer-events: none; transform: translate(12px, 12px); }
+.pick-preview i { width: 11px; height: 11px; border: 1px solid #ffffff55; border-radius: 3px; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 上下结构：图占满宽度、高度由区域宽高比决定且不设上限（标注才能纯百分比定位）；
