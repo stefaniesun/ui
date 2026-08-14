@@ -225,7 +225,9 @@ export function detectElementTree(raw: RawImage, region: Rect, now: string): Ele
     // 虚拟容器本身不进树——它就是区域，没有像素证据说明它是个元素。
     // 它的直接子节点提升为顶层。
     for (const node of nodes) if (node.parentId === virtual.id) node.parentId = null;
-    return { regionKey: regionKey(region), detectedAt: now, nodes };
+    return {
+      regionKey: regionKey(region), background: toHex(background), detectedAt: now, nodes,
+    };
   }
 
   nodes.push(...kept.map((item, index) => {
@@ -238,5 +240,7 @@ export function detectElementTree(raw: RawImage, region: Rect, now: string): Ele
   // 顶层节点已经全部建好（id 与下标一一对应），再逐个展开内部
   for (const top of [...nodes]) expand(raw, top, 1, "row", nodes, nextId);
 
-  return { regionKey: regionKey(region), detectedAt: now, nodes };
+  return {
+    regionKey: regionKey(region), background: toHex(background), detectedAt: now, nodes,
+  };
 }

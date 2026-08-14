@@ -57,6 +57,11 @@ export type ElementNode = z.infer<typeof elementNodeSchema>;
 
 export const elementTreeSchema = z.object({
   regionKey: z.string().min(1),
+  /**
+   * 这个区域自身的背景色。放在树上而不是 regions.json 里：区域的拆分、合并、
+   * 边界微调都是纯函数，拿不到像素；而检测时本来就在读图，顺手就测了。
+   */
+  background: z.string().optional(),
   detectedAt: z.string(),
   namedAt: z.string().optional(),
   nodes: z.array(elementNodeSchema),

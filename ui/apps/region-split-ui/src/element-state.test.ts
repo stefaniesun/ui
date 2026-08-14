@@ -351,3 +351,34 @@ describe("setColor", () => {
     expect(api.putElements).not.toHaveBeenCalled();
   });
 });
+
+describe("setRegionBackground", () => {
+  it("stores a new region background", async () => {
+    const store = createElementStore(loaded([node({ id: "n1" })]));
+    await store.load("p1", REGION);
+    await store.setRegionBackground("p1", REGION, "#f5f5f5");
+    expect(store.tree.value!.background).toBe("#f5f5f5");
+  });
+
+  it("normalises case", async () => {
+    const store = createElementStore(loaded([node({ id: "n1" })]));
+    await store.load("p1", REGION);
+    await store.setRegionBackground("p1", REGION, "#F5F5F5");
+    expect(store.tree.value!.background).toBe("#f5f5f5");
+  });
+
+  it("rejects a malformed colour", async () => {
+    const api = loaded([node({ id: "n1" })]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setRegionBackground("p1", REGION, "灰色");
+    expect(api.putElements).not.toHaveBeenCalled();
+  });
+
+  it("does nothing without a tree", async () => {
+    const api = fakeApi();
+    const store = createElementStore(api);
+    await store.setRegionBackground("p1", REGION, "#ffffff");
+    expect(api.putElements).not.toHaveBeenCalled();
+  });
+});

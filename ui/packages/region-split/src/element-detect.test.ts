@@ -263,3 +263,22 @@ describe("region fallback when no container is visible", () => {
     expect(tree.nodes[0]!.kind).toBe("image");
   });
 });
+
+describe("region background", () => {
+  it("records the region's own background colour", async () => {
+    const tree = detectElementTree(await raw(page()), { x: 0, y: 0, w: 200, h: 300 }, NOW);
+    expect(tree.background).toBe("#f5f5f5");
+  });
+
+  // 区域没有可见容器时走回退分支，背景色同样要记下来
+  it("records it on the fallback path too", async () => {
+    const image = await raw(
+      sharp({ create: { width: 300, height: 120, channels: 3, background: "#e8f0ff" } })
+        .composite([
+          { input: { create: { width: 30, height: 30, channels: 3, background: "#202020" } }, top: 40, left: 20 },
+          { input: { create: { width: 30, height: 30, channels: 3, background: "#202020" } }, top: 40, left: 200 },
+        ]).png());
+    const tree = detectElementTree(image, { x: 0, y: 0, w: 300, h: 120 }, NOW);
+    expect(tree.background).toBe("#e8f0ff");
+  });
+});

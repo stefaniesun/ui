@@ -155,6 +155,22 @@ export function createElementStore(api: StoreApi) {
         node.id === id ? { ...node, style: { ...node.style, color: value } } : node));
     },
 
+    /** 人工改这个区域自身的背景色 */
+    async setRegionBackground(projectId: string, region: Rect, color: string) {
+      const current = tree.value;
+      if (!current) return;
+      const value = color.trim().toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(value) || current.background === value) return;
+      const edited: ElementTree = { ...current, background: value };
+      tree.value = edited;
+      error.value = "";
+      try {
+        tree.value = (await api.putElements(projectId, region, edited)).tree;
+      } catch (err) {
+        error.value = (err as Error).message;
+      }
+    },
+
     /** 删除一层：子节点上提到父节点，不级联删除 */
     async removeNode(projectId: string, region: Rect, id: string) {
       const target = nodes.value.find(node => node.id === id);

@@ -21,6 +21,15 @@ const region = computed<Rect | null>(() => single.value?.bounds ?? null);
 const sourceUrl = computed(() =>
   region.value ? regionImageUrl(props.projectId, region.value) : "");
 const nodes = computed(() => props.elementStore.nodes.value);
+/** 区域自身的背景色，检测时测出，人工可改 */
+const regionBackground = computed(() =>
+  props.elementStore.tree.value?.background ?? "#ffffff");
+function onRegionBackground(event: Event) {
+  const value = (event.target as HTMLInputElement).value.trim();
+  if (region.value && /^#[0-9a-fA-F]{6}$/.test(value)) {
+    void props.elementStore.setRegionBackground(props.projectId, region.value, value);
+  }
+}
 const parsed = computed(() => props.elementStore.tree.value !== null);
 /**
  * 阶段一只检测顶层容器，文字和图标这类小元素达不到最小尺寸门槛。
@@ -171,6 +180,17 @@ function onRenamePrompt(id: string) {
         >{{ parsed ? "重新解析" : "解析元素" }}</button>
         <span class="label">{{ single?.displayName }}</span>
         <span class="label">{{ region.w }}×{{ region.h }}</span>
+        <span v-if="parsed" class="region-bg" title="区域背景色">
+          <span class="label">背景</span>
+          <input
+            data-test="region-background-swatch" class="picker" type="color"
+            :value="regionBackground" @input="onRegionBackground"
+          />
+          <input
+            data-test="region-background" class="hex"
+            :value="regionBackground" @change="onRegionBackground"
+          />
+        </span>
         <span v-if="props.elementStore.busy.value" class="label">
           {{ props.elementStore.busyLabel.value }}
         </span>
@@ -259,6 +279,9 @@ function onRenamePrompt(id: string) {
 .bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); background: var(--bg-node-header); }
 .bar button { height: 28px; min-height: 28px; padding: 0 12px; font-size: 11px; }
 .label { color: var(--text-faint); font-size: 10px; }
+.region-bg { display: flex; align-items: center; gap: 5px; }
+.region-bg .picker { width: 28px; height: 24px; min-height: 24px; padding: 0 2px; }
+.region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .image-section { background: #0a0d13; }
 .image-section + .image-section { box-shadow: inset 0 1px var(--border); }
