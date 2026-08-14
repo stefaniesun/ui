@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import type { ElementKind, Rect, Region } from "@region-split/core/browser";
+import { regionImageUrl } from "../../api.js";
 import ElementOverlay from "../../components/ElementOverlay.vue";
 import ElementProperties from "../../components/ElementProperties.vue";
 import ElementTree from "../../components/ElementTree.vue";
@@ -17,6 +18,8 @@ const emit = defineEmits<{ hover: [id: string | null] }>();
 const single = computed(() =>
   props.selectedRegions.length === 1 ? props.selectedRegions[0]! : null);
 const region = computed<Rect | null>(() => single.value?.bounds ?? null);
+const sourceUrl = computed(() =>
+  region.value ? regionImageUrl(props.projectId, region.value) : "");
 const nodes = computed(() => props.elementStore.nodes.value);
 const parsed = computed(() => props.elementStore.tree.value !== null);
 /**
@@ -81,8 +84,17 @@ function onRenamePrompt(id: string) {
         </span>
       </div>
 
-      <section data-test="detail-image" class="image-section">
+      <!-- 上下两张图：上面是干净的原图，下面是带标注的解析图。
+           调整结构时要能立刻看出"标注有没有框对"，只有一张叠了标注的图对不了。 -->
+      <section data-test="detail-source" class="image-section">
         <header>区域原图</header>
+        <div class="source-frame" :style="{ aspectRatio: `${region.w} / ${region.h}` }">
+          <img class="source-crop" :src="sourceUrl" alt="区域原图" />
+        </div>
+      </section>
+
+      <section data-test="detail-image" class="image-section">
+        <header>元素解析图</header>
         <ElementOverlay
           :project-id="props.projectId"
           :region="region"
@@ -129,6 +141,10 @@ function onRenamePrompt(id: string) {
 .label { color: var(--text-faint); font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .image-section { background: #0a0d13; }
+.image-section + .image-section { box-shadow: inset 0 1px var(--border); }
+/* 与 ElementOverlay 的 .stage 保持同宽同比例，上下两张图才能逐像素对齐 */
+.source-frame { position: relative; width: 100%; overflow: hidden; background: #0a0d13; }
+.source-crop { display: block; width: 100%; height: auto; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 上下结构：图占满宽度、高度由区域宽高比决定且不设上限（标注才能纯百分比定位）；
