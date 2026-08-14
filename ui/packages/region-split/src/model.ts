@@ -20,6 +20,15 @@ export interface ChildClassification {
   displayName: string;
 }
 
+/**
+ * `whole` 非空表示模型认为这些子元素其实是**同一个元素被误切开**了，
+ * 调用方应当把这一层拍平。只在几何已经标出可疑时才允许模型这么答。
+ */
+export interface ClassifyResult {
+  whole: ChildClassification | null;
+  children: ChildClassification[];
+}
+
 export interface SegmentModel {
   segment(input: SegmentInput): Promise<RawSegment[]>;
   nameRegion(input: { cropBase64: string }): Promise<RegionNaming>;
@@ -27,7 +36,9 @@ export interface SegmentModel {
     cropBase64: string;
     count: number;
     direction: "row" | "column";
-  }): Promise<ChildClassification[]>;
+    /** 几何判定这一组可能是被误切开的；允许模型答"其实是一个整体" */
+    mayBeWhole?: boolean;
+  }): Promise<ClassifyResult>;
 }
 
 const segmentsSchema = z.object({
@@ -51,11 +62,13 @@ const namingSchema = z.object({
   scrollY: z.boolean().default(false),
 });
 
+const classificationSchema = z.object({
+  kind: z.enum(["text", "icon", "image"]),
+  displayName: z.string().min(1),
+});
 const childrenSchema = z.object({
-  children: z.array(z.object({
-    kind: z.enum(["text", "icon", "image"]),
-    displayName: z.string().min(1),
-  })),
+  whole: classificationSchema.nullish(),
+  children: z.array(classificationSchema),
 });
 
 const SCROLL_RULES = [
@@ -104,6 +117,17 @@ const CLASSIFY_PROMPT = [
   "kind 只能取 text（文字）、icon（可矢量化的图形）、image（必须切图的位图）之一。",
   "displayName 用简短中文，描述这个子元素是什么。",
   "数组长度必须与告知你的子元素个数完全一致，多一个少一个都不行。",
+].join("\n");
+
+/**
+ * 只在几何已经标出"这一组间隙小得反常"时才追加这段。
+ * 让模型自由拍平任何容器是危险的——它会把 [图标, 文字] 这种真实结构也并掉。
+ */
+const WHOLE_RULE = [
+  "另外：这些子元素有可能是**同一个元素被误切开**的（比如一个图标被从中间切成两半）。",
+  "如果确实如此，在 whole 字段里给出这个整体的类型和名字；否则 whole 必须为 null。",
+  "格式变为 {\"whole\":null 或 {\"kind\":string,\"displayName\":string},\"children\":[...]}。",
+  "无论 whole 是否为空，children 都要照常按顺序给全。",
 ].join("\n");
 
 function extractJson(raw: string): unknown {
@@ -204,11 +228,21 @@ export function createOpenAiModel(cfg: {
       ].join("\n");
       // 长度不符就是错配，重试一次仍不符则抛错，由调用方降级为存疑。
       // 宁可留空让人工填，也不能把名字和类型对错位置。
+      const prompt = input.mayBeWhole
+        ? `${CLASSIFY_PROMPT}
+${WHOLE_RULE}`
+        : CLASSIFY_PROMPT;
       for (let attempt = 0; attempt < 2; attempt++) {
-        const raw = await ask(CLASSIFY_PROMPT, userText, input.cropBase64);
+        const raw = await ask(prompt, userText, input.cropBase64);
         try {
           const parsed = childrenSchema.parse(extractJson(raw));
-          if (parsed.children.length === input.count) return parsed.children;
+          if (parsed.children.length === input.count) {
+            // 没允许拍平时忽略模型自作主张给的 whole
+            return {
+              whole: input.mayBeWhole ? parsed.whole ?? null : null,
+              children: parsed.children,
+            };
+          }
         } catch {
           // 解析失败与长度不符走同一条重试路径
         }

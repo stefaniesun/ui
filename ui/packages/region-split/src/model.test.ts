@@ -108,10 +108,11 @@ describe("createOpenAiModel.classifyChildren", () => {
     const result = await model.classifyChildren({
       cropBase64: "AA", count: 2, direction: "column",
     });
-    expect(result).toEqual([
+    expect(result.children).toEqual([
       { kind: "icon", displayName: "客服图标" },
       { kind: "text", displayName: "联系客服" },
     ]);
+    expect(result.whole).toBeNull();
   });
 
   // 模型的空间定位不可靠，所以永远不给它坐标——顺序由树提供
@@ -145,7 +146,7 @@ describe("createOpenAiModel.classifyChildren", () => {
     const result = await model.classifyChildren({
       cropBase64: "AA", count: 1, direction: "row",
     });
-    expect(result).toHaveLength(1);
+    expect(result.children).toHaveLength(1);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 

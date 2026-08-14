@@ -97,9 +97,12 @@ describe("detectElements with a model", () => {
   const fake = (over: Partial<SegmentModel> = {}): SegmentModel => ({
     segment: async () => { throw new Error("unused"); },
     nameRegion: async () => { throw new Error("unused"); },
-    classifyChildren: async ({ count }) => Array.from({ length: count }, (_, i) => ({
-      kind: "text" as const, displayName: `叫${i + 1}`,
-    })),
+    classifyChildren: async ({ count }) => ({
+      whole: null,
+      children: Array.from({ length: count }, (_, i) => ({
+        kind: "text" as const, displayName: `叫${i + 1}`,
+      })),
+    }),
     ...over,
   });
 
@@ -127,9 +130,12 @@ describe("detectElements with a model", () => {
   it("never lets the model overwrite a container kind", async () => {
     const { store, projectId } = await seeded();
     const model = fake({
-      classifyChildren: async ({ count }) => Array.from({ length: count }, () => ({
-        kind: "icon" as const, displayName: "模型说是图标",
-      })),
+      classifyChildren: async ({ count }) => ({
+        whole: null,
+        children: Array.from({ length: count }, () => ({
+          kind: "icon" as const, displayName: "模型说是图标",
+        })),
+      }),
     });
     const tree = await detectElements({ store, model }, projectId, REGION2);
     const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
@@ -150,5 +156,65 @@ describe("detectElements with a model", () => {
     const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
     const leaves = tree.nodes.filter(n => !parents.has(n.id) && n.kind !== "image");
     expect(leaves.every(leaf => leaf.classification === "uncertain")).toBe(true);
+  });
+});
+
+describe("structural review: flattening an over cut group", () => {
+  const REGION3 = { x: 0, y: 0, w: 400, h: 300 };
+  const node = (id: string, parentId: string | null, y: number, h: number) => ({
+    id, parentId, box: { x: 0, y, w: 52, h }, kind: "component" as const,
+    displayName: id, style: {}, uniformity: 1, source: "auto" as const,
+    classification: "tool" as const, scrollX: false, scrollY: false,
+    positioning: "flow" as const,
+  });
+
+  // 实测扫码图标被纵切成两半：间隙 2、子块 25，比值 0.08
+  it("flags a group whose gaps are tiny relative to the children", () => {
+    const parent = {
+      ...node("p", null, 0, 60),
+      layout: { direction: "column" as const, gap: 2,
+        padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+    };
+    const groups = groupForClassification(
+      [parent, node("a", "p", 0, 25), node("b", "p", 27, 25)], REGION3);
+    expect(groups.find(g => g.parentId === "p")!.mayBeWhole).toBe(true);
+  });
+
+  // 常用服务格子 [图标, 文字]：间隙 29、子块 54，比值 0.54，是真实结构
+  it("does not flag a normal icon and label pair", () => {
+    const parent = {
+      ...node("p", null, 0, 200),
+      layout: { direction: "column" as const, gap: 29,
+        padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+    };
+    const groups = groupForClassification(
+      [parent, node("a", "p", 0, 74), node("b", "p", 103, 34)], REGION3);
+    expect(groups.find(g => g.parentId === "p")!.mayBeWhole).toBe(false);
+  });
+
+  // 顶层组的"父"是区域本身，拍平就等于把整个区域当一个元素
+  it("never lets the top level group be flattened", () => {
+    const groups = groupForClassification(
+      [node("a", null, 0, 25), node("b", null, 27, 25)], REGION3);
+    expect(groups[0]!.mayBeWhole).toBe(false);
+  });
+
+  it("drops the children when the model says they are one element", async () => {
+    const { store, projectId } = await seeded();
+    const model: SegmentModel = {
+      segment: async () => { throw new Error("unused"); },
+      nameRegion: async () => { throw new Error("unused"); },
+      classifyChildren: async ({ count, mayBeWhole }) => ({
+        whole: mayBeWhole ? { kind: "icon" as const, displayName: "扫码图标" } : null,
+        children: Array.from({ length: count }, () => ({
+          kind: "text" as const, displayName: "碎片",
+        })),
+      }),
+    };
+    const before = await detectElements({ store }, projectId, REGION3);
+    const after = await detectElements({ store, model }, projectId, REGION3);
+    // 没有可疑组时两者节点数一致；有可疑组时后者更少
+    expect(after.nodes.length).toBeLessThanOrEqual(before.nodes.length);
+    expect(after.nodes.every(n => n.kind !== "text" || n.displayName === "碎片")).toBe(true);
   });
 });

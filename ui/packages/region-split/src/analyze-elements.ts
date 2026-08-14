@@ -9,11 +9,45 @@ import type { Rect } from "./types.js";
 /** 小于这个尺寸的区域没有解析价值 */
 export const MIN_ANALYZABLE_SIZE = 32;
 
+/**
+ * 间隙相对子块小到这个程度，就怀疑这一组是**同一个元素被误切开**的，
+ * 允许模型答"其实是一个整体"。与切分时的文字保护用的是同一个常量。
+ *
+ * 必须由几何先标出可疑对象，不能对所有容器都问：模型会把
+ * `[图标, 文字]` 这种真实结构也一并拍平。实测——
+ * 扫码图标被切开的两半 2/25 = 0.08（可疑）；常用服务格子 29/54 = 0.54（正常）。
+ */
+const SUSPECT_GAP_RATIO = 0.25;
+
 /** 一批要交给模型的兄弟节点，以及它们共同的裁图范围 */
 interface Group {
   crop: Rect;
   direction: "row" | "column";
   children: ElementNode[];
+  /** 父节点 id；顶层组为 null，顶层不允许拍平（它就是区域） */
+  parentId: string | null;
+  /** 几何认为这一组可能是误切，允许模型提议拍平 */
+  mayBeWhole: boolean;
+}
+
+function medianOf(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]!
+    : (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
+/** 这一组的间隙相对子块尺寸是否小得反常 */
+function looksOverCut(children: ElementNode[], direction: "row" | "column"): boolean {
+  if (children.length < 2) return false;
+  const start = (n: ElementNode) => direction === "row" ? n.box.x : n.box.y;
+  const size = (n: ElementNode) => direction === "row" ? n.box.w : n.box.h;
+  const sorted = [...children].sort((a, b) => start(a) - start(b));
+  const gaps = sorted.slice(1).map((n, i) => start(n) - (start(sorted[i]!) + size(sorted[i]!)));
+  const median = medianOf(sorted.map(size));
+  return median > 0 && medianOf(gaps) < median * SUSPECT_GAP_RATIO;
 }
 
 /**
@@ -38,7 +72,14 @@ export function groupForClassification(nodes: ElementNode[], region: Rect): Grou
     const sorted = [...children].sort((a, b) => direction === "row"
       ? a.box.x - b.box.x || a.box.y - b.box.y
       : a.box.y - b.box.y || a.box.x - b.box.x);
-    groups.push({ crop: parent?.box ?? region, direction, children: sorted });
+    // 顶层组不允许拍平：它的"父"是区域本身，拍平就等于把整个区域当一个元素
+    const mayBeWhole = parent !== null && parent !== undefined
+      && looksOverCut(sorted, direction)
+      && sorted.every(child => !nodes.some(n => n.parentId === child.id));
+    groups.push({
+      crop: parent?.box ?? region, direction, children: sorted,
+      parentId: parentId, mayBeWhole,
+    });
   }
   return groups;
 }
@@ -81,25 +122,43 @@ export async function detectElements(
         left: group.crop.x, top: group.crop.y,
         width: group.crop.w, height: group.crop.h,
       }).png().toBuffer();
-      const classified = await model.classifyChildren({
+      const result = await model.classifyChildren({
         cropBase64: crop.toString("base64"),
         count: group.children.length,
         direction: group.direction,
+        mayBeWhole: group.mayBeWhole,
       });
-      return { group, classified };
+      return { group, result };
     } catch {
       // 模型未配置、超时、长度不符都走这里：该组保持占位名与存疑状态，
       // 其余组不受影响。层级是纯本地算出来的，不该被模型拖累。
-      return { group, classified: null };
+      return { group, result: null };
     }
   }));
 
   let named = false;
-  for (const { group, classified } of results) {
-    if (!classified) continue;
+  const flattened = new Set<string>();
+  for (const { group, result } of results) {
+    if (!result) continue;
     named = true;
+
+    // 模型认定这一组其实是同一个元素被误切开：拍平这一层。
+    // 只在几何已经标出可疑时才可能走到这里。
+    if (result.whole && group.parentId) {
+      const parent = tree.nodes.find(node => node.id === group.parentId);
+      if (parent) {
+        parent.kind = result.whole.kind;
+        parent.displayName = result.whole.displayName;
+        parent.classification = "model";
+        delete parent.layout;
+        delete parent.repeat;
+        for (const child of group.children) flattened.add(child.id);
+        continue;
+      }
+    }
+
     group.children.forEach((child, index) => {
-      const item = classified[index]!;
+      const item = result.children[index]!;
       // 只有叶子接受模型给的 kind；容器的 kind 由几何决定，模型不得改写
       if (isLeaf(child)) {
         child.kind = item.kind;
@@ -110,5 +169,8 @@ export async function detectElements(
   }
   if (named) tree.namedAt = new Date().toISOString();
 
-  return store.writeElementTree(projectId, tree, region);
+  const kept = flattened.size === 0
+    ? tree.nodes
+    : tree.nodes.filter(node => !flattened.has(node.id));
+  return store.writeElementTree(projectId, { ...tree, nodes: kept }, region);
 }
