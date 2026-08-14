@@ -158,3 +158,50 @@ describe("ElementProperties box snap back", () => {
     expect((input.element as HTMLInputElement).value).toBe("36");
   });
 });
+
+describe("ElementProperties nudge buttons", () => {
+  const press = async (wrapper: ReturnType<typeof mount>, test: string) => {
+    const button = wrapper.find(`[data-test="${test}"]`);
+    await button.trigger("pointerdown");
+    await button.trigger("pointerup");
+  };
+
+  it("moves the box one pixel per press", async () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    await press(wrapper, "nudge-right");
+    expect(wrapper.emitted("set-box")![0]).toEqual([
+      "n1", { x: 37, y: 396, w: 1098, h: 222 },
+    ]);
+    await press(wrapper, "nudge-up");
+    expect(wrapper.emitted("set-box")![1]).toEqual([
+      "n1", { x: 36, y: 395, w: 1098, h: 222 },
+    ]);
+  });
+
+  it("resizes the box one pixel per press", async () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    await press(wrapper, "nudge-wider");
+    expect(wrapper.emitted("set-box")![0]).toEqual([
+      "n1", { x: 36, y: 396, w: 1099, h: 222 },
+    ]);
+    await press(wrapper, "nudge-shorter");
+    expect(wrapper.emitted("set-box")![1]).toEqual([
+      "n1", { x: 36, y: 396, w: 1098, h: 221 },
+    ]);
+  });
+
+  // 每次都从 props 的当前值算起，所以父组件拒绝改动时不会累积漂移
+  it("always nudges from the current node value", async () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    await press(wrapper, "nudge-right");
+    await press(wrapper, "nudge-right");
+    const emitted = wrapper.emitted("set-box") as [string, Rect][];
+    expect(emitted[0]![1].x).toBe(37);
+    expect(emitted[1]![1].x).toBe(37);
+  });
+
+  it("does nothing without a selected node", () => {
+    const wrapper = mount(ElementProperties, { props: { node: null } });
+    expect(wrapper.find('[data-test="nudge-right"]').exists()).toBe(false);
+  });
+});

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, watch } from "vue";
 import {
   MIN_BOX_SIZE, elementKinds,
   type ElementKind, type ElementNode, type Rect,
@@ -26,23 +26,37 @@ function onRename(event: Event) {
   const value = (event.target as HTMLInputElement).value.trim();
   if (props.node && value) emit("rename", props.node.id, value);
 }
+function onKind(event: Event) {
+  const value = (event.target as HTMLSelectElement).value as ElementKind;
+  if (props.node) emit("set-kind", props.node.id, value);
+}
+
 /**
  * 输入框绑在本地草稿上，而不是直接绑 props。
  *
  * 直接绑 props 会脱节：改动被 clampBox 收拢或拒绝时属性值可能原样不动，
  * Vue 就不重渲染，输入框里留着刚打进去的脏值——实测输入 -9999 被拒后
- * 框里还显示 -9999，而真实值是 80。草稿跟着 props 走就不会有这个问题。
+ * 框里还显示 -9999，而真实值是 74。草稿跟着 props 走就不会有这个问题。
  */
 const draft = reactive({ x: 0, y: 0, w: 0, h: 0 });
 watch(() => props.node, node => {
   if (node) Object.assign(draft, node.box);
 }, { immediate: true, deep: true });
 
+/** 提交一个新框，钳制交给 store；提交后强制回同步一次草稿 */
+function submit(box: Rect) {
+  if (!props.node) return;
+  emit("set-box", props.node.id, box);
+  // 钳制后的结果**可能与原值相同**（比如已经贴着父边还想再往左），
+  // 这时 props 不变、watch 不触发，输入框会留着刚打进去的越界值。
+  void nextTick(() => {
+    if (props.node) Object.assign(draft, props.node.box);
+  });
+}
+
 /**
- * 单个分量改动后连同其余三个一起提交，钳制交给 store。
- *
- * 校验读输入框原值而不是 draft：`v-model.number` 对空串不会给出 NaN，
- * 光判断 draft 拦不住"清空输入框"这种最常见的手滑。
+ * 输入框改动。校验读输入框原值而不是 draft：
+ * `v-model.number` 对空串不会给出 NaN，光判断 draft 拦不住"清空输入框"。
  */
 function onBox(axis: "x" | "y" | "w" | "h", event: Event) {
   const raw = (event.target as HTMLInputElement).value.trim();
@@ -52,18 +66,28 @@ function onBox(axis: "x" | "y" | "w" | "h", event: Event) {
     Object.assign(draft, props.node.box);          // 非法输入立刻回弹
     return;
   }
-  emit("set-box", props.node.id, { ...props.node.box, [axis]: value });
-  // 提交后强制回同步一次。钳制后的结果**可能与原值相同**（比如已经贴着父边
-  // 还想再往左），这时 props 不变、watch 不触发，输入框就会留着刚打进去的
-  // 越界值。这一步兜住那种情况；真的改动了则同步到新值，同样正确。
-  void nextTick(() => {
-    if (props.node) Object.assign(draft, props.node.box);
-  });
+  submit({ ...props.node.box, [axis]: value });
 }
-function onKind(event: Event) {
-  const value = (event.target as HTMLSelectElement).value as ElementKind;
-  if (props.node) emit("set-kind", props.node.id, value);
+
+/** 按住不放时连续微调，与区域那层的边界按钮行为一致 */
+const REPEAT_MS = 120;
+let repeatTimer: number | undefined;
+
+function nudge(axis: "x" | "y" | "w" | "h", delta: number) {
+  if (!props.node) return;
+  submit({ ...props.node.box, [axis]: props.node.box[axis] + delta });
 }
+
+function startNudge(axis: "x" | "y" | "w" | "h", delta: number) {
+  nudge(axis, delta);
+  window.clearInterval(repeatTimer);
+  repeatTimer = window.setInterval(() => nudge(axis, delta), REPEAT_MS);
+}
+function stopNudge() {
+  window.clearInterval(repeatTimer);
+  repeatTimer = undefined;
+}
+onBeforeUnmount(stopNudge);
 </script>
 
 <template>
@@ -71,21 +95,22 @@ function onKind(event: Event) {
     <p v-if="!props.node" class="empty">选择一个元素查看属性</p>
     <template v-else>
       <label class="field">
-        <span>名称</span>
+        <span class="name">名称</span>
         <input data-test="property-name" :value="props.node.displayName" @change="onRename" />
       </label>
       <label class="field">
-        <span>类型</span>
+        <span class="name">类型</span>
         <select data-test="property-kind" :value="props.node.kind" @change="onKind">
           <option v-for="kind in elementKinds" :key="kind" :value="kind">
             {{ KIND_LABEL[kind] }}
           </option>
         </select>
       </label>
+
       <!-- 位置尺寸是测量结果，但测量会出错，所以必须能人工微调。
            越界或压到兄弟时由 clampBox 收拢或拒绝，这里不做校验。 -->
       <div class="field">
-        <span>位置</span>
+        <span class="name">位置</span>
         <span class="axes">
           <label>X<input
             v-model.number="draft.x" data-test="property-x" type="number"
@@ -98,7 +123,29 @@ function onKind(event: Event) {
         </span>
       </div>
       <div class="field">
-        <span>尺寸</span>
+        <span class="name">移动</span>
+        <span class="pad">
+          <button
+            data-test="nudge-left" title="左移（按住连续）"
+            @pointerdown="startNudge('x', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >←</button>
+          <button
+            data-test="nudge-up" title="上移（按住连续）"
+            @pointerdown="startNudge('y', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >↑</button>
+          <button
+            data-test="nudge-down" title="下移（按住连续）"
+            @pointerdown="startNudge('y', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >↓</button>
+          <button
+            data-test="nudge-right" title="右移（按住连续）"
+            @pointerdown="startNudge('x', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >→</button>
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="name">尺寸</span>
         <span class="axes">
           <label>W<input
             v-model.number="draft.w" data-test="property-w" type="number" :min="MIN_BOX_SIZE"
@@ -111,7 +158,29 @@ function onKind(event: Event) {
         </span>
       </div>
       <div class="field">
-        <span>背景色</span>
+        <span class="name">缩放</span>
+        <span class="pad">
+          <button
+            data-test="nudge-narrower" title="变窄（按住连续）"
+            @pointerdown="startNudge('w', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >宽−</button>
+          <button
+            data-test="nudge-wider" title="变宽（按住连续）"
+            @pointerdown="startNudge('w', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >宽＋</button>
+          <button
+            data-test="nudge-shorter" title="变矮（按住连续）"
+            @pointerdown="startNudge('h', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >高−</button>
+          <button
+            data-test="nudge-taller" title="变高（按住连续）"
+            @pointerdown="startNudge('h', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+          >高＋</button>
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="name">背景色</span>
         <code>
           <i
             v-if="props.node.style.background"
@@ -122,20 +191,21 @@ function onKind(event: Event) {
         </code>
       </div>
       <div class="field">
-        <span>主色占比</span>
+        <span class="name">主色占比</span>
         <code>{{ props.node.uniformity.toFixed(2) }}</code>
       </div>
+
       <!-- 布局量是切分的副产品：方向即 flex-direction，间隙即 gap -->
       <template v-if="props.node.layout">
         <div class="field">
-          <span>布局</span>
+          <span class="name">布局</span>
           <code data-test="property-layout">
             {{ props.node.layout.direction === "row" ? "横排 →" : "竖排 ↓" }}
             · gap {{ props.node.layout.gap }}
           </code>
         </div>
         <div class="field">
-          <span>内边距</span>
+          <span class="name">内边距</span>
           <code data-test="property-padding">
             {{ props.node.layout.padding.top }} {{ props.node.layout.padding.right }}
             {{ props.node.layout.padding.bottom }} {{ props.node.layout.padding.left }}
@@ -143,13 +213,13 @@ function onKind(event: Event) {
         </div>
       </template>
       <div v-if="props.node.repeat" class="field">
-        <span>重复</span>
+        <span class="name">重复</span>
         <code data-test="property-repeat">
           ×{{ props.node.repeat.count }} · 间距 {{ Math.round(props.node.repeat.pitch) }}
         </code>
       </div>
       <div v-if="isContainer" class="field">
-        <span>滚动</span>
+        <span class="name">滚动</span>
         <span class="toggles">
           <button
             data-test="property-scroll-x"
@@ -166,7 +236,7 @@ function onKind(event: Event) {
         </span>
       </div>
       <div class="field">
-        <span>来源</span>
+        <span class="name">来源</span>
         <code>{{ props.node.source === "manual" ? "人工新增" : "自动检测" }}</code>
       </div>
     </template>
@@ -177,13 +247,18 @@ function onKind(event: Event) {
 .properties { height: 100%; padding: 8px; overflow: auto; border-left: 1px solid var(--border); background: var(--bg-node); }
 .empty { padding: 24px 8px; color: var(--text-faint); font-size: 10px; text-align: center; }
 .field { display: flex; align-items: center; gap: 8px; min-height: 30px; margin-bottom: 4px; font-size: 10px; }
-.field > span { flex: none; width: 56px; color: var(--text-faint); }
+/* 只有左侧那一列标签定宽。早先写成 .field > span 会连 .axes / .pad 一起命中，
+   把输入框挤成看不见的小方块。 */
+.field > .name { flex: none; width: 56px; color: var(--text-faint); }
 .field input, .field select { flex: 1; min-width: 0; height: 26px; min-height: 26px; font-size: 10px; }
 .field code { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; overflow: hidden; color: var(--text-dim); text-overflow: ellipsis; white-space: nowrap; }
 .swatch { flex: none; width: 11px; height: 11px; border: 1px solid var(--border-strong); border-radius: 3px; }
 .axes { flex: 1; min-width: 0; display: flex; gap: 6px; }
 .axes label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; color: var(--text-faint); }
-.axes input { width: 100%; min-width: 0; height: 26px; min-height: 26px; padding: 0 5px; font-size: 10px; }
+.axes input { width: 100%; min-width: 0; padding: 0 5px; }
+.pad { flex: 1; min-width: 0; display: flex; gap: 4px; }
+.pad button { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 0; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
+.pad button:active { border-color: var(--accent); color: var(--accent); }
 .toggles { display: flex; gap: 4px; }
 .toggles button { min-height: 0; padding: 2px 8px; border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .toggles button.on { border-color: var(--accent); color: var(--accent); }
