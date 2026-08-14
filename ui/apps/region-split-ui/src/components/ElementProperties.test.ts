@@ -256,3 +256,44 @@ describe("ElementProperties border radius", () => {
     expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(true);
   });
 });
+
+describe("ElementProperties ink colour", () => {
+  const label: ElementNode = {
+    ...node, kind: "text", style: { color: "#191919" },
+  };
+
+  it("shows the measured colour", () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    expect((wrapper.find('[data-test="property-color"]').element as HTMLInputElement).value)
+      .toBe("#191919");
+  });
+
+  it("emits a new colour from the text field", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    const input = wrapper.find('[data-test="property-color"]');
+    await input.setValue("#0fb12c");
+    await input.trigger("change");
+    expect(wrapper.emitted("set-color")![0]).toEqual(["n1", "#0fb12c"]);
+  });
+
+  it("ignores a malformed colour", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: label } });
+    const input = wrapper.find('[data-test="property-color"]');
+    await input.setValue("绿色");
+    await input.trigger("change");
+    expect(wrapper.emitted("set-color")).toBeFalsy();
+  });
+
+  // 墨色属于内容；容器的颜色是背景色，另有一行
+  it("hides the colour row on a container", () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    expect(wrapper.find('[data-test="property-color"]').exists()).toBe(false);
+  });
+
+  it("shows the colour row on an icon and a decoration", () => {
+    for (const kind of ["icon", "decoration"] as const) {
+      const wrapper = mount(ElementProperties, { props: { node: { ...node, kind } } });
+      expect(wrapper.find('[data-test="property-color"]').exists()).toBe(true);
+    }
+  });
+});

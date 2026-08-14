@@ -24,6 +24,8 @@ export const elementNodeSchema = z.object({
   style: z.object({
     background: z.string().optional(),
     borderRadius: z.number().int().nonnegative().optional(),
+    /** 墨色：文字的字色、图标的线条色、装饰的颜色 */
+    color: z.string().optional(),
   }).default({}),
   uniformity: z.number().min(0).max(1),
   source: z.enum(["auto", "manual"]).default("auto"),

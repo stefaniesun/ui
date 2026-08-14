@@ -323,3 +323,31 @@ describe("setBox rejection feedback", () => {
     expect(store.error.value).toBe("");
   });
 });
+
+describe("setColor", () => {
+  const leaf = (color?: string) =>
+    node({ id: "n1", kind: "text", style: color ? { color } : {} });
+
+  it("stores a new colour", async () => {
+    const store = createElementStore(loaded([leaf("#191919")]));
+    await store.load("p1", REGION);
+    await store.setColor("p1", REGION, "n1", "#0fb12c");
+    expect(store.tree.value!.nodes[0]!.style.color).toBe("#0fb12c");
+  });
+
+  it("normalises case", async () => {
+    const store = createElementStore(loaded([leaf()]));
+    await store.load("p1", REGION);
+    await store.setColor("p1", REGION, "n1", "#0FB12C");
+    expect(store.tree.value!.nodes[0]!.style.color).toBe("#0fb12c");
+  });
+
+  it("rejects a malformed colour", async () => {
+    const api = loaded([leaf("#191919")]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setColor("p1", REGION, "n1", "red");
+    expect(store.tree.value!.nodes[0]!.style.color).toBe("#191919");
+    expect(api.putElements).not.toHaveBeenCalled();
+  });
+});

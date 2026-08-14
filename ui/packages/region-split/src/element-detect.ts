@@ -4,7 +4,8 @@ import {
 import { detectRepeat, detectScroll } from "./element-grid.js";
 import {
   CONTENT_THRESHOLD, FLAT_UNIFORMITY_MIN, IMAGE_UNIFORMITY_MAX,
-  connectedBoxes, measureBorderRadius, regionBackground, toHex, uniformity, type Rgb,
+  connectedBoxes, measureBorderRadius, measureInkColor,
+  regionBackground, toHex, uniformity, type Rgb,
 } from "./element-pixels.js";
 import { regionKey, type ElementNode, type ElementTree } from "./element-types.js";
 import type { RawImage } from "./panels.js";
@@ -113,6 +114,9 @@ function makeNode(
 ): ElementNode {
   const { fill, ratio } = uniformity(raw, box);
   const radius = measureBorderRadius(raw, box, outside);
+  // 墨色对每个框都测得出来，但只对文字/图标/装饰有意义。检测阶段还不知道
+  // 类型（那是模型定的），所以先一律测下来，界面按类型决定显不显示。
+  const ink = measureInkColor(raw, box);
   return {
     id, parentId, box,
     kind: ratio <= IMAGE_UNIFORMITY_MAX ? "image" : "component",
@@ -120,6 +124,7 @@ function makeNode(
     style: {
       ...(ratio >= FLAT_UNIFORMITY_MIN ? { background: toHex(fill) } : {}),
       ...(radius > 0 ? { borderRadius: radius } : {}),
+      ...(ink ? { color: ink } : {}),
     },
     uniformity: ratio,
     source: "auto",

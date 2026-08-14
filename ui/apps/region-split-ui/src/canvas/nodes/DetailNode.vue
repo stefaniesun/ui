@@ -55,6 +55,9 @@ function onSetBox(id: string, box: Rect) {
 function onSetRadius(id: string, radius: number) {
   if (region.value) void props.elementStore.setRadius(props.projectId, region.value, id, radius);
 }
+function onSetColor(id: string, color: string) {
+  if (region.value) void props.elementStore.setColor(props.projectId, region.value, id, color);
+}
 function onSetScroll(id: string, axis: "x" | "y", value: boolean) {
   if (region.value) {
     void props.elementStore.setScroll(props.projectId, region.value, id, axis, value);
@@ -135,6 +138,7 @@ function onRenamePrompt(id: string) {
           @set-scroll="onSetScroll"
           @set-box="onSetBox"
           @set-radius="onSetRadius"
+          @set-color="onSetColor"
         />
       </section>
     </template>

@@ -12,6 +12,7 @@ const emit = defineEmits<{
   "set-scroll": [id: string, axis: "x" | "y", value: boolean];
   "set-box": [id: string, box: Rect];
   "set-radius": [id: string, radius: number];
+  "set-color": [id: string, color: string];
 }>();
 
 // 滚动是容器的属性，叶子上没有意义
@@ -22,6 +23,11 @@ const isContainer = computed(() =>
 const hasRadius = computed(() => props.node?.kind === "component"
   || props.node?.kind === "grid" || props.node?.kind === "image");
 const radius = computed(() => props.node?.style.borderRadius ?? 0);
+
+/** 颜色是"墨色"：文字的字色、图标的线条色、装饰的颜色。容器的颜色是背景色，另有一行。 */
+const hasColor = computed(() => props.node?.kind === "text"
+  || props.node?.kind === "icon" || props.node?.kind === "decoration");
+const color = computed(() => props.node?.style.color ?? "#000000");
 
 const KIND_LABEL: Record<ElementKind, string> = {
   component: "组件", grid: "网格", text: "文字",
@@ -81,6 +87,11 @@ function onRadius(event: Event) {
   if (!props.node) return;
   if (raw === "" || !Number.isFinite(value)) return;
   emit("set-radius", props.node.id, value);
+}
+
+function onColor(event: Event) {
+  const value = (event.target as HTMLInputElement).value.trim();
+  if (props.node && /^#[0-9a-fA-F]{6}$/.test(value)) emit("set-color", props.node.id, value);
 }
 
 function nudgeRadius(delta: number) {
@@ -222,6 +233,17 @@ onBeforeUnmount(stopNudge);
         </span>
       </div>
 
+      <div v-if="hasColor" class="field">
+        <span class="name">颜色</span>
+        <span class="axes">
+          <input
+            data-test="property-color-swatch" class="picker" type="color"
+            :value="color" @input="onColor"
+          />
+          <input data-test="property-color" :value="color" @change="onColor" />
+        </span>
+      </div>
+
       <div class="field">
         <span class="name">背景色</span>
         <code>
@@ -303,6 +325,7 @@ onBeforeUnmount(stopNudge);
 .pad button { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 0; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
 .pad button:active { border-color: var(--accent); color: var(--accent); }
 .radius-pad { flex: none; width: 84px; }
+.picker { flex: none; width: 30px; padding: 0 2px; }
 .toggles { display: flex; gap: 4px; }
 .toggles button { min-height: 0; padding: 2px 8px; border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .toggles button.on { border-color: var(--accent); color: var(--accent); }

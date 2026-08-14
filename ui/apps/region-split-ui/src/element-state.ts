@@ -145,6 +145,16 @@ export function createElementStore(api: StoreApi) {
       }));
     },
 
+    /** 人工改墨色。空值等于"没测出来"，这时删字段而不是存空串。 */
+    async setColor(projectId: string, region: Rect, id: string, color: string) {
+      const value = color.trim().toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(value)) return;
+      const current = nodes.value.find(node => node.id === id);
+      if (!current || current.style.color === value) return;
+      await commit(projectId, region, nodes.value.map(node =>
+        node.id === id ? { ...node, style: { ...node.style, color: value } } : node));
+    },
+
     /** 删除一层：子节点上提到父节点，不级联删除 */
     async removeNode(projectId: string, region: Rect, id: string) {
       const target = nodes.value.find(node => node.id === id);

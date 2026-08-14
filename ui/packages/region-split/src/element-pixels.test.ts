@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { measureBorderRadius } from "./element-pixels.js";
+import { measureBorderRadius, measureInkColor } from "./element-pixels.js";
 import type { RawImage } from "./panels.js";
 
 describe("measureBorderRadius", () => {
@@ -40,5 +40,45 @@ describe("measureBorderRadius", () => {
 
   it("returns zero for a degenerate box", async () => {
     expect(measureBorderRadius(await rounded(10), { x: 0, y: 0, w: 2, h: 2 }, bg)).toBe(0);
+  });
+});
+
+describe("measureInkColor", () => {
+  const raw = async (image: sharp.Sharp): Promise<RawImage> => {
+    const { data, info } = await image.removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height, channels: info.channels };
+  };
+  /** 白底上一段抗锯齿的深色文字 */
+  const text = (fill: string) => {
+    const svg = Buffer.from(
+      `<svg width="160" height="40"><rect width="160" height="40" fill="#ffffff"/>` +
+      `<text x="8" y="28" font-family="sans-serif" font-size="24" fill="${fill}">Hello</text></svg>`);
+    return raw(sharp(svg).png());
+  };
+  const box = { x: 0, y: 0, w: 160, h: 40 };
+
+  it("reads the true ink colour, not the antialiased average", async () => {
+    const measured = measureInkColor(await text("#191919"), box)!;
+    const value = parseInt(measured.slice(1, 3), 16);
+    // 真实字色 0x19=25；平均值会被白底拉到 0x50 以上
+    expect(value).toBeLessThan(0x40);
+  });
+
+  it("tells two ink colours apart", async () => {
+    const dark = measureInkColor(await text("#191919"), box)!;
+    const green = measureInkColor(await text("#0fb12c"), box)!;
+    expect(dark).not.toBe(green);
+    // 绿色的 G 通道应明显高于 R
+    expect(parseInt(green.slice(3, 5), 16)).toBeGreaterThan(parseInt(green.slice(1, 3), 16));
+  });
+
+  it("returns null for a flat block with no ink", async () => {
+    const flat = await raw(
+      sharp({ create: { width: 40, height: 40, channels: 3, background: "#ffffff" } }).png());
+    expect(measureInkColor(flat, { x: 0, y: 0, w: 40, h: 40 })).toBeNull();
+  });
+
+  it("returns null for an empty rect", async () => {
+    expect(measureInkColor(await text("#191919"), { x: 0, y: 0, w: 0, h: 0 })).toBeNull();
   });
 });

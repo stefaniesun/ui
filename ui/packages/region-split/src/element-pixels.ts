@@ -9,6 +9,11 @@ const MARGIN_WIDTH = 6;
 export const CONTENT_THRESHOLD = 8;
 /** uniformity 的内缩量，避开容器自身的边框和圆角抗锯齿。 */
 const UNIFORM_INSET = 4;
+/**
+ * 取墨色时保留"离背景最远"的这个比例。纯色文字上 10% 与 25% 一致，
+ * 但描边图标的墨像素少，10% 会被最深的几个像素带偏。
+ */
+const INK_PERCENTILE = 0.25;
 /** 小于这个尺寸的连通块是噪声。 */
 const MIN_BOX_WIDTH = 80;
 const MIN_BOX_HEIGHT = 24;
@@ -19,6 +24,11 @@ export const FLAT_UNIFORMITY_MIN = 0.8;
 
 export function toHex(color: Rgb): string {
   return `#${color.map(v => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** 两个颜色在单个通道上的最大差。全篇的"像素是否算内容"都用这个判据。 */
+function maxChannelDistance(a: Rgb, b: Rgb): number {
+  return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
 }
 
 function medianOfChannel(values: Uint8Array, count: number): number {
@@ -138,6 +148,59 @@ export function measureBorderRadius(raw: RawImage, rect: Rect, outside: Rgb): nu
   const median = Math.round((corners[1]! + corners[2]!) / 2);
   // 半径不可能超过短边的一半
   return Math.max(0, Math.min(median, Math.floor(Math.min(rect.w, rect.h) / 2)));
+}
+
+/**
+ * 取"墨色"——文字的字色、图标的线条色。
+ *
+ * **不能用平均值。** 抗锯齿让笔画边缘是半透明的，平均会把背景混进来：
+ * 实测常用服务那五个本该同色的标签，按平均算出 `#525252 #616161 #535353 …`
+ * 五个不同的灰；按本函数算全部是 `#191919`，那才是设计稿里的真实字色。
+ *
+ * 做法是按"离背景多远"排序，只取最远的那一批求平均——完全被笔画覆盖的像素
+ * 就在这一端。取 25% 而不是 10%：纯色文字上两者一致，但描边图标的墨像素少，
+ * 10% 会被最深的几个像素带偏（实测绿色图标 `#0c671e` 对 `#0e5c1d`）。
+ *
+ * 背景取框内**出现次数最多**的颜色：文字框里多数像素本来就是背景。
+ */
+export function measureInkColor(raw: RawImage, rect: Rect): string | null {
+  const pixels: Rgb[] = [];
+  for (let y = rect.y; y < rect.y + rect.h; y++) {
+    for (let x = rect.x; x < rect.x + rect.w; x++) {
+      const i = (y * raw.width + x) * raw.channels;
+      pixels.push([raw.data[i]!, raw.data[i + 1]!, raw.data[i + 2]!]);
+    }
+  }
+  if (pixels.length === 0) return null;
+
+  const counts = new Map<number, number>();
+  for (const [r, g, b] of pixels) {
+    const key = (r << 16) | (g << 8) | b;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let backgroundKey = 0;
+  let best = -1;
+  for (const [key, count] of counts) {
+    if (count > best) { best = count; backgroundKey = key; }
+  }
+  const background: Rgb = [
+    (backgroundKey >> 16) & 0xff, (backgroundKey >> 8) & 0xff, backgroundKey & 0xff,
+  ];
+
+  const ink = pixels
+    .map(pixel => ({ pixel, away: maxChannelDistance(pixel, background) }))
+    .filter(item => item.away > CONTENT_THRESHOLD)
+    .sort((a, b) => b.away - a.away);
+  if (ink.length === 0) return null;
+
+  const take = Math.max(1, Math.round(ink.length * INK_PERCENTILE));
+  const sum = [0, 0, 0];
+  for (let i = 0; i < take; i++) {
+    sum[0]! += ink[i]!.pixel[0];
+    sum[1]! += ink[i]!.pixel[1];
+    sum[2]! += ink[i]!.pixel[2];
+  }
+  return toHex(sum.map(value => value / take) as Rgb);
 }
 
 /** 与底色不同的像素的四连通块外接矩形，按从上到下、从左到右排序 */
