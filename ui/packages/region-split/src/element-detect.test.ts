@@ -130,8 +130,10 @@ describe("detectElementTree", () => {
         ]).png());
     const target = { x: 0, y: 0, w: 300, h: 300 };
     const tree = detectElementTree(image, target, NOW);
-    expect(tree.nodes).toHaveLength(1);
-    expect(tree.nodes[0]!.box).toEqual({ x: 40, y: 40, w: 180, h: 141 });
+    // 合并的结果是**一个顶层节点**；它内部会不会再切出子节点是另一回事
+    const roots = tree.nodes.filter(node => node.parentId === null);
+    expect(roots).toHaveLength(1);
+    expect(roots[0]!.box).toEqual({ x: 40, y: 40, w: 180, h: 141 });
     expect(checkElementTreeInvariants(tree, target)).toEqual([]);
   });
 

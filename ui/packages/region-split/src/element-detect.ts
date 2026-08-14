@@ -134,9 +134,25 @@ function expand(
   if (depth >= MAX_DEPTH) return;
   if (parent.box.w < MIN_CHILD_SIZE * 2 || parent.box.h < MIN_CHILD_SIZE * 2) return;
 
-  const boxes = cutChildren(raw, parent.box, direction)
+  // 两个方向都试，不搞严格交替。
+  //
+  // 交替是 X-Y cut 的惯例，但它会在"子块内部沿着同一个方向继续排布"时丢结构：
+  // 实测账户顶部横切成 [头像+登录注册, 图标组] 之后，前者内部仍是左右排布，
+  // 纵切切不动就停住了，整个区域只剩 2 个叶子。
+  //
+  // 同方向再切一次不是无用功：合并阈值是**按本层最大间隙**算的，进到子块里
+  // 重新算会更小，父层被并在一起的两项在这里就分得开了。
+  const cut = (d: Direction) => cutChildren(raw, parent.box, d)
     .filter(box => box.w >= MIN_CHILD_SIZE && box.h >= MIN_CHILD_SIZE);
+  const other: Direction = direction === "row" ? "column" : "row";
+  let boxes = cut(direction);
+  let used = direction;
+  if (boxes.length < 2) {
+    boxes = cut(other);
+    used = other;
+  }
   if (boxes.length < 2) return;
+  direction = used;
 
   const layout = measureLayout(parent.box, boxes, direction);
   parent.layout = layout;
