@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampBox, inferDirection, recomputeLayout } from "./element-layout.js";
+import { applyBox, inferDirection, recomputeLayout } from "./element-layout.js";
 import type { ElementNode } from "./element-types.js";
 import type { Rect } from "./types.js";
 
@@ -113,70 +113,123 @@ describe("recomputeLayout", () => {
   });
 });
 
-describe("clampBox", () => {
+describe("applyBox", () => {
   const region: Rect = { x: 0, y: 0, w: 400, h: 300 };
   const tree = [
     node({ id: "p", box: box(50, 50, 200, 200) }),
     node({ id: "a", parentId: "p", box: box(60, 60, 50, 50) }),
     node({ id: "b", parentId: "p", box: box(150, 60, 50, 50) }),
   ];
+  const boxOf = (result: ReturnType<typeof applyBox>, id: string) =>
+    result.ok ? result.nodes.find(item => item.id === id)?.box : undefined;
 
   it("accepts a small nudge", () => {
-    expect(clampBox(tree, region, "a", box(63, 62, 50, 50)))
+    expect(boxOf(applyBox(tree, region, "a", box(63, 62, 50, 50)), "a"))
       .toEqual({ x: 63, y: 62, w: 50, h: 50 });
   });
 
   it("rounds fractional input", () => {
-    expect(clampBox(tree, region, "a", box(60.6, 60.4, 50.5, 50)))
+    expect(boxOf(applyBox(tree, region, "a", box(60.6, 60.4, 50.5, 50)), "a"))
       .toEqual({ x: 61, y: 60, w: 51, h: 50 });
   });
 
-  // 越出父节点时收回来，而不是整个拒绝——挪出界是最常见的手滑
-  it("pulls a child back inside its parent", () => {
-    expect(clampBox(tree, region, "a", box(0, 0, 50, 50)))
+  // 纯移动挪出界基本是手滑，收回来而不是把父框拖大
+  it("pulls a moved child back inside its parent", () => {
+    expect(boxOf(applyBox(tree, region, "a", box(0, 0, 50, 50)), "a"))
       .toEqual({ x: 50, y: 50, w: 50, h: 50 });
-    expect(clampBox(tree, region, "a", box(900, 900, 50, 50)))
+    expect(boxOf(applyBox(tree, region, "a", box(900, 900, 50, 50)), "a"))
       .toEqual({ x: 200, y: 200, w: 50, h: 50 });
   });
 
-  it("caps a child at its parent size", () => {
-    // 有兄弟时撑满父节点必然压到兄弟，所以这条要在独生子上验
+  // 放大顶到父边界后继续放大：父节点跟着长
+  it("grows the parent when a child outgrows it", () => {
     const lone = [
       node({ id: "p", box: box(50, 50, 200, 200) }),
       node({ id: "a", parentId: "p", box: box(60, 60, 50, 50) }),
     ];
-    const clamped = clampBox(lone, region, "a", box(60, 60, 9999, 9999))!;
-    expect(clamped).toEqual({ x: 50, y: 50, w: 200, h: 200 });
+    const next = applyBox(lone, region, "a", box(60, 60, 300, 50));
+    expect(boxOf(next, "a")).toEqual({ x: 60, y: 60, w: 300, h: 50 });
+    expect(boxOf(next, "p")).toEqual({ x: 50, y: 50, w: 310, h: 200 });
+  });
+
+  // 顶开要一路往上传，不是只顶一层
+  it("grows every ancestor that no longer fits", () => {
+    const deep = [
+      node({ id: "p", box: box(50, 50, 200, 200) }),
+      node({ id: "m", parentId: "p", box: box(60, 60, 100, 100) }),
+      node({ id: "a", parentId: "m", box: box(70, 70, 50, 50) }),
+    ];
+    const next = applyBox(deep, region, "a", box(70, 70, 250, 50));
+    expect(boxOf(next, "a")!.w).toBe(250);
+    expect(boxOf(next, "m")).toEqual({ x: 60, y: 60, w: 260, h: 100 });
+    expect(boxOf(next, "p")).toEqual({ x: 50, y: 50, w: 270, h: 200 });
+  });
+
+  // 区域是硬顶，顶不出去
+  it("refuses to grow past the region", () => {
+    const lone = [
+      node({ id: "p", box: box(50, 50, 200, 200) }),
+      node({ id: "a", parentId: "p", box: box(60, 60, 50, 50) }),
+    ];
+    const next = applyBox(lone, region, "a", box(60, 60, 9999, 50));
+    expect(boxOf(next, "a")!.x + boxOf(next, "a")!.w).toBeLessThanOrEqual(region.w);
+    expect(boxOf(next, "p")!.x + boxOf(next, "p")!.w).toBeLessThanOrEqual(region.w);
   });
 
   it("keeps a root inside the region", () => {
-    expect(clampBox(tree, region, "p", box(-40, -40, 200, 200)))
+    expect(boxOf(applyBox(tree, region, "p", box(-40, -40, 200, 200)), "p"))
       .toEqual({ x: 0, y: 0, w: 200, h: 200 });
   });
 
   it("refuses to overlap a flow sibling", () => {
-    expect(clampBox(tree, region, "a", box(140, 60, 50, 50))).toBeNull();
+    expect(applyBox(tree, region, "a", box(140, 60, 50, 50)).ok).toBe(false);
   });
 
   // absolute 的节点本来就允许压层（角标压在图标上那种形态）
   it("allows an absolute node to overlap", () => {
     const withBadge = tree.map(item =>
       item.id === "a" ? { ...item, positioning: "absolute" as const } : item);
-    expect(clampBox(withBadge, region, "a", box(140, 60, 50, 50)))
+    expect(boxOf(applyBox(withBadge, region, "a", box(140, 60, 50, 50)), "a"))
       .toEqual({ x: 140, y: 60, w: 50, h: 50 });
   });
 
-  it("refuses to shrink below its own children", () => {
-    expect(clampBox(tree, region, "p", box(50, 50, 60, 60))).toBeNull();
+  // 与向上取并集对称：向下取交集。只裁掉伸出去的那部分，装得下的原样不动。
+  it("trims the children when the parent shrinks below them", () => {
+    const next = applyBox(tree, region, "p", box(50, 50, 120, 200));
+    expect(boxOf(next, "p")).toEqual({ x: 50, y: 50, w: 120, h: 200 });
+    expect(boxOf(next, "a")).toEqual({ x: 60, y: 60, w: 50, h: 50 });   // 装得下，不动
+    expect(boxOf(next, "b")).toEqual({ x: 150, y: 60, w: 20, h: 50 });  // 伸出去，裁掉
+  });
+
+  // 裁剪要一路往下传，不是只裁一层
+  it("trims every descendant that no longer fits", () => {
+    const deep = [
+      node({ id: "p", box: box(0, 0, 300, 100) }),
+      node({ id: "m", parentId: "p", box: box(0, 0, 300, 100) }),
+      node({ id: "a", parentId: "m", box: box(200, 0, 100, 100) }),
+    ];
+    const next = applyBox(deep, region, "p", box(0, 0, 240, 100));
+    expect(boxOf(next, "m")!.w).toBe(240);
+    expect(boxOf(next, "a")).toEqual({ x: 200, y: 0, w: 40, h: 100 });
+  });
+
+  // 裁到看不见就整体拒绝，不留下碎块
+  it("refuses when trimming would leave a child below the minimum", () => {
+    expect(applyBox(tree, region, "p", box(50, 50, 12, 200)).ok).toBe(false);
   });
 
   it("enforces a minimum size", () => {
-    const clamped = clampBox(tree, region, "a", box(60, 60, 0, 0))!;
-    expect(clamped.w).toBeGreaterThanOrEqual(4);
-    expect(clamped.h).toBeGreaterThanOrEqual(4);
+    const shrunk = boxOf(applyBox(tree, region, "a", box(60, 60, 0, 0)), "a")!;
+    expect(shrunk.w).toBeGreaterThanOrEqual(4);
+    expect(shrunk.h).toBeGreaterThanOrEqual(4);
   });
 
   it("returns null for an unknown id", () => {
-    expect(clampBox(tree, region, "ghost", box(0, 0, 10, 10))).toBeNull();
+    expect(applyBox(tree, region, "ghost", box(0, 0, 10, 10)).ok).toBe(false);
+  });
+
+  it("leaves untouched nodes alone", () => {
+    const next = applyBox(tree, region, "a", box(63, 62, 50, 50))!;
+    expect(boxOf(next, "b")).toEqual({ x: 150, y: 60, w: 50, h: 50 });
   });
 });

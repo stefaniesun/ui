@@ -216,6 +216,27 @@ describe("setBox", () => {
       .toEqual({ x: 13, y: 12, w: 50, h: 50 });
   });
 
+  // 放大顶到父边界后继续放大，父节点跟着长
+  it("grows the parent when a child outgrows it", async () => {
+    const store = createElementStore(loaded([
+      boxed("p", null, 0, 0, 200, 200), boxed("a", "p", 10, 10, 50, 50),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 10, y: 10, w: 300, h: 50 });
+    expect(store.tree.value!.nodes.find(n => n.id === "a")!.box.w).toBe(300);
+    expect(store.tree.value!.nodes.find(n => n.id === "p")!.box.w).toBe(310);
+  });
+
+  // 与放大对称：缩小父框时把伸出去的子节点一起裁进来
+  it("trims the children when the parent shrinks", async () => {
+    const store = createElementStore(loaded([
+      boxed("p", null, 0, 0, 200, 200), boxed("a", "p", 100, 10, 90, 50),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "p", { x: 0, y: 0, w: 140, h: 200 });
+    expect(store.tree.value!.nodes.find(n => n.id === "a")!.box.w).toBe(40);
+  });
+
   // 改不动就什么都不做，而不是发一个注定 422 的请求
   it("does nothing when the change is impossible", async () => {
     const api = loaded([
@@ -274,5 +295,31 @@ describe("setRadius", () => {
     await store.load("p1", REGION);
     await store.setRadius("p1", REGION, "n1", 34);
     expect(api.putElements).not.toHaveBeenCalled();
+  });
+});
+
+describe("setBox rejection feedback", () => {
+  const boxed2 = (id: string, parentId: string | null, x: number, w: number) =>
+    node({ id, parentId, box: { x, y: 0, w, h: 50 } });
+
+  // 静默无动作看起来像失灵，必须说清楚为什么
+  it("explains why a change was refused", async () => {
+    const store = createElementStore(loaded([
+      boxed2("p", null, 0, 400), boxed2("a", "p", 0, 100), boxed2("b", "p", 200, 100),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 0, y: 0, w: 250, h: 50 });
+    expect(store.error.value).toContain("同级元素");
+  });
+
+  it("clears the error once a change succeeds", async () => {
+    const store = createElementStore(loaded([
+      boxed2("p", null, 0, 400), boxed2("a", "p", 0, 100), boxed2("b", "p", 200, 100),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 0, y: 0, w: 250, h: 50 });
+    expect(store.error.value).not.toBe("");
+    await store.setBox("p1", REGION, "a", { x: 0, y: 0, w: 120, h: 50 });
+    expect(store.error.value).toBe("");
   });
 });

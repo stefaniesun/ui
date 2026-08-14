@@ -29,66 +29,136 @@ function contains(outer: Rect, inner: Rect): boolean {
     && inner.y + inner.h <= outer.y + outer.h;
 }
 
-/** 一组矩形的并集包围盒 */
-function boundsOf(boxes: Rect[]): Rect | null {
-  if (boxes.length === 0) return null;
-  const x = Math.min(...boxes.map(b => b.x));
-  const y = Math.min(...boxes.map(b => b.y));
-  return {
-    x, y,
-    w: Math.max(...boxes.map(b => b.x + b.w)) - x,
-    h: Math.max(...boxes.map(b => b.y + b.h)) - y,
-  };
-}
-
 /** 元素框的最小边长，太小就没法选中也没法看 */
 export const MIN_BOX_SIZE = 4;
 
+function union(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x, y,
+    w: Math.max(a.x + a.w, b.x + b.w) - x,
+    h: Math.max(a.y + a.h, b.y + b.h) - y,
+  };
+}
+
+/** 交集；不相交时返回 null */
+function intersect(a: Rect, b: Rect): Rect | null {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const w = Math.min(a.x + a.w, b.x + b.w) - x;
+  const h = Math.min(a.y + a.h, b.y + b.h) - y;
+  return w > 0 && h > 0 ? { x, y, w, h } : null;
+}
+
 /**
- * 把人工改动过的框钳制到合法范围，改不动就返回 null。
+ * 应用一次人工改框，必要时**逐层顶开祖先**，返回整棵更新后的节点表；
+ * 做不到就返回 null。
  *
- * 测量会出错，所以人工必须能调；但调完仍要满足写盘时的那几条不变量，
- * 否则只会换来一个 422。三条约束按"改不动就别改"处理，不做部分妥协：
+ * 尺寸变化沿两个方向对称传播：**向上取并集，向下取交集**。
  *
- * - 不能越出父节点（根节点不能越出区域）
- * - 不能小到装不下自己的子节点
- * - 不能与同层的兄弟重叠
+ * - **放大**顶到父边界后继续放大：父节点扩成并集，一路往上递归。
+ *   想让一个元素更大时被父框卡住、只能先去改父框，顺序是反的。
+ * - **缩小**到装不下子节点：子节点收成交集，一路往下递归。
+ *   只拒绝不动会和放大方向自相矛盾；取交集则只裁掉伸出去的那部分，
+ *   仍然装得下的子节点原样不动，测量数据尽量少丢。
+ *
+ * **移动**（宽高不变）不参与传播，仍然收进父节点——挪出界基本都是手滑，
+ * 顺手把父框拖大反而是破坏。
+ *
+ * 这几条底线不让步：
+ * - 区域是硬顶，谁都不能长出区域
+ * - 裁到小于最小边长就整体拒绝，不留下看不见的碎块
+ * - 改动过的每一层都不能压到它自己的兄弟
  */
-export function clampBox(
+/** 改不动时说明原因，界面要能把它显示出来，否则看起来像失灵 */
+export type ApplyBoxResult =
+  | { ok: true; nodes: ElementNode[] }
+  | { ok: false; reason: string };
+
+export function applyBox(
   nodes: ElementNode[], region: Rect, id: string, next: Rect,
-): Rect | null {
+): ApplyBoxResult {
   const node = nodes.find(item => item.id === id);
-  if (!node) return null;
+  if (!node) return { ok: false, reason: "找不到这个元素" };
 
   const box: Rect = {
     x: Math.round(next.x), y: Math.round(next.y),
     w: Math.max(MIN_BOX_SIZE, Math.round(next.w)),
     h: Math.max(MIN_BOX_SIZE, Math.round(next.h)),
   };
+  const grows = box.w > node.box.w || box.h > node.box.h;
 
-  // ① 收进父节点（根节点收进区域）
-  const parent = node.parentId === null
-    ? region
-    : nodes.find(item => item.id === node.parentId)?.box;
-  if (!parent) return null;
-  box.w = Math.min(box.w, parent.w);
-  box.h = Math.min(box.h, parent.h);
-  box.x = Math.min(Math.max(box.x, parent.x), parent.x + parent.w - box.w);
-  box.y = Math.min(Math.max(box.y, parent.y), parent.y + parent.h - box.h);
+  const parentOf = (item: ElementNode): ElementNode | null =>
+    item.parentId === null ? null : nodes.find(x => x.id === item.parentId) ?? null;
 
-  // ② 必须装得下自己的子节点
-  const childBounds = boundsOf(
-    nodes.filter(item => item.parentId === id).map(item => item.box));
-  if (childBounds && !contains(box, childBounds)) return null;
+  // 区域是硬顶
+  box.w = Math.min(box.w, region.w);
+  box.h = Math.min(box.h, region.h);
+  box.x = Math.min(Math.max(box.x, region.x), region.x + region.w - box.w);
+  box.y = Math.min(Math.max(box.y, region.y), region.y + region.h - box.h);
 
-  // ③ 不能压到同层的兄弟身上（absolute 的节点本来就允许压层）
-  if (node.positioning === "flow") {
-    const clash = nodes.some(item =>
-      item.id !== id && item.parentId === node.parentId
-      && item.positioning === "flow" && overlaps(item.box, box));
-    if (clash) return null;
+  if (!grows) {
+    const bounds = parentOf(node)?.box ?? region;
+    box.w = Math.min(box.w, bounds.w);
+    box.h = Math.min(box.h, bounds.h);
+    box.x = Math.min(Math.max(box.x, bounds.x), bounds.x + bounds.w - box.w);
+    box.y = Math.min(Math.max(box.y, bounds.y), bounds.y + bounds.h - box.h);
   }
-  return box;
+
+  const updates = new Map<string, Rect>([[id, box]]);
+
+  // 逐层往下收：装不下的子节点裁成交集
+  const trim = (parentId: string, parentBox: Rect): boolean => {
+    for (const child of nodes.filter(item => item.parentId === parentId)) {
+      const current = updates.get(child.id) ?? child.box;
+      if (contains(parentBox, current)) continue;
+      const trimmed = intersect(current, parentBox);
+      if (!trimmed || trimmed.w < MIN_BOX_SIZE || trimmed.h < MIN_BOX_SIZE) return false;
+      updates.set(child.id, trimmed);
+      if (!trim(child.id, trimmed)) return false;
+    }
+    return true;
+  };
+  if (!trim(id, box)) {
+    return { ok: false, reason: "再缩下去里面的子元素就看不见了" };
+  }
+
+  // 逐层往上顶：装不下就把祖先扩成并集，一直到区域为止
+  let current: ElementNode = node;
+  let currentBox = box;
+  for (;;) {
+    const parent = parentOf(current);
+    if (!parent) break;
+    const parentBox = updates.get(parent.id) ?? parent.box;
+    if (contains(parentBox, currentBox)) break;
+    const grown = union(parentBox, currentBox);
+    if (!contains(region, grown)) {
+      return { ok: false, reason: "已经顶到区域边界，再大就超出这个区域了" };
+    }
+    updates.set(parent.id, grown);
+    current = parent;
+    currentBox = grown;
+  }
+
+  // 改动过的每一层都要重新检查兄弟重叠（absolute 的本来就允许压层）
+  for (const [changedId, changedBox] of updates) {
+    const changed = nodes.find(item => item.id === changedId)!;
+    if (changed.positioning !== "flow") continue;
+    const clash = nodes.some(other =>
+      other.id !== changedId && other.parentId === changed.parentId
+      && other.positioning === "flow"
+      && overlaps(updates.get(other.id) ?? other.box, changedBox));
+    if (clash) {
+      return { ok: false, reason: "会压到旁边的同级元素上；要压层请先把类型改成绝对定位" };
+    }
+  }
+
+  return {
+    ok: true,
+    nodes: nodes.map(item =>
+      updates.has(item.id) ? { ...item, box: updates.get(item.id)! } : item),
+  };
 }
 
 /**

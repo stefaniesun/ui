@@ -1,6 +1,6 @@
 import { computed, ref, shallowRef } from "vue";
 import {
-  clampBox, recomputeLayout,
+  applyBox, recomputeLayout,
   type ElementKind, type ElementNode, type ElementTree, type Rect,
 } from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
@@ -103,19 +103,27 @@ export function createElementStore(api: StoreApi) {
     },
 
     /**
-     * 人工微调一个元素的框。测量会出错，所以这里必须能改；
-     * 改完由 clampBox 收进合法范围，改不动就原样返回不落盘——
-     * 与其发一个注定 422 的请求，不如当场什么都不做。
+     * 人工微调一个元素的框。测量会出错，所以这里必须能改。
+     *
+     * 尺寸变化会连带改动祖先或子孙（放大顶开父框、缩小裁进子框），所以
+     * applyBox 返回的是**整棵更新后的节点表**而不是单个框。做不到就原样返回
+     * 不落盘——与其发一个注定 422 的请求，不如当场什么都不做。
      */
     async setBox(projectId: string, region: Rect, id: string, next: Rect) {
-      const clamped = clampBox(nodes.value, region, id, next);
-      if (!clamped) return;
-      const current = nodes.value.find(node => node.id === id);
-      if (!current) return;
-      if (current.box.x === clamped.x && current.box.y === clamped.y
-        && current.box.w === clamped.w && current.box.h === clamped.h) return;
-      await commit(projectId, region, relayout(nodes.value.map(node =>
-        node.id === id ? { ...node, box: clamped } : node)));
+      const result = applyBox(nodes.value, region, id, next);
+      if (!result.ok) {
+        // 改不动要说清楚原因，静默无动作看起来像失灵
+        error.value = result.reason;
+        return;
+      }
+      const before = nodes.value;
+      const changed = result.nodes.some((node, index) => {
+        const old = before[index]!.box;
+        return old.x !== node.box.x || old.y !== node.box.y
+          || old.w !== node.box.w || old.h !== node.box.h;
+      });
+      if (!changed) return;
+      await commit(projectId, region, relayout(result.nodes));
     },
 
     /**
