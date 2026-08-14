@@ -201,3 +201,42 @@ describe("layout is recomputed after structural edits", () => {
     expect(store.tree.value!.nodes.find(item => item.id === "n1")!.scrollX).toBe(true);
   });
 });
+
+describe("setBox", () => {
+  const boxed = (id: string, parentId: string | null, x: number, y: number, w: number, h: number) =>
+    node({ id, parentId, box: { x, y, w, h } });
+
+  it("applies a nudge and persists it", async () => {
+    const store = createElementStore(loaded([
+      boxed("p", null, 0, 0, 200, 200), boxed("a", "p", 10, 10, 50, 50),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 13, y: 12, w: 50, h: 50 });
+    expect(store.tree.value!.nodes.find(n => n.id === "a")!.box)
+      .toEqual({ x: 13, y: 12, w: 50, h: 50 });
+  });
+
+  // 改不动就什么都不做，而不是发一个注定 422 的请求
+  it("does nothing when the change is impossible", async () => {
+    const api = loaded([
+      boxed("p", null, 0, 0, 200, 200),
+      boxed("a", "p", 10, 10, 50, 50), boxed("b", "p", 100, 10, 50, 50),
+    ]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 95, y: 10, w: 50, h: 50 });
+    expect(store.tree.value!.nodes.find(n => n.id === "a")!.box)
+      .toEqual({ x: 10, y: 10, w: 50, h: 50 });
+    expect(api.putElements).not.toHaveBeenCalled();
+  });
+
+  it("recomputes the parent layout after a nudge", async () => {
+    const store = createElementStore(loaded([
+      boxed("p", null, 0, 0, 300, 100),
+      boxed("a", "p", 0, 0, 50, 100), boxed("b", "p", 100, 0, 50, 100),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "b", { x: 150, y: 0, w: 50, h: 100 });
+    expect(store.tree.value!.nodes.find(n => n.id === "p")!.layout!.gap).toBe(100);
+  });
+});

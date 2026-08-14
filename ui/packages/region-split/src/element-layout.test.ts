@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferDirection, recomputeLayout } from "./element-layout.js";
+import { clampBox, inferDirection, recomputeLayout } from "./element-layout.js";
 import type { ElementNode } from "./element-types.js";
 import type { Rect } from "./types.js";
 
@@ -110,5 +110,73 @@ describe("recomputeLayout", () => {
   it("leaves leaves untouched", () => {
     const nodes = [node({ id: "n1", box: box(0, 0, 100, 100), kind: "text" })];
     expect(recomputeLayout(nodes)[0]!.layout).toBeUndefined();
+  });
+});
+
+describe("clampBox", () => {
+  const region: Rect = { x: 0, y: 0, w: 400, h: 300 };
+  const tree = [
+    node({ id: "p", box: box(50, 50, 200, 200) }),
+    node({ id: "a", parentId: "p", box: box(60, 60, 50, 50) }),
+    node({ id: "b", parentId: "p", box: box(150, 60, 50, 50) }),
+  ];
+
+  it("accepts a small nudge", () => {
+    expect(clampBox(tree, region, "a", box(63, 62, 50, 50)))
+      .toEqual({ x: 63, y: 62, w: 50, h: 50 });
+  });
+
+  it("rounds fractional input", () => {
+    expect(clampBox(tree, region, "a", box(60.6, 60.4, 50.5, 50)))
+      .toEqual({ x: 61, y: 60, w: 51, h: 50 });
+  });
+
+  // 越出父节点时收回来，而不是整个拒绝——挪出界是最常见的手滑
+  it("pulls a child back inside its parent", () => {
+    expect(clampBox(tree, region, "a", box(0, 0, 50, 50)))
+      .toEqual({ x: 50, y: 50, w: 50, h: 50 });
+    expect(clampBox(tree, region, "a", box(900, 900, 50, 50)))
+      .toEqual({ x: 200, y: 200, w: 50, h: 50 });
+  });
+
+  it("caps a child at its parent size", () => {
+    // 有兄弟时撑满父节点必然压到兄弟，所以这条要在独生子上验
+    const lone = [
+      node({ id: "p", box: box(50, 50, 200, 200) }),
+      node({ id: "a", parentId: "p", box: box(60, 60, 50, 50) }),
+    ];
+    const clamped = clampBox(lone, region, "a", box(60, 60, 9999, 9999))!;
+    expect(clamped).toEqual({ x: 50, y: 50, w: 200, h: 200 });
+  });
+
+  it("keeps a root inside the region", () => {
+    expect(clampBox(tree, region, "p", box(-40, -40, 200, 200)))
+      .toEqual({ x: 0, y: 0, w: 200, h: 200 });
+  });
+
+  it("refuses to overlap a flow sibling", () => {
+    expect(clampBox(tree, region, "a", box(140, 60, 50, 50))).toBeNull();
+  });
+
+  // absolute 的节点本来就允许压层（角标压在图标上那种形态）
+  it("allows an absolute node to overlap", () => {
+    const withBadge = tree.map(item =>
+      item.id === "a" ? { ...item, positioning: "absolute" as const } : item);
+    expect(clampBox(withBadge, region, "a", box(140, 60, 50, 50)))
+      .toEqual({ x: 140, y: 60, w: 50, h: 50 });
+  });
+
+  it("refuses to shrink below its own children", () => {
+    expect(clampBox(tree, region, "p", box(50, 50, 60, 60))).toBeNull();
+  });
+
+  it("enforces a minimum size", () => {
+    const clamped = clampBox(tree, region, "a", box(60, 60, 0, 0))!;
+    expect(clamped.w).toBeGreaterThanOrEqual(4);
+    expect(clamped.h).toBeGreaterThanOrEqual(4);
+  });
+
+  it("returns null for an unknown id", () => {
+    expect(clampBox(tree, region, "ghost", box(0, 0, 10, 10))).toBeNull();
   });
 });

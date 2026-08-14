@@ -1,6 +1,6 @@
 import { computed, ref, shallowRef } from "vue";
 import {
-  recomputeLayout,
+  clampBox, recomputeLayout,
   type ElementKind, type ElementNode, type ElementTree, type Rect,
 } from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
@@ -100,6 +100,22 @@ export function createElementStore(api: StoreApi) {
       await commit(projectId, region, nodes.value.map(node => node.id === id
         ? { ...node, ...(axis === "x" ? { scrollX: value } : { scrollY: value }) }
         : node));
+    },
+
+    /**
+     * 人工微调一个元素的框。测量会出错，所以这里必须能改；
+     * 改完由 clampBox 收进合法范围，改不动就原样返回不落盘——
+     * 与其发一个注定 422 的请求，不如当场什么都不做。
+     */
+    async setBox(projectId: string, region: Rect, id: string, next: Rect) {
+      const clamped = clampBox(nodes.value, region, id, next);
+      if (!clamped) return;
+      const current = nodes.value.find(node => node.id === id);
+      if (!current) return;
+      if (current.box.x === clamped.x && current.box.y === clamped.y
+        && current.box.w === clamped.w && current.box.h === clamped.h) return;
+      await commit(projectId, region, relayout(nodes.value.map(node =>
+        node.id === id ? { ...node, box: clamped } : node)));
     },
 
     /** 删除一层：子节点上提到父节点，不级联删除 */

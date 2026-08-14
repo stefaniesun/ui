@@ -49,6 +49,9 @@ function onRenameValue(id: string, displayName: string) {
 function onAddContainer(box: Rect) {
   if (region.value) void props.elementStore.addContainer(props.projectId, region.value, box);
 }
+function onSetBox(id: string, box: Rect) {
+  if (region.value) void props.elementStore.setBox(props.projectId, region.value, id, box);
+}
 function onSetScroll(id: string, axis: "x" | "y", value: boolean) {
   if (region.value) {
     void props.elementStore.setScroll(props.projectId, region.value, id, axis, value);
@@ -127,6 +130,7 @@ function onRenamePrompt(id: string) {
           @rename="onRenameValue"
           @set-kind="onSetKind"
           @set-scroll="onSetScroll"
+          @set-box="onSetBox"
         />
       </section>
     </template>
