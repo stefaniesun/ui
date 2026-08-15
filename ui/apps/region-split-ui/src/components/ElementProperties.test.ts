@@ -209,10 +209,27 @@ describe("ElementProperties nudge buttons", () => {
 describe("ElementProperties border radius", () => {
   const card: ElementNode = { ...node, style: { background: "#ffffff", borderRadius: 34 } };
 
-  it("shows the measured radius", () => {
+  it("shows an enabled toggle and the existing radius", () => {
     const wrapper = mount(ElementProperties, { props: { node: card } });
+    expect((wrapper.find('[data-test="border-radius-toggle"]').element as HTMLInputElement).checked)
+      .toBe(true);
     expect((wrapper.find('[data-test="property-radius"]').element as HTMLInputElement).value)
       .toBe("34");
+  });
+
+  it("enables a missing radius at eight pixels", async () => {
+    const wrapper = mount(ElementProperties, { props: { node } });
+    const toggle = wrapper.find('[data-test="border-radius-toggle"]');
+    expect((toggle.element as HTMLInputElement).checked).toBe(false);
+    expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(false);
+    await toggle.setValue(true);
+    expect(wrapper.emitted("set-radius")![0]).toEqual(["n1", 8]);
+  });
+
+  it("disables a radius by setting it to zero", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: card } });
+    await wrapper.find('[data-test="border-radius-toggle"]').setValue(false);
+    expect(wrapper.emitted("set-radius")![0]).toEqual(["n1", 0]);
   });
 
   it("emits a new radius from the input", async () => {
@@ -235,25 +252,16 @@ describe("ElementProperties border radius", () => {
     expect(wrapper.emitted("set-radius")![1]).toEqual(["n1", 33]);
   });
 
-  it("shows zero when the node has no radius", () => {
-    const wrapper = mount(ElementProperties, { props: { node } });
-    expect((wrapper.find('[data-test="property-radius"]').element as HTMLInputElement).value)
-      .toBe("0");
-  });
-
-  // 圆角属于承载内容的盒子，文字和图标本身没有这个属性
-  it("hides the radius row on a text leaf", () => {
-    const wrapper = mount(ElementProperties, {
-      props: { node: { ...node, kind: "text" as const } },
-    });
-    expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(false);
-  });
-
-  it("shows the radius row on an image", () => {
-    const wrapper = mount(ElementProperties, {
-      props: { node: { ...node, kind: "image" as const } },
-    });
-    expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(true);
+  it("offers the toggle only for images and components", () => {
+    for (const kind of ["image", "component"] as const) {
+      const wrapper = mount(ElementProperties, { props: { node: { ...node, kind } } });
+      expect(wrapper.find('[data-test="border-radius-toggle"]').exists()).toBe(true);
+    }
+    for (const kind of ["grid", "text", "icon", "decoration"] as const) {
+      const wrapper = mount(ElementProperties, { props: { node: { ...node, kind } } });
+      expect(wrapper.find('[data-test="border-radius-toggle"]').exists()).toBe(false);
+      expect(wrapper.find('[data-test="property-radius"]').exists()).toBe(false);
+    }
   });
 });
 

@@ -4,6 +4,7 @@ import {
   MIN_BOX_SIZE, elementKinds,
   type ElementKind, type ElementNode, type Rect,
 } from "@region-split/core/browser";
+import { supportsBorderRadius } from "../element-state.js";
 
 const props = defineProps<{
   node: ElementNode | null;
@@ -26,10 +27,10 @@ const emit = defineEmits<{
 const isContainer = computed(() =>
   props.node?.kind === "component" || props.node?.kind === "grid");
 
-/** 圆角只对容器和位图有意义：文字和图标是内容本身，圆角属于承载它的盒子 */
-const hasRadius = computed(() => props.node?.kind === "component"
-  || props.node?.kind === "grid" || props.node?.kind === "image");
+/** 圆角仅由用户为图片和组件手动开启。 */
+const hasRadius = computed(() => props.node ? supportsBorderRadius(props.node.kind) : false);
 const radius = computed(() => props.node?.style.borderRadius ?? 0);
+const radiusEnabled = computed(() => hasRadius.value && radius.value > 0);
 
 /** 颜色是"墨色"：文字的字色、图标的线条色、装饰的颜色。容器的颜色是背景色，另有一行。 */
 const hasColor = computed(() => props.node?.kind === "text"
@@ -114,6 +115,12 @@ function onRadius(event: Event) {
   if (!props.node) return;
   if (raw === "" || !Number.isFinite(value)) return;
   emit("set-radius", props.node.id, value);
+}
+
+function onRadiusToggle(event: Event) {
+  if (!props.node) return;
+  const enabled = (event.target as HTMLInputElement).checked;
+  emit("set-radius", props.node.id, enabled ? (radius.value > 0 ? radius.value : 8) : 0);
 }
 
 function onColor(event: Event) {
@@ -243,12 +250,19 @@ onBeforeUnmount(stopNudge);
       <div v-if="hasRadius" class="field">
         <span class="name">圆角</span>
         <span class="axes">
-          <label><input
+          <label class="toggle">
+            <input
+              data-test="border-radius-toggle" type="checkbox" :checked="radiusEnabled"
+              @change="onRadiusToggle"
+            />
+            <span>{{ radiusEnabled ? "开启" : "关闭" }}</span>
+          </label>
+          <label v-if="radiusEnabled"><input
             data-test="property-radius" type="number" min="0" :value="radius"
             @change="onRadius"
           /></label>
         </span>
-        <span class="pad radius-pad">
+        <span v-if="radiusEnabled" class="pad radius-pad">
           <button
             data-test="radius-minus" title="减小圆角（按住连续）"
             @pointerdown="startRadius(-1)" @pointerup="stopNudge" @pointerleave="stopNudge"
