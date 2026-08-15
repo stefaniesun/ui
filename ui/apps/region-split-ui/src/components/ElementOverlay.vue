@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { ElementNode, Rect } from "@region-split/core/browser";
 import { regionImageUrl } from "../api.js";
+import { supportsBorderRadius } from "../element-state.js";
 
 const props = defineProps<{
   projectId: string;
@@ -105,7 +106,10 @@ defineExpose({ cancel: onCancel });
         selected: node.id === props.selectedId,
         hovered: node.id === props.hoveredId,
       }]"
-      :style="boxStyle(node.box, node.style.borderRadius ?? 0)"
+      :style="boxStyle(
+        node.box,
+        supportsBorderRadius(node.kind) ? (node.style.borderRadius ?? 0) : 0,
+      )"
       @click.stop="emit('select', node.id)"
       @mouseenter="emit('hover', node.id)"
       @mouseleave="emit('hover', null)"

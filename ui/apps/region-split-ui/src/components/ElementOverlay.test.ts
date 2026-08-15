@@ -45,6 +45,20 @@ describe("ElementOverlay", () => {
     expect(wrapper.find('[data-test="element-box"]').classes()).toContain("kind-image");
   });
 
+  it("renders a positive radius only for images and components", () => {
+    for (const kind of ["image", "component"] as const) {
+      const wrapper = mountOverlay({
+        nodes: [node({ id: "n1", kind, style: { borderRadius: 8 } })],
+      });
+      expect(wrapper.find('[data-test="element-box"]').attributes("style")).toContain("border-radius");
+    }
+    const legacyText = mountOverlay({
+      nodes: [node({ id: "n1", kind: "text", style: { borderRadius: 8 } })],
+    });
+    expect(legacyText.find('[data-test="element-box"]').attributes("style"))
+      .not.toContain("border-radius");
+  });
+
   it("marks the selected and hovered boxes", () => {
     const wrapper = mountOverlay({ selectedId: "n1" });
     expect(wrapper.find('[data-test="element-box"]').classes()).toContain("selected");
