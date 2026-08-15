@@ -23,11 +23,42 @@ describe("occupancy", () => {
   it("marks the rows and columns that carry content", async () => {
     const image = await raw(threeColumns());
     const { rows, cols } = occupancy(image, { x: 0, y: 0, w: 300, h: 100 }, [255, 255, 255]);
-    // 下标原点是内缩之后的左上角
-    expect(rows[30 - CUT_INSET]).toBe(true);
-    expect(rows[10 - CUT_INSET]).toBe(false);
-    expect(cols[30 - CUT_INSET]).toBe(true);
-    expect(cols[100 - CUT_INSET]).toBe(false);
+    // 下标原点就是 rect 左上角，两个数组都覆盖完整范围
+    expect(rows).toHaveLength(100);
+    expect(cols).toHaveLength(300);
+    expect(rows[30]).toBe(true);
+    expect(rows[10]).toBe(false);
+    expect(cols[30]).toBe(true);
+    expect(cols[100]).toBe(false);
+  });
+
+  // 内缩只该垂直于被测轴。两根轴一起内缩会宣告"贴边 6px 内没有内容"，
+  // 实测让「常用服务」的标签框矮了 6px、字号从 37 算成 30。
+  it("still sees content flush against the edge", async () => {
+    const image = await raw(
+      sharp({ create: { width: 100, height: 100, channels: 3, background: "#ffffff" } })
+        .composite([{
+          input: { create: { width: 100, height: 4, channels: 3, background: "#202020" } },
+          top: 96, left: 0,
+        }]).png());
+    const { rows } = occupancy(image, { x: 0, y: 0, w: 100, h: 100 }, [255, 255, 255]);
+    expect(rows[99]).toBe(true);
+    expect(rows[96]).toBe(true);
+    expect(rows[95]).toBe(false);
+  });
+
+  // 一条左边框会让每一行都有内容、把竖切彻底堵死，这才是内缩要防的东西
+  it("ignores a side border when marking rows", async () => {
+    const image = await raw(
+      sharp({ create: { width: 100, height: 100, channels: 3, background: "#ffffff" } })
+        .composite([{
+          input: { create: { width: 2, height: 100, channels: 3, background: "#202020" } },
+          top: 0, left: 0,
+        }]).png());
+    const { rows, cols } = occupancy(
+      image, { x: 0, y: 0, w: 100, h: 100 }, [255, 255, 255], CUT_INSET);
+    expect(rows.some(Boolean)).toBe(false);   // 左边框被 dx 排除，行仍然是空的
+    expect(cols[0]).toBe(true);               // 但它自己所在的列照常记为有内容
   });
 
   it("marks nothing on a flat block", async () => {

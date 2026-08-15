@@ -45,26 +45,44 @@ export interface LayoutInfo {
   padding: { top: number; right: number; bottom: number; left: number };
 }
 
-/** 内缩后逐行、逐列是否有内容。返回数组的下标原点是 rect 内缩之后的左上角。 */
+/**
+ * 逐行、逐列是否有内容。两个数组都覆盖 rect 的**完整**范围，下标原点就是 rect 左上角。
+ *
+ * 内缩只加在**垂直于被测轴**的那个方向上，这是它唯一该干的事：一条左边框会让
+ * 每一行都有内容、把 `rows` 全填满，竖切就再也切不开了，所以算 `rows` 时要把左右
+ * 各 CUT_INSET 列排除在外；算 `cols` 同理排除上下。
+ *
+ * **不能顺手把被测轴也截短**。早先两根轴一起内缩，等于宣告"贴着父边 6px 内的内容
+ * 不存在"：实测「常用服务」五个标签的墨迹都是 y 1290..1323，其中四个的父容器底边
+ * 恰好 1324，游程被压到 1318，框少 6px，字号从 37 算成 30——只有父容器底边 1368
+ * 的那一个逃过。误差还会逐层累积。
+ */
 export function occupancy(
   raw: RawImage, rect: Rect, fill: Rgb, inset = CUT_INSET,
 ): { rows: boolean[]; cols: boolean[] } {
-  const x0 = rect.x + inset, x1 = rect.x + rect.w - inset;
-  const y0 = rect.y + inset, y1 = rect.y + rect.h - inset;
-  const rows = new Array<boolean>(Math.max(0, y1 - y0)).fill(false);
-  const cols = new Array<boolean>(Math.max(0, x1 - x0)).fill(false);
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
-      const i = (y * raw.width + x) * raw.channels;
-      const distance = Math.max(
-        Math.abs(raw.data[i]! - fill[0]),
-        Math.abs(raw.data[i + 1]! - fill[1]),
-        Math.abs(raw.data[i + 2]! - fill[2]),
-      );
-      if (distance > CUT_THRESHOLD) {
-        rows[y - y0] = true;
-        cols[x - x0] = true;
-      }
+  const rows = new Array<boolean>(Math.max(0, rect.h)).fill(false);
+  const cols = new Array<boolean>(Math.max(0, rect.w)).fill(false);
+  // 内缩不能吃掉整条边：窄块上退回不内缩，总比一行都扫不到强
+  const dx = rect.w > inset * 2 ? inset : 0;
+  const dy = rect.h > inset * 2 ? inset : 0;
+
+  const ink = (x: number, y: number): boolean => {
+    const i = (y * raw.width + x) * raw.channels;
+    return Math.max(
+      Math.abs(raw.data[i]! - fill[0]),
+      Math.abs(raw.data[i + 1]! - fill[1]),
+      Math.abs(raw.data[i + 2]! - fill[2]),
+    ) > CUT_THRESHOLD;
+  };
+
+  for (let y = 0; y < rect.h; y++) {
+    for (let x = dx; x < rect.w - dx; x++) {
+      if (ink(rect.x + x, rect.y + y)) { rows[y] = true; break; }
+    }
+  }
+  for (let x = 0; x < rect.w; x++) {
+    for (let y = dy; y < rect.h - dy; y++) {
+      if (ink(rect.x + x, rect.y + y)) { cols[x] = true; break; }
     }
   }
   return { rows, cols };
@@ -99,11 +117,14 @@ export function looksLikeTextRun(runs: Run[]): boolean {
 function tightenToContent(
   raw: RawImage, box: Rect, direction: Direction, fill: Rgb,
 ): Rect {
-  // 交叉轴两端要避开父块的边框与圆角；主轴方向上子块边界就是内容边界，不必内缩
-  const x0 = box.x + (direction === "column" ? CUT_INSET : 0);
-  const x1 = box.x + box.w - (direction === "column" ? CUT_INSET : 0);
-  const y0 = box.y + (direction === "row" ? CUT_INSET : 0);
-  const y1 = box.y + box.h - (direction === "row" ? CUT_INSET : 0);
+  // 被测的那根轴必须扫满。早先这里也内缩 CUT_INSET，结果贴着父边的内容永远够不到：
+  // 实测「常用服务」五个标签墨迹都是 1290..1323，可其中四个的父容器底边正好 1324，
+  // 扫描上限被压到 1318，框底少了 6px，字号跟着从 37 算成 30——只有父容器底边 1368
+  // 的那一个是对的。父块的边框本来就由 occupancy 的内缩挡掉了，这里不必再挡一次。
+  const x0 = box.x;
+  const x1 = box.x + box.w;
+  const y0 = box.y;
+  const y1 = box.y + box.h;
   if (x1 <= x0 || y1 <= y0) return box;
 
   let min = Infinity;
@@ -149,8 +170,8 @@ export function cutChildren(raw: RawImage, rect: Rect, direction: Direction): Re
   if (looksLikeTextRun(runs)) return [];
   return runs
     .map(run => direction === "row"
-      ? { x: rect.x + CUT_INSET + run.start, y: rect.y, w: run.end - run.start, h: rect.h }
-      : { x: rect.x, y: rect.y + CUT_INSET + run.start, w: rect.w, h: run.end - run.start })
+      ? { x: rect.x + run.start, y: rect.y, w: run.end - run.start, h: rect.h }
+      : { x: rect.x, y: rect.y + run.start, w: rect.w, h: run.end - run.start })
     .map(box => tightenToContent(raw, box, direction, fill));
 }
 
