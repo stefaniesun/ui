@@ -5,6 +5,10 @@ import {
 } from "@region-split/core/browser";
 import type { StoreApi } from "./api.js";
 
+export function supportsBorderRadius(kind: ElementKind): boolean {
+  return kind === "image" || kind === "component";
+}
+
 /**
  * 元素编辑独立于区域编辑：不共用撤销栈，也不进 state.ts。
  * 元素的每个动作都可直接反向操作（删除→重新框选，新增→删除），不需要撤销栈；
@@ -43,9 +47,15 @@ export function createElementStore(api: StoreApi) {
   async function commit(projectId: string, region: Rect, next: ElementNode[]): Promise<void> {
     const current = tree.value;
     if (!current) return;
+    const normalized = next.map(node => {
+      if (supportsBorderRadius(node.kind) || node.style.borderRadius === undefined) return node;
+      const style = { ...node.style };
+      delete style.borderRadius;
+      return { ...node, style };
+    });
     // 先落本地再落盘：保存失败时保留本地编辑不回滚，只报错，
     // 与 state.ts 里 persistNow 的做法一致。
-    const edited: ElementTree = { ...current, nodes: next };
+    const edited: ElementTree = { ...current, nodes: normalized };
     tree.value = edited;
     error.value = "";
     try {
@@ -88,8 +98,12 @@ export function createElementStore(api: StoreApi) {
     },
 
     async setKind(projectId: string, region: Rect, id: string, kind: ElementKind) {
-      await commit(projectId, region, nodes.value.map(node =>
-        node.id === id ? { ...node, kind, classification: "human" as const } : node));
+      await commit(projectId, region, nodes.value.map(node => {
+        if (node.id !== id) return node;
+        const style = { ...node.style };
+        if (!supportsBorderRadius(kind)) delete style.borderRadius;
+        return { ...node, kind, style, classification: "human" as const };
+      }));
     },
 
     /** 人工覆盖几何判定出来的滚动属性 */

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createElementStore } from "./element-state.js";
+import { createElementStore, supportsBorderRadius } from "./element-state.js";
 import type { StoreApi } from "./api.js";
 import type { ElementNode, ElementTree, Rect } from "@region-split/core/browser";
 
@@ -259,6 +259,45 @@ describe("setBox", () => {
     await store.load("p1", REGION);
     await store.setBox("p1", REGION, "b", { x: 150, y: 0, w: 50, h: 100 });
     expect(store.tree.value!.nodes.find(n => n.id === "p")!.layout!.gap).toBe(100);
+  });
+});
+
+describe("supportsBorderRadius", () => {
+  it("allows only images and components", () => {
+    expect(supportsBorderRadius("image")).toBe(true);
+    expect(supportsBorderRadius("component")).toBe(true);
+    for (const kind of ["grid", "text", "icon", "decoration"] as const) {
+      expect(supportsBorderRadius(kind)).toBe(false);
+    }
+  });
+
+  it("clears legacy radius when changing to an unsupported kind", async () => {
+    const api = loaded([node({ id: "n1", kind: "component", style: { borderRadius: 12 } })]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setKind("p1", REGION, "n1", "text");
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBeUndefined();
+    expect(api.putElements).toHaveBeenCalledWith("p1", REGION, expect.objectContaining({
+      nodes: [expect.objectContaining({ kind: "text", style: {} })],
+    }));
+  });
+
+  it("preserves radius when changing to a supported kind", async () => {
+    const store = createElementStore(loaded([
+      node({ id: "n1", kind: "component", style: { borderRadius: 12 } }),
+    ]));
+    await store.load("p1", REGION);
+    await store.setKind("p1", REGION, "n1", "image");
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(12);
+  });
+
+  it("cleans an unsupported legacy radius on the next normal save", async () => {
+    const store = createElementStore(loaded([
+      node({ id: "n1", kind: "text", style: { borderRadius: 12 } }),
+    ]));
+    await store.load("p1", REGION);
+    await store.rename("p1", REGION, "n1", "标题");
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBeUndefined();
   });
 });
 
