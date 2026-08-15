@@ -185,11 +185,12 @@ describe("real screenshot", () => {
     return { data, width: info.width, height: info.height, channels: info.channels };
   };
 
-  it("frames the common-service card exactly", async () => {
+  it("frames the common-service card exactly without inferring a radius", async () => {
     const tree = detectElementTree(await fixture(), { x: 0, y: 1131, w: 1170, h: 255 }, NOW);
     const roots = tree.nodes.filter(node => node.parentId === null);
     expect(roots).toHaveLength(1);
     expect(roots[0]!.box).toEqual({ x: 36, y: 1131, w: 1098, h: 255 });
+    expect(roots[0]!.style.borderRadius).toBeUndefined();
   });
 
   it("frames the card-wallet card exactly", async () => {
