@@ -312,12 +312,11 @@ describe("setRadius", () => {
     expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(20);
   });
 
-  // 半径不可能超过短边的一半
-  it("caps at half the shorter side", async () => {
-    const store = createElementStore(loaded([card("n1", 200, 120)]));
+  it("stores the eight pixel default even on a small element", async () => {
+    const store = createElementStore(loaded([card("n1", 10, 10)]));
     await store.load("p1", REGION);
-    await store.setRadius("p1", REGION, "n1", 999);
-    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(60);
+    await store.setRadius("p1", REGION, "n1", 8);
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(8);
   });
 
   // 0 表示直角，这时删字段而不是存 0，保持文档干净
@@ -404,6 +403,15 @@ describe("setRegionBackground", () => {
     await store.load("p1", REGION);
     await store.setRegionBackground("p1", REGION, "#F5F5F5");
     expect(store.tree.value!.background).toBe("#f5f5f5");
+  });
+
+  it("cleans unsupported legacy radius while saving the background", async () => {
+    const store = createElementStore(loaded([
+      node({ id: "n1", kind: "text", style: { borderRadius: 12 } }),
+    ]));
+    await store.load("p1", REGION);
+    await store.setRegionBackground("p1", REGION, "#f5f5f5");
+    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBeUndefined();
   });
 
   it("rejects a malformed colour", async () => {

@@ -190,7 +190,7 @@ describe("real screenshot", () => {
     const roots = tree.nodes.filter(node => node.parentId === null);
     expect(roots).toHaveLength(1);
     expect(roots[0]!.box).toEqual({ x: 36, y: 1131, w: 1098, h: 255 });
-    expect(roots[0]!.style.borderRadius).toBeUndefined();
+    expect(tree.nodes.every(node => node.style.borderRadius === undefined)).toBe(true);
   });
 
   it("frames the card-wallet card exactly", async () => {
@@ -247,6 +247,7 @@ describe("region fallback when no container is visible", () => {
     const tree = detectElementTree(await fixture(), region, NOW);
     expect(tree.nodes.length).toBeGreaterThan(5);
     expect(tree.nodes.filter(node => node.parentId === null).length).toBeGreaterThan(1);
+    expect(tree.nodes.every(node => node.style.borderRadius === undefined)).toBe(true);
     expect(checkElementTreeInvariants(tree, region)).toEqual([]);
   });
 

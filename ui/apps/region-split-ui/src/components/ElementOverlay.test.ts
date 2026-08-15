@@ -59,6 +59,14 @@ describe("ElementOverlay", () => {
       .not.toContain("border-radius");
   });
 
+  it("does not render a missing or zero radius", () => {
+    for (const style of [{}, { borderRadius: 0 }]) {
+      const wrapper = mountOverlay({ nodes: [node({ id: "n1", kind: "image", style })] });
+      expect(wrapper.find('[data-test="element-box"]').attributes("style"))
+        .not.toContain("border-radius");
+    }
+  });
+
   it("marks the selected and hovered boxes", () => {
     const wrapper = mountOverlay({ selectedId: "n1" });
     expect(wrapper.find('[data-test="element-box"]').classes()).toContain("selected");
