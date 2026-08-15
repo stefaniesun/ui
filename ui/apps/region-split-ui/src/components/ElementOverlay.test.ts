@@ -45,7 +45,7 @@ describe("ElementOverlay", () => {
     expect(wrapper.find('[data-test="element-box"]').classes()).toContain("kind-image");
   });
 
-  it("renders a positive radius only for images and components", () => {
+  it("renders a user-set positive radius only for images and components", () => {
     for (const kind of ["image", "component"] as const) {
       const wrapper = mountOverlay({
         nodes: [node({ id: "n1", kind, style: { borderRadius: 8 } })],

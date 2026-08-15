@@ -209,7 +209,7 @@ describe("ElementProperties nudge buttons", () => {
 describe("ElementProperties border radius", () => {
   const card: ElementNode = { ...node, style: { background: "#ffffff", borderRadius: 34 } };
 
-  it("shows an enabled toggle and the existing radius", () => {
+  it("shows a radius after the user has enabled it", () => {
     const wrapper = mount(ElementProperties, { props: { node: card } });
     expect((wrapper.find('[data-test="border-radius-toggle"]').element as HTMLInputElement).checked)
       .toBe(true);
