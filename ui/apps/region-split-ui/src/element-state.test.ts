@@ -271,33 +271,50 @@ describe("supportsBorderRadius", () => {
     }
   });
 
-  it("clears legacy radius when changing to an unsupported kind", async () => {
-    const api = loaded([node({ id: "n1", kind: "component", style: { borderRadius: 12 } })]);
+  it("clears a manual radius when changing to an unsupported kind", async () => {
+    const api = loaded([node({ id: "n1", kind: "component" })]);
     const store = createElementStore(api);
     await store.load("p1", REGION);
+    await store.setRadius("p1", REGION, "n1", 12);
     await store.setKind("p1", REGION, "n1", "text");
     expect(store.tree.value!.nodes[0]!.style.borderRadius).toBeUndefined();
-    expect(api.putElements).toHaveBeenCalledWith("p1", REGION, expect.objectContaining({
+    expect(api.putElements).toHaveBeenLastCalledWith("p1", REGION, expect.objectContaining({
       nodes: [expect.objectContaining({ kind: "text", style: {} })],
     }));
   });
 
-  it("preserves radius when changing to a supported kind", async () => {
-    const store = createElementStore(loaded([
-      node({ id: "n1", kind: "component", style: { borderRadius: 12 } }),
-    ]));
+  it("clears every legacy radius while loading without saving automatically", async () => {
+    const api = loaded([
+      node({ id: "n1", kind: "component", style: { background: "#ffffff", borderRadius: 12 } }),
+      node({ id: "n2", kind: "image", style: { borderRadius: 8 } }),
+      node({ id: "n3", kind: "text", style: { color: "#111111", borderRadius: 6 } }),
+    ]);
+    const store = createElementStore(api);
+
     await store.load("p1", REGION);
-    await store.setKind("p1", REGION, "n1", "image");
-    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBe(12);
+
+    expect(store.tree.value!.nodes.map(item => item.style)).toEqual([
+      { background: "#ffffff" },
+      {},
+      { color: "#111111" },
+    ]);
+    const sourceTree = await api.getElements("p1", REGION.y, REGION.h);
+    expect(sourceTree.tree!.nodes.map(item => item.style.borderRadius)).toEqual([12, 8, 6]);
+    expect(api.putElements).not.toHaveBeenCalled();
   });
 
-  it("cleans an unsupported legacy radius on the next normal save", async () => {
-    const store = createElementStore(loaded([
-      node({ id: "n1", kind: "text", style: { borderRadius: 12 } }),
-    ]));
+  it("persists cleared legacy radii on the next normal save", async () => {
+    const api = loaded([
+      node({ id: "n1", kind: "component", style: { borderRadius: 12 } }),
+    ]);
+    const store = createElementStore(api);
     await store.load("p1", REGION);
-    await store.rename("p1", REGION, "n1", "标题");
-    expect(store.tree.value!.nodes[0]!.style.borderRadius).toBeUndefined();
+
+    await store.rename("p1", REGION, "n1", "卡片");
+
+    expect(api.putElements).toHaveBeenCalledWith("p1", REGION, expect.objectContaining({
+      nodes: [expect.objectContaining({ displayName: "卡片", style: {} })],
+    }));
   });
 });
 
@@ -327,11 +344,15 @@ describe("setRadius", () => {
     expect("borderRadius" in store.tree.value!.nodes[0]!.style).toBe(false);
   });
 
-  it("does nothing when the value is unchanged", async () => {
-    const api = loaded([card("n1", 200, 120, 34)]);
+  it("does nothing when the manual value is unchanged", async () => {
+    const api = loaded([card("n1", 200, 120)]);
     const store = createElementStore(api);
     await store.load("p1", REGION);
     await store.setRadius("p1", REGION, "n1", 34);
+    vi.mocked(api.putElements).mockClear();
+
+    await store.setRadius("p1", REGION, "n1", 34);
+
     expect(api.putElements).not.toHaveBeenCalled();
   });
 });

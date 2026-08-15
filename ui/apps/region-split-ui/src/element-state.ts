@@ -9,6 +9,19 @@ export function supportsBorderRadius(kind: ElementKind): boolean {
   return kind === "image" || kind === "component";
 }
 
+function clearBorderRadii(nodes: ElementNode[]): ElementNode[] {
+  return nodes.map(node => {
+    if (node.style.borderRadius === undefined) return node;
+    const style = { ...node.style };
+    delete style.borderRadius;
+    return { ...node, style };
+  });
+}
+
+function clearTreeBorderRadii(next: ElementTree | null): ElementTree | null {
+  return next ? { ...next, nodes: clearBorderRadii(next.nodes) } : null;
+}
+
 /**
  * 元素编辑独立于区域编辑：不共用撤销栈，也不进 state.ts。
  * 元素的每个动作都可直接反向操作（删除→重新框选，新增→删除），不需要撤销栈；
@@ -47,15 +60,9 @@ export function createElementStore(api: StoreApi) {
   async function commit(projectId: string, region: Rect, next: ElementNode[]): Promise<void> {
     const current = tree.value;
     if (!current) return;
-    const normalized = next.map(node => {
-      if (supportsBorderRadius(node.kind) || node.style.borderRadius === undefined) return node;
-      const style = { ...node.style };
-      delete style.borderRadius;
-      return { ...node, style };
-    });
     // 先落本地再落盘：保存失败时保留本地编辑不回滚，只报错，
     // 与 state.ts 里 persistNow 的做法一致。
-    const edited: ElementTree = { ...current, nodes: normalized };
+    const edited: ElementTree = { ...current, nodes: next };
     tree.value = edited;
     error.value = "";
     try {
@@ -73,7 +80,8 @@ export function createElementStore(api: StoreApi) {
     async load(projectId: string, region: Rect) {
       busyLabel.value = "载入元素…"; error.value = "";
       try {
-        tree.value = (await api.getElements(projectId, region.y, region.h)).tree;
+        const loaded = (await api.getElements(projectId, region.y, region.h)).tree;
+        tree.value = clearTreeBorderRadii(loaded);
         selectedId.value = null;
         scrollOverrides.clear();
       } catch (err) { error.value = (err as Error).message; }
