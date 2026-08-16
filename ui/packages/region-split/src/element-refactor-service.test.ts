@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElementNode, ElementTree } from "./element-types.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
-import { createRefactorSession, continueRefactorSession, RefactorServiceError } from "./element-refactor-service.js";
+import { applyRefactorSession, createRefactorSession, continueRefactorSession, RefactorServiceError } from "./element-refactor-service.js";
 import { hashElementTree } from "./element-subtree.js";
 import { ProjectStore } from "./store.js";
 import { ElementRefactorModelOutputError, type ElementRefactorModel } from "./element-refactor-model.js";
@@ -100,6 +100,28 @@ describe("element refactor service", () => {
       .resolves.toMatchObject({ candidateVersion: 1 });
     expect(vi.mocked(deps.model.refactorElements).mock.calls[1]![0].validationFeedback)
       .toEqual([{ code: "refactor.model-output", message: "bad JSON" }]);
+  });
+
+  it("applies only the current candidate and deletes the session after success", async () => {
+    const deps = await fixture();
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    const session = await createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "应用" });
+    expect(() => applyRefactorSession(deps, "p1", session.sessionId, { candidateVersion: 2, treeVersion: session.treeVersion }))
+      .toThrowError(expect.objectContaining({ code: "CANDIDATE_VERSION_CONFLICT" }));
+    expect(deps.sessions.peek(session.sessionId)).not.toBeNull();
+    const applied = applyRefactorSession(deps, "p1", session.sessionId, { candidateVersion: 1, treeVersion: session.treeVersion });
+    expect(applied.tree.nodes.map(item => item.id)).toEqual(["new-root"]);
+    expect(deps.sessions.peek(session.sessionId)).toBeNull();
+  });
+
+  it("keeps the session when the tree changed before apply", async () => {
+    const deps = await fixture();
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    const session = await createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "应用" });
+    deps.store.writeElementTree("p1", { ...tree, detectedAt: "changed" }, region);
+    expect(() => applyRefactorSession(deps, "p1", session.sessionId, { candidateVersion: 1, treeVersion: session.treeVersion }))
+      .toThrowError(expect.objectContaining({ code: "TREE_VERSION_CONFLICT" }));
+    expect(deps.sessions.peek(session.sessionId)).not.toBeNull();
   });
 
   it("repairs one invalid candidate and preserves the previous candidate if repair fails", async () => {

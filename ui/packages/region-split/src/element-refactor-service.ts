@@ -4,6 +4,8 @@ import {
   type ElementRefactorModel,
 } from "./element-refactor-model.js";
 import type {
+  ApplyRefactorRequest,
+  ApplyRefactorResponse,
   ContinueRefactorRequest,
   CreateRefactorSessionRequest,
   RefactorCandidate,
@@ -107,6 +109,37 @@ export async function createRefactorSession(
     history: [...history, { role: "assistant", content: candidate.explanation }],
   });
   return response(session);
+}
+
+export function applyRefactorSession(
+  deps: Pick<ElementRefactorDeps, "store" | "sessions">,
+  projectId: string,
+  sessionId: string,
+  request: ApplyRefactorRequest,
+): ApplyRefactorResponse {
+  const session = deps.sessions.peek(sessionId);
+  if (!session || session.projectId !== projectId) {
+    throw new RefactorServiceError("SESSION_NOT_FOUND", "refactor session not found");
+  }
+  if (session.candidateVersion !== request.candidateVersion) {
+    throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed");
+  }
+  if (session.treeVersion !== request.treeVersion) {
+    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+  }
+  let result;
+  try {
+    result = deps.store.replaceElementSubtree(
+      projectId, session.region, session.treeVersion, session.rootId, session.candidate.subtree,
+    );
+  } catch (error) {
+    if ((error as Error).message.includes("version conflict")) {
+      throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+    }
+    throw error;
+  }
+  deps.sessions.delete(sessionId);
+  return result;
 }
 
 export async function continueRefactorSession(

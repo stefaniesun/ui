@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -136,5 +136,25 @@ describe("element trees", () => {
     expect(() => store.writeElementTree(
       "p1", tree([{ ...root, box: { x: 0, y: 100, w: 375, h: 900 } }]), region,
     )).toThrow(/invariant/);
+  });
+
+  it("atomically replaces a subtree only at the expected tree version", () => {
+    const store = seeded();
+    const scopedRoot = { ...root, box: { x: 0, y: 100, w: 250, h: 200 } };
+    const child = { ...root, id: "child", parentId: "n1", kind: "text" as const, box: { x: 20, y: 120, w: 50, h: 20 } };
+    const sibling = { ...root, id: "sibling", parentId: null, box: { x: 300, y: 120, w: 50, h: 50 } };
+    const original = tree([scopedRoot, child, sibling]);
+    store.writeElementTree("p1", original, region);
+    const version = store.readElementTreeVersion("p1", regionKey(region))!;
+    const bytes = readFileSync(store.elementsPath("p1"), "utf8");
+    expect(() => store.replaceElementSubtree("p1", region, "stale", "n1", { rootId: "new", nodes: [{ ...root, id: "new" }] }))
+      .toThrow(/version conflict/);
+    expect(readFileSync(store.elementsPath("p1"), "utf8")).toBe(bytes);
+
+    const result = store.replaceElementSubtree("p1", region, version, "n1", {
+      rootId: "new", nodes: [{ ...scopedRoot, id: "new", displayName: "新根" }],
+    });
+    expect(result.tree.nodes.map(item => item.id)).toEqual(["new", "sibling"]);
+    expect(result.treeVersion).not.toBe(version);
   });
 });

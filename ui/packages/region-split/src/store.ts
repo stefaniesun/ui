@@ -1,9 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  checkElementTreeInvariants, elementsDocSchema,
+  checkElementTreeInvariants, elementsDocSchema, regionKey,
   type ElementsDoc, type ElementTree,
 } from "./element-types.js";
+import type { ElementSubtree } from "./element-refactor-types.js";
+import { hashElementTree, replaceElementSubtree as replaceSubtree } from "./element-subtree.js";
 import {
   checkInvariants, regionSplitDocSchema, type Rect, type Region, type RegionSplitDoc,
 } from "./types.js";
@@ -58,6 +61,56 @@ export class ProjectStore {
   readElementSourceImage(projectId: string): Buffer {
     const clean = this.cleanImagePath(projectId);
     return readFileSync(existsSync(clean) ? clean : this.imagePath(projectId));
+  }
+
+  readElementTreeVersion(projectId: string, key: string): string | null {
+    const tree = this.readElementTree(projectId, key);
+    return tree ? hashElementTree(tree) : null;
+  }
+
+  #writeElementsAtomic(projectId: string, doc: ElementsDoc): void {
+    const target = this.elementsPath(projectId);
+    const token = `${process.pid}.${randomUUID()}`;
+    const temporary = `${target}.${token}.tmp`;
+    const backup = `${target}.${token}.bak`;
+    mkdirSync(this.projectDir(projectId), { recursive: true });
+    let movedOriginal = false;
+    try {
+      writeFileSync(temporary, JSON.stringify(doc, null, 2) + "\n", "utf8");
+      if (existsSync(target)) {
+        renameSync(target, backup);
+        movedOriginal = true;
+      }
+      renameSync(temporary, target);
+      rmSync(backup, { force: true });
+    } catch (error) {
+      if (movedOriginal && !existsSync(target) && existsSync(backup)) renameSync(backup, target);
+      throw error;
+    } finally {
+      rmSync(temporary, { force: true });
+      rmSync(backup, { force: true });
+    }
+  }
+
+  replaceElementSubtree(
+    projectId: string,
+    region: Rect,
+    expectedTreeVersion: string,
+    rootId: string,
+    candidate: ElementSubtree,
+  ): { tree: ElementTree; treeVersion: string } {
+    const doc = this.readElements(projectId);
+    const index = doc.trees.findIndex(tree => tree.regionKey === regionKey(region));
+    if (index < 0) throw new Error("element tree not found");
+    const current = doc.trees[index]!;
+    if (hashElementTree(current) !== expectedTreeVersion) throw new Error("element tree version conflict");
+    const tree = replaceSubtree(current, rootId, candidate);
+    const violations = checkElementTreeInvariants(tree, region);
+    if (violations.length > 0) throw new Error(`invariant violated: ${violations.map(v => v.code).join(", ")}`);
+    const trees = [...doc.trees];
+    trees[index] = tree;
+    this.#writeElementsAtomic(projectId, { ...doc, trees });
+    return { tree, treeVersion: hashElementTree(tree) };
   }
 
   writeElementTree(projectId: string, tree: ElementTree, region: Rect): ElementTree {
