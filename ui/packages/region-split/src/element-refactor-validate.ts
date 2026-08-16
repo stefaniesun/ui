@@ -1,11 +1,7 @@
-import {
-  checkElementTreeInvariants,
-  type ElementTree,
-  type InvariantViolation,
-} from "./element-types.js";
+import { checkElementTreeInvariants, type ElementTree } from "./element-types.js";
 import type { ElementSubtree } from "./element-refactor-types.js";
 import { extractElementSubtree, replaceElementSubtree } from "./element-subtree-pure.js";
-import type { Rect } from "./types.js";
+import type { InvariantViolation, Rect } from "./types.js";
 
 export interface RefactorValidationInput {
   tree: ElementTree;

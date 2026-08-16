@@ -1,6 +1,5 @@
-import type { InvariantViolation } from "./element-types.js";
 import type { ElementSubtree, RefactorCandidate } from "./element-refactor-types.js";
-import type { Rect } from "./types.js";
+import type { InvariantViolation, Rect } from "./types.js";
 
 export interface ElementRefactorMessage {
   role: "user" | "assistant";

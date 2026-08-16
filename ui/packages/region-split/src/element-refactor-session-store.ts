@@ -33,7 +33,11 @@ export class RefactorSessionStore {
   readonly #now: () => number;
 
   constructor(options: { ttlMs?: number; now?: () => number } = {}) {
-    this.#ttlMs = options.ttlMs ?? 30 * 60 * 1000;
+    const ttlMs = options.ttlMs ?? 30 * 60 * 1000;
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0) {
+      throw new Error("refactor session ttlMs must be a positive finite number");
+    }
+    this.#ttlMs = ttlMs;
     this.#now = options.now ?? Date.now;
   }
 
@@ -48,20 +52,26 @@ export class RefactorSessionStore {
   get(id: string): RefactorSession | null {
     const session = this.#sessions.get(id);
     if (!session) return null;
-    if (session.expiresAt <= this.#now()) {
+    const now = this.#now();
+    if (session.expiresAt <= now) {
       this.#sessions.delete(id);
       return null;
     }
-    session.expiresAt = this.#now() + this.#ttlMs;
+    session.expiresAt = now + this.#ttlMs;
     return clone(session);
   }
 
   update(id: string, updater: (current: RefactorSession) => RefactorSession): RefactorSession {
-    const current = this.get(id);
-    if (!current) throw new RefactorSessionNotFoundError(id);
-    const next = clone(updater(current));
+    const stored = this.#sessions.get(id);
+    if (!stored) throw new RefactorSessionNotFoundError(id);
+    const now = this.#now();
+    if (stored.expiresAt <= now) {
+      this.#sessions.delete(id);
+      throw new RefactorSessionNotFoundError(id);
+    }
+    const next = clone(updater(clone(stored)));
     if (next.id !== id) throw new Error("refactor session id cannot change");
-    next.expiresAt = this.#now() + this.#ttlMs;
+    next.expiresAt = now + this.#ttlMs;
     this.#sessions.set(id, next);
     return clone(next);
   }

@@ -36,6 +36,29 @@ describe("RefactorSessionStore", () => {
     store.delete(third.id);
   });
 
+  it("uses one clock snapshot and does not renew a failed update", () => {
+    let now = 0;
+    let calls = 0;
+    const store = new RefactorSessionStore({ ttlMs: 10, now: () => { calls++; return now; } });
+    const session = store.create(input());
+    now = 5;
+    calls = 0;
+    expect(store.get(session.id)!.expiresAt).toBe(15);
+    expect(calls).toBe(1);
+    now = 6;
+    const before = store.get(session.id)!.expiresAt;
+    now = 7;
+    expect(() => store.update(session.id, () => { throw new Error("bad update"); })).toThrow("bad update");
+    now = before;
+    expect(store.get(session.id)).toBeNull();
+  });
+
+  it("rejects invalid TTL values", () => {
+    expect(() => new RefactorSessionStore({ ttlMs: Number.NaN })).toThrow(/positive finite/);
+    expect(() => new RefactorSessionStore({ ttlMs: 0 })).toThrow(/positive finite/);
+    expect(() => new RefactorSessionStore({ ttlMs: Infinity })).toThrow(/positive finite/);
+  });
+
   it("rejects updating a missing session", () => {
     const store = new RefactorSessionStore();
     expect(() => store.update("missing", value => value)).toThrow(/not found/);
