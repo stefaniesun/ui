@@ -1,5 +1,5 @@
 import { computed, ref, shallowRef } from "vue";
-import type { ElementTree, Rect, RefactorDiffItem, RefactorSessionResponse } from "@region-split/core/browser";
+import { replaceElementSubtree, type ElementTree, type Rect, type RefactorDiffItem, type RefactorSessionResponse } from "@region-split/core/browser";
 import type { ElementRefactorApi } from "./element-refactor-api.js";
 
 export type RefactorView = "original" | "candidate";
@@ -18,6 +18,10 @@ export function createElementRefactorStore(deps: {
   const error = ref("");
   const messages = ref<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const diffs = computed<RefactorDiffItem[]>(() => session.value?.diff ?? []);
+  const previewTree = computed(() => {
+    if (!originalTree.value || !rootId.value || view.value === "original" || !session.value) return originalTree.value;
+    return replaceElementSubtree(originalTree.value, rootId.value, session.value.candidate);
+  });
 
   function open(input: { projectId: string; region: Rect; tree: ElementTree; treeVersion: string; rootId: string }) {
     projectId.value = input.projectId; region.value = input.region; originalTree.value = structuredClone(input.tree);
@@ -45,5 +49,5 @@ export function createElementRefactorStore(deps: {
   }
   function reset() { session.value = null; messages.value = [...messages.value, { role: "assistant", content: "候选已重置，请重新描述。" }]; }
   function discard() { session.value = null; originalTree.value = null; rootId.value = null; region.value = null; messages.value = []; error.value = ""; }
-  return { session, originalTree, rootId, view, busy, error, messages, diffs, open, send, apply, reset, discard };
+  return { session, originalTree, previewTree, rootId, view, busy, error, messages, diffs, open, send, apply, reset, discard };
 }

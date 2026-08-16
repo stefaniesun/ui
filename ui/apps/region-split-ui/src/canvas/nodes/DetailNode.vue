@@ -32,7 +32,9 @@ const single = computed(() =>
 const region = computed<Rect | null>(() => single.value?.bounds ?? null);
 const sourceUrl = computed(() =>
   region.value ? regionImageUrl(props.projectId, region.value) : "");
-const nodes = computed(() => props.elementStore.nodes.value);
+const nodes = computed(() => refactorStore.rootId.value
+  ? (refactorStore.previewTree.value?.nodes ?? [])
+  : props.elementStore.nodes.value);
 /** 区域自身的背景色，检测时测出，人工可改 */
 const regionBackground = computed(() =>
   props.elementStore.tree.value?.background ?? "#ffffff");
