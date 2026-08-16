@@ -20,12 +20,13 @@ export const refactorDiffKinds = [
 ] as const;
 export type RefactorDiffKind = (typeof refactorDiffKinds)[number];
 
-export interface RefactorDiffItem {
-  nodeId: string;
-  kind: RefactorDiffKind;
-  before?: ElementNode;
-  after?: ElementNode;
-}
+export const refactorDiffItemSchema = z.object({
+  nodeId: z.string().min(1),
+  kind: z.enum(refactorDiffKinds),
+  before: elementNodeSchema.optional(),
+  after: elementNodeSchema.optional(),
+});
+export type RefactorDiffItem = z.infer<typeof refactorDiffItemSchema>;
 
 export const createRefactorSessionRequestSchema = z.object({
   region: rectSchema,
@@ -52,12 +53,7 @@ export const refactorSessionResponseSchema = z.object({
   candidateVersion: z.number().int().positive(),
   treeVersion: z.string().min(1),
   candidate: elementSubtreeSchema,
-  diff: z.array(z.object({
-    nodeId: z.string().min(1),
-    kind: z.enum(refactorDiffKinds),
-    before: elementNodeSchema.optional(),
-    after: elementNodeSchema.optional(),
-  })),
+  diff: z.array(refactorDiffItemSchema),
   explanation: z.string(),
 });
 export type RefactorSessionResponse = z.infer<typeof refactorSessionResponseSchema>;

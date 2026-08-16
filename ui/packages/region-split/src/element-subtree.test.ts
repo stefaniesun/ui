@@ -95,12 +95,32 @@ describe("element subtree primitives", () => {
       ],
     };
 
-    const kinds = diffElementSubtrees(original, candidate).map(item => item.kind);
+    const diffs = diffElementSubtrees(original, candidate);
+    expect(diffs.map(item => `${item.nodeId}:${item.kind}`)).toEqual([
+      "new-root:root-replaced",
+      "changed:moved",
+      "changed:kind-changed",
+      "changed:name-changed",
+      "changed:box-changed",
+      "changed:layout-changed",
+      "changed:style-changed",
+      "added:added",
+      "removed:removed",
+    ]);
+    const kinds = diffs.map(item => item.kind);
     const expected: RefactorDiffKind[] = [
       "root-replaced", "added", "removed", "moved", "kind-changed",
       "name-changed", "box-changed", "layout-changed", "style-changed",
     ];
     for (const kind of expected) expect(kinds).toContain(kind);
-    expect(diffElementSubtrees(original, candidate)).toEqual(diffElementSubtrees(original, candidate));
+  });
+
+  it("compares structured properties independent of object key insertion order", () => {
+    const first = node({ id: "root", style: { background: "#fff", color: "#000" } });
+    const second = node({ id: "root", style: { color: "#000", background: "#fff" } });
+    expect(diffElementSubtrees(
+      { rootId: "root", nodes: [first] },
+      { rootId: "root", nodes: [second] },
+    )).toEqual([]);
   });
 });

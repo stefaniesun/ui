@@ -46,8 +46,17 @@ export function replaceElementSubtree(
   return { ...tree, nodes };
 }
 
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, canonical(entry)]));
+  }
+  return value;
+}
+
 function equal(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 }
 
 function push(
@@ -64,11 +73,20 @@ export function diffElementSubtrees(
   const output: RefactorDiffItem[] = [];
   const before = new Map(original.nodes.map(node => [node.id, node]));
   const after = new Map(candidate.nodes.map(node => [node.id, node]));
-  if (original.rootId !== candidate.rootId) {
+  const rootReplaced = original.rootId !== candidate.rootId;
+  if (rootReplaced) {
     push(output, "root-replaced", candidate.rootId, before.get(original.rootId), after.get(candidate.rootId));
   }
-  for (const node of candidate.nodes) if (!before.has(node.id)) push(output, "added", node.id, undefined, node);
-  for (const node of original.nodes) if (!after.has(node.id)) push(output, "removed", node.id, node);
+  for (const node of candidate.nodes) {
+    if (!before.has(node.id) && (!rootReplaced || node.id !== candidate.rootId)) {
+      push(output, "added", node.id, undefined, node);
+    }
+  }
+  for (const node of original.nodes) {
+    if (!after.has(node.id) && (!rootReplaced || node.id !== original.rootId)) {
+      push(output, "removed", node.id, node);
+    }
+  }
   for (const node of candidate.nodes) {
     const previous = before.get(node.id);
     if (!previous) continue;
@@ -80,11 +98,11 @@ export function diffElementSubtrees(
     if (!equal(previous.style, node.style)) push(output, "style-changed", node.id, previous, node);
   }
   const typeOrder = new Map(refactorDiffKinds.map((kind, index) => [kind, index]));
-  const nodeOrder = new Map([
-    ...candidate.nodes.map((node, index) => [node.id, index] as const),
-    ...original.nodes.map((node, index) => [node.id, candidate.nodes.length + index] as const),
-  ]);
+  const nodeOrder = new Map(candidate.nodes.map((node, index) => [node.id, index] as const));
+  for (const [index, node] of original.nodes.entries()) {
+    if (!nodeOrder.has(node.id)) nodeOrder.set(node.id, candidate.nodes.length + index);
+  }
   return output.sort((a, b) =>
-    (typeOrder.get(a.kind)! - typeOrder.get(b.kind)!)
-    || ((nodeOrder.get(a.nodeId) ?? 0) - (nodeOrder.get(b.nodeId) ?? 0)));
+    ((nodeOrder.get(a.nodeId) ?? 0) - (nodeOrder.get(b.nodeId) ?? 0))
+    || (typeOrder.get(a.kind)! - typeOrder.get(b.kind)!));
 }
