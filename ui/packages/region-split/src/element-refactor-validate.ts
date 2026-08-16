@@ -4,7 +4,7 @@ import {
   type InvariantViolation,
 } from "./element-types.js";
 import type { ElementSubtree } from "./element-refactor-types.js";
-import { replaceElementSubtree } from "./element-subtree-pure.js";
+import { extractElementSubtree, replaceElementSubtree } from "./element-subtree-pure.js";
 import type { Rect } from "./types.js";
 
 export interface RefactorValidationInput {
@@ -32,8 +32,17 @@ function violation(code: string, message: string): InvariantViolation {
 export function validateRefactorCandidate(
   input: RefactorValidationInput,
 ): RefactorValidationResult {
-  const { tree, region, original, candidate } = input;
+  const { tree, region, candidate } = input;
   const violations: InvariantViolation[] = [];
+  let original: ElementSubtree;
+  try {
+    original = extractElementSubtree(tree, input.original.rootId);
+  } catch (error) {
+    return {
+      valid: false,
+      violations: [violation("refactor.missing-root", (error as Error).message)],
+    };
+  }
   const originalRoot = original.nodes.find(node => node.id === original.rootId);
   const candidateRoot = candidate.nodes.find(node => node.id === candidate.rootId);
   if (!originalRoot || !candidateRoot) {
@@ -73,7 +82,10 @@ export function validateRefactorCandidate(
     violations.push(violation("refactor.invalid-replacement", (error as Error).message));
     return { valid: false, violations };
   }
-  violations.push(...checkElementTreeInvariants(merged, region));
+  const baseline = new Set(checkElementTreeInvariants(tree, region)
+    .map(item => `${item.code}:${item.message}`));
+  violations.push(...checkElementTreeInvariants(merged, region)
+    .filter(item => !baseline.has(`${item.code}:${item.message}`)));
   const unique = [...new Map(violations.map(item => [`${item.code}:${item.message}`, item])).values()];
   return { valid: unique.length === 0, violations: unique };
 }

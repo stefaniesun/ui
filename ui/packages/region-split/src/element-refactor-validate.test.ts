@@ -58,6 +58,40 @@ describe("validateRefactorCandidate", () => {
     expect(tree).toEqual(snapshot);
   });
 
+  it("ignores unchanged invariant violations outside the refactor scope", () => {
+    const { tree, original } = fixture();
+    tree.nodes.unshift(
+      node({ id: "overlap-a", box: { x: 170, y: 130, w: 40, h: 40 } }),
+      node({ id: "overlap-b", box: { x: 180, y: 140, w: 40, h: 40 } }),
+    );
+    expect(validateRefactorCandidate({ tree, region, original, candidate: validCandidate() }))
+      .toEqual({ valid: true, violations: [] });
+  });
+
+  it("derives the trusted original scope from the current tree", () => {
+    const { tree, original } = fixture();
+    const tampered = structuredClone(original);
+    tampered.nodes[0] = {
+      ...tampered.nodes[0]!,
+      parentId: "outside",
+      box: { x: 0, y: 0, w: 300, h: 200 },
+    };
+    const candidate = validCandidate();
+    candidate.nodes[0] = {
+      ...candidate.nodes[0]!,
+      parentId: "outside",
+      box: { x: 0, y: 0, w: 300, h: 200 },
+    };
+
+    const result = validateRefactorCandidate({ tree, region, original: tampered, candidate });
+
+    expect(result.valid).toBe(false);
+    expect(result.violations.map(item => item.code)).toEqual(expect.arrayContaining([
+      "refactor.root-parent",
+      "refactor.outside-scope",
+    ]));
+  });
+
   it.each([
     ["multiple roots", { ...validCandidate(), nodes: [...validCandidate().nodes, node({ id: "second-root" })] }, "refactor.single-root"],
     ["wrong root parent", { ...validCandidate(), nodes: [node({ id: "new-root", parentId: "outside" }), validCandidate().nodes[1]!] }, "refactor.root-parent"],
