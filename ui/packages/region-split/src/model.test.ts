@@ -104,18 +104,47 @@ describe("createOpenAiModel.refactorElements", () => {
     await expect(model.refactorElements(input)).resolves.toMatchObject({ explanation: "补齐组件层级" });
     const body = String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body);
     expect(body).toContain("data:image/png;base64,CROP_ONLY");
-    expect(body).toContain("为每个文字补充入口组件");
-    expect(body).toContain("original");
-    expect(body).toContain("current");
-    expect(body).toContain("single root");
+    const request = JSON.parse(body) as { messages: Array<{ content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> };
+    const system = String(request.messages[0]!.content);
+    const parts = request.messages[1]!.content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    const context = JSON.parse(parts.find(part => part.type === "text")!.text!);
+    expect(context).toMatchObject({
+      instruction: "为每个文字补充入口组件",
+      bounds: input.bounds,
+      original: input.original,
+      current: input.current,
+      history: input.history,
+    });
+    expect(system).toContain("single root");
+    expect(system).toContain("validationFeedback");
+    expect(parts.find(part => part.type === "image_url")!.image_url!.url)
+      .toBe("data:image/png;base64,CROP_ONLY");
     expect(body).not.toContain("image.clean.png");
   });
 
-  it("parses a fenced candidate response", async () => {
-    const model = createOpenAiModel(cfg(fakeFetch("```json\n" + candidate + "\n```")));
+  it("parses a fenced candidate response surrounded by prose with braces", async () => {
+    const raw = "说明 {不是 JSON}\n```json\n" + candidate + "\n```\n不要输出 {示例}";
+    const model = createOpenAiModel(cfg(fakeFetch(raw)));
     await expect(model.refactorElements(input)).resolves.toMatchObject({
       subtree: { rootId: "new-root" },
     });
+  });
+
+  it("labels validation feedback as errors that must be fixed", async () => {
+    const fetchImpl = fakeFetch(candidate);
+    const model = createOpenAiModel(cfg(fetchImpl));
+    await model.refactorElements({
+      ...input,
+      validationFeedback: [{ code: "refactor.outside-scope", message: "node escapes bounds" }],
+    });
+    const body = JSON.parse(String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body)) as {
+      messages: Array<{ content: string | Array<{ type: string; text?: string }> }>;
+    };
+    const parts = body.messages[1]!.content as Array<{ type: string; text?: string }>;
+    expect(JSON.parse(parts[0]!.text!).validationFeedback).toEqual([
+      { code: "refactor.outside-scope", message: "node escapes bounds" },
+    ]);
+    expect(String(body.messages[0]!.content)).toContain("must fix");
   });
 
   it("throws a readable typed error for an invalid candidate", async () => {

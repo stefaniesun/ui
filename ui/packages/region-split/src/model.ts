@@ -133,11 +133,15 @@ const CLASSIFY_PROMPT = [
 const REFACTOR_PROMPT = [
   "You refactor one selected UI element fragment into a complete candidate element subtree.",
   "Return JSON only: {\"subtree\":{\"rootId\":string,\"nodes\":ElementNode[]},\"explanation\":string}.",
+  "Each ElementNode requires id, parentId, box{x,y,w,h}, kind, displayName, style, uniformity, source, classification, scrollX, scrollY, positioning; layout is optional.",
+  "kind: component|grid|text|icon|image|decoration. source: auto|manual. classification: tool|model|manual. positioning: flow|absolute.",
+  "layout, when present: direction row|column, nonnegative integer gap, padding{top,right,bottom,left}, optional repeat and alignment fields matching current examples.",
   "The subtree must have exactly one single root. Its parentId must equal the supplied original root parentId.",
   "Every other node must reference a parent inside the candidate subtree. Never reference elements outside the scope.",
   "All boxes use the existing absolute coordinate system and must stay inside the supplied bounds.",
   "Reuse an original node id only when the semantic element remains the same; otherwise create a unique id.",
-  "Use only fields and enum values present in the supplied original/current element JSON.",
+  "Context semantics: original is the immutable baseline; current is the latest candidate to refine; history is chronological; instruction is the newest user request.",
+  "If validationFeedback exists, those entries are errors you must fix in the returned candidate.",
 ].join("\n");
 
 const WHOLE_RULE = [
@@ -151,9 +155,27 @@ function extractJson(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
-    const match = /\{[\s\S]*\}/.exec(raw);
-    if (!match) throw new Error("model returned unparsable content");
-    return JSON.parse(match[0]);
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
+    if (fenced?.[1]) return JSON.parse(fenced[1].trim());
+    const starts = [...raw.matchAll(/\{/g)].map(match => match.index);
+    for (const start of starts) {
+      let depth = 0;
+      let quoted = false;
+      let escaped = false;
+      for (let index = start; index < raw.length; index++) {
+        const char = raw[index]!;
+        if (quoted) {
+          if (escaped) escaped = false;
+          else if (char === "\\") escaped = true;
+          else if (char === "\"") quoted = false;
+        } else if (char === "\"") quoted = true;
+        else if (char === "{") depth++;
+        else if (char === "}" && --depth === 0) {
+          try { return JSON.parse(raw.slice(start, index + 1)); } catch { break; }
+        }
+      }
+    }
+    throw new Error("model returned unparsable content");
   }
 }
 
