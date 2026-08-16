@@ -55,6 +55,11 @@ export class ProjectStore {
     return this.readElements(projectId).trees.find(tree => tree.regionKey === key) ?? null;
   }
 
+  readElementSourceImage(projectId: string): Buffer {
+    const clean = this.cleanImagePath(projectId);
+    return readFileSync(existsSync(clean) ? clean : this.imagePath(projectId));
+  }
+
   writeElementTree(projectId: string, tree: ElementTree, region: Rect): ElementTree {
     const violations = checkElementTreeInvariants(tree, region);
     if (violations.length > 0) {
