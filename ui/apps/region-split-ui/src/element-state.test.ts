@@ -19,14 +19,14 @@ function fakeApi(over: Partial<StoreApi> = {}): StoreApi {
   return {
     upload: vi.fn(), getProject: vi.fn(), putRegions: vi.fn(), analyze: vi.fn(),
     renameAi: vi.fn(), getModelConfig: vi.fn(),
-    getElements: vi.fn(async () => ({ tree: null })),
-    detectElements: vi.fn(async () => ({ tree: tree([node({ id: "n1" })]) })),
-    putElements: vi.fn(async (_id: string, _region: Rect, next: ElementTree) => ({ tree: next })),
+    getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
+    detectElements: vi.fn(async () => ({ tree: tree([node({ id: "n1" })]), treeVersion: "detected-v1" })),
+    putElements: vi.fn(async (_id: string, _region: Rect, next: ElementTree) => ({ tree: next, treeVersion: "saved-v1" })),
     ...over,
   } as unknown as StoreApi;
 }
 const loaded = (nodes: ElementNode[], over: Partial<StoreApi> = {}) =>
-  fakeApi({ getElements: vi.fn(async () => ({ tree: tree(nodes) })), ...over });
+  fakeApi({ getElements: vi.fn(async () => ({ tree: tree(nodes), treeVersion: "loaded-v1" })), ...over });
 
 describe("createElementStore", () => {
   it("starts empty", () => {

@@ -9,9 +9,9 @@ export interface StoreApi {
   analyze(projectId: string): Promise<{ doc: RegionSplitDoc }>;
   renameAi(projectId: string, regionId: string): Promise<{ doc: RegionSplitDoc }>;
   getModelConfig(): Promise<ModelConfigView>;
-  getElements(projectId: string, y: number, h: number): Promise<{ tree: ElementTree | null }>;
-  detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree }>;
-  putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree }>;
+  getElements(projectId: string, y: number, h: number): Promise<{ tree: ElementTree | null; treeVersion: string | null }>;
+  detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
+  putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {

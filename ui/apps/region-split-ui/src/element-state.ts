@@ -29,6 +29,7 @@ function clearTreeBorderRadii(next: ElementTree | null): ElementTree | null {
  */
 export function createElementStore(api: StoreApi) {
   const tree = shallowRef<ElementTree | null>(null);
+  const treeVersion = ref<string | null>(null);
   const busyLabel = ref("");
   const error = ref("");
   const selectedId = ref<string | null>(null);
@@ -66,22 +67,31 @@ export function createElementStore(api: StoreApi) {
     tree.value = edited;
     error.value = "";
     try {
-      tree.value = (await api.putElements(projectId, region, edited)).tree;
+      const saved = await api.putElements(projectId, region, edited);
+      tree.value = saved.tree;
+      treeVersion.value = saved.treeVersion ?? null;
     } catch (err) {
       error.value = (err as Error).message;
     }
   }
 
   return {
-    tree, nodes, busy, busyLabel, error, selectedId, selectedNode,
+    tree, treeVersion, nodes, busy, busyLabel, error, selectedId, selectedNode,
 
     select(id: string | null) { selectedId.value = id; },
+
+    replaceFromRefactor(next: ElementTree, version: string) {
+      tree.value = next;
+      treeVersion.value = version;
+      selectedId.value = next.nodes[0]?.id ?? null;
+    },
 
     async load(projectId: string, region: Rect) {
       busyLabel.value = "载入元素…"; error.value = "";
       try {
-        const loaded = (await api.getElements(projectId, region.y, region.h)).tree;
-        tree.value = clearTreeBorderRadii(loaded);
+        const loaded = await api.getElements(projectId, region.y, region.h);
+        tree.value = clearTreeBorderRadii(loaded.tree);
+        treeVersion.value = loaded.treeVersion;
         selectedId.value = null;
         scrollOverrides.clear();
       } catch (err) { error.value = (err as Error).message; }
@@ -92,7 +102,9 @@ export function createElementStore(api: StoreApi) {
       if (busy.value) return;
       busyLabel.value = "解析元素中…"; error.value = "";
       try {
-        tree.value = (await api.detectElements(projectId, region)).tree;
+        const detected = await api.detectElements(projectId, region);
+        tree.value = detected.tree;
+        treeVersion.value = detected.treeVersion ?? null;
         selectedId.value = null;
         scrollOverrides.clear();
       } catch (err) { error.value = (err as Error).message; }

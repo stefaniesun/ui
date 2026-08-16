@@ -4,7 +4,10 @@ import type { ElementKind, Rect, Region } from "@region-split/core/browser";
 import { regionImageUrl } from "../../api.js";
 import ElementOverlay from "../../components/ElementOverlay.vue";
 import ElementProperties from "../../components/ElementProperties.vue";
+import ElementRefactorPanel from "../../components/ElementRefactorPanel.vue";
 import ElementTree from "../../components/ElementTree.vue";
+import { elementRefactorApi } from "../../element-refactor-api.js";
+import { createElementRefactorStore } from "../../element-refactor-state.js";
 import type { ElementStore } from "../../element-state.js";
 import { REFERENCE_SIZE, matchFont, type MetricsSource } from "../../font-metrics.js";
 
@@ -15,6 +18,14 @@ const props = defineProps<{
   hoveredId?: string | null;
 }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
+const refactorStore = createElementRefactorStore({
+  api: elementRefactorApi,
+  replaceAppliedTree: (tree, version) => props.elementStore.replaceFromRefactor(tree, version),
+});
+function startRefactor(id: string) {
+  if (!region.value || !props.elementStore.tree.value || !props.elementStore.treeVersion.value) return;
+  refactorStore.open({ projectId: props.projectId, region: region.value, tree: props.elementStore.tree.value, treeVersion: props.elementStore.treeVersion.value, rootId: id });
+}
 
 const single = computed(() =>
   props.selectedRegions.length === 1 ? props.selectedRegions[0]! : null);
@@ -41,6 +52,7 @@ const emptyResult = computed(() => parsed.value && nodes.value.length === 0);
 // 选中的区域一变就重新载入。边界变了 regionKey 就失配，界面自然回到"未解析"——
 // 区域范围变了，树本来就该重算。
 watch(region, async next => {
+  refactorStore.discard();
   if (next && props.projectId) await props.elementStore.load(props.projectId, next);
 }, { immediate: true });
 
@@ -363,12 +375,29 @@ function onRenamePrompt(id: string) {
           :nodes="nodes"
           :selected-id="props.elementStore.selectedId.value"
           :hovered-id="props.hoveredId ?? null"
+          :refactor-root-id="refactorStore.rootId.value"
+          :locked="refactorStore.rootId.value !== null"
           @select="props.elementStore.select"
           @hover="emit('hover', $event)"
           @remove="onRemove"
           @rename="onRenamePrompt"
+          @start-refactor="startRefactor"
+        />
+        <ElementRefactorPanel
+          v-if="refactorStore.rootId.value"
+          :session="refactorStore.session.value"
+          :messages="refactorStore.messages.value"
+          :diffs="refactorStore.diffs.value"
+          :busy="refactorStore.busy.value"
+          :error="refactorStore.error.value"
+          @send="refactorStore.send"
+          @apply="refactorStore.apply"
+          @reset="refactorStore.reset"
+          @discard="refactorStore.discard"
+          @set-view="refactorStore.view.value = $event"
         />
         <ElementProperties
+          v-else
           :node="props.elementStore.selectedNode.value"
           @rename="onRenameValue"
           @set-kind="onSetKind"

@@ -6,12 +6,15 @@ const props = defineProps<{
   nodes: ElementNode[];
   selectedId: string | null;
   hoveredId: string | null;
+  refactorRootId?: string | null;
+  locked?: boolean;
 }>();
 const emit = defineEmits<{
   select: [id: string];
   hover: [id: string | null];
   remove: [id: string];
   rename: [id: string];
+  "start-refactor": [id: string];
 }>();
 
 const KIND_LABEL: Record<ElementKind, string> = {
@@ -51,6 +54,8 @@ const rows = computed(() => {
         selected: node.id === props.selectedId,
         hovered: node.id === props.hoveredId,
         uncertain: node.classification === 'uncertain',
+        'refactor-root': node.id === props.refactorRootId,
+        locked: props.locked && node.id !== props.refactorRootId,
       }"
       :style="{ '--depth': depth }"
       @click="emit('select', node.id)"
@@ -73,7 +78,14 @@ const rows = computed(() => {
         {{ node.scrollX ? "↔" : "" }}{{ node.scrollY ? "↕" : "" }}
       </span>
       <button
-        v-if="node.id === props.selectedId"
+        v-if="node.id === props.selectedId && !props.locked"
+        data-test="start-ai-refactor"
+        class="ai-refactor"
+        title="通过 AI 重新分析此节点及全部子节点"
+        @click.stop="emit('start-refactor', node.id)"
+      >AI</button>
+      <button
+        v-if="node.id === props.selectedId && !props.locked"
         data-test="element-remove"
         class="remove"
         title="删除这一层，子节点上提"
@@ -86,6 +98,9 @@ const rows = computed(() => {
 <style scoped>
 .element-tree { height: 100%; padding: 6px; overflow: auto; background: var(--bg-node); }
 .empty { padding: 24px; color: var(--text-faint); font-size: 10px; text-align: center; }
+.row.refactor-root { border-color: var(--accent); }
+.row.locked { opacity: .38; }
+.ai-refactor { margin-left: auto; border: 1px solid var(--accent); border-radius: 4px; background: transparent; color: var(--accent); font-size: 9px; }
 .row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; padding: 5px 6px 5px calc(6px + var(--depth) * 14px); border: 1px solid transparent; border-radius: 5px; background: var(--bg-inset); color: var(--text-dim); cursor: pointer; font-size: 11px; }
 .row.hovered { border-color: var(--border-strong); background: #303540; }
 .row.selected { border-color: var(--accent); background: var(--accent-soft); }

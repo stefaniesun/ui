@@ -41,9 +41,9 @@ export function makeFakeApi(
     })),
     // 区域相关的用例不碰元素接口；给出惰性桩只是为了满足 StoreApi，
     // 需要断言元素行为的用例请用 overrides 覆盖。
-    getElements: vi.fn(async () => ({ tree: null })),
-    detectElements: vi.fn(async () => ({ tree: makeElementTree() })),
-    putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree })),
+    getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
+    detectElements: vi.fn(async () => ({ tree: makeElementTree(), treeVersion: "detected-v1" })),
+    putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree, treeVersion: "saved-v1" })),
     ...overrides,
   };
 }
