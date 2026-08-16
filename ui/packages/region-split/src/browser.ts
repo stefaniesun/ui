@@ -7,7 +7,7 @@ export * from "./reconcile.js";
 export * from "./element-types.js";
 export * from "./element-layout.js";
 export * from "./element-refactor-types.js";
-export * from "./element-subtree-pure.js";
+export { diffElementSubtrees } from "./element-subtree-pure.js";
 
 // 类型导出在编译期被擦除，不会把 model-config.ts 的 node:fs 依赖带进包里。
 export type { ModelConfig, ModelConfigView } from "./model-config.js";
