@@ -24,7 +24,11 @@ export interface ElementRefactorDeps {
 }
 
 export class RefactorServiceError extends Error {
-  constructor(public readonly code: string, message: string) {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly details: { candidateVersion?: number; treeVersion?: string } = {},
+  ) {
     super(message);
     this.name = "RefactorServiceError";
   }
@@ -92,7 +96,9 @@ export async function createRefactorSession(
   const tree = deps.store.readElementTree(projectId, regionKey(request.region));
   if (!tree) throw new RefactorServiceError("TREE_NOT_FOUND", "element tree not found");
   const version = hashElementTree(tree);
-  if (version !== request.treeVersion) throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+  if (version !== request.treeVersion) {
+    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed", { treeVersion: version });
+  }
   let original;
   try { original = extractElementSubtree(tree, request.rootId); }
   catch (error) { throw new RefactorServiceError("ROOT_NOT_FOUND", (error as Error).message); }
@@ -122,14 +128,22 @@ export function applyRefactorSession(
     throw new RefactorServiceError("SESSION_NOT_FOUND", "refactor session not found");
   }
   if (session.candidateVersion !== request.candidateVersion) {
-    throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed");
+    throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed", {
+      candidateVersion: session.candidateVersion,
+    });
   }
   if (session.treeVersion !== request.treeVersion) {
-    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed", {
+      treeVersion: session.treeVersion,
+    });
   }
   const current = deps.store.readElementTree(projectId, regionKey(session.region));
-  if (!current || hashElementTree(current) !== session.treeVersion) {
-    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+  if (!current) throw new RefactorServiceError("TREE_NOT_FOUND", "element tree not found");
+  const currentVersion = hashElementTree(current);
+  if (currentVersion !== session.treeVersion) {
+    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed", {
+      treeVersion: currentVersion,
+    });
   }
   const validation = validateRefactorCandidate({
     tree: current, region: session.region, original: session.original, candidate: session.candidate.subtree,
@@ -144,7 +158,8 @@ export function applyRefactorSession(
     );
   } catch (error) {
     if ((error as Error).message.includes("version conflict")) {
-      throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+      const version = deps.store.readElementTreeVersion(projectId, regionKey(session.region)) ?? undefined;
+      throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed", { treeVersion: version });
     }
     throw error;
   }
@@ -160,9 +175,19 @@ export async function continueRefactorSession(
 ): Promise<RefactorSessionResponse> {
   const session = deps.sessions.peek(sessionId);
   if (!session || session.projectId !== projectId) throw new RefactorServiceError("SESSION_NOT_FOUND", "refactor session not found");
-  if (session.candidateVersion !== request.candidateVersion) throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed");
+  if (session.candidateVersion !== request.candidateVersion) {
+    throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed", {
+      candidateVersion: session.candidateVersion,
+    });
+  }
   const tree = deps.store.readElementTree(projectId, regionKey(session.region));
-  if (!tree || hashElementTree(tree) !== session.treeVersion) throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+  if (!tree) throw new RefactorServiceError("TREE_NOT_FOUND", "element tree not found");
+  const currentVersion = hashElementTree(tree);
+  if (currentVersion !== session.treeVersion) {
+    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed", {
+      treeVersion: currentVersion,
+    });
+  }
   const root = session.original.nodes.find(node => node.id === session.original.rootId)!;
   const cropBase64 = await crop(deps.store, projectId, root.box);
   const candidate = await generateValidated(deps, {
@@ -173,7 +198,9 @@ export async function continueRefactorSession(
   try {
     updated = deps.sessions.update(sessionId, current => {
       if (current.candidateVersion !== request.candidateVersion) {
-        throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed");
+        throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed", {
+          candidateVersion: current.candidateVersion,
+        });
       }
       return {
         ...current,

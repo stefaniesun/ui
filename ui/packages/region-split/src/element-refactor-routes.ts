@@ -28,7 +28,7 @@ function fail(reply: FastifyReply, error: unknown) {
       : error.code === "SESSION_NOT_FOUND" || error.code.endsWith("NOT_FOUND") ? 404
       : error.code === "INVALID_CANDIDATE" ? 422
       : error.code === "MODEL_ERROR" ? 502 : 400;
-    return reply.code(status).send({ error: error.message, code: error.code });
+    return reply.code(status).send({ error: error.message, code: error.code, ...error.details });
   }
   return reply.code(500).send({ error: "element refactor failed", code: "INTERNAL_ERROR" });
 }
@@ -46,6 +46,7 @@ export function registerElementRefactorRoutes(app: FastifyInstance, deps: Elemen
     } catch (error) { return fail(reply, error); }
   });
   app.post<{ Params: Session; Body: unknown }>("/api/projects/:projectId/elements/refactor-sessions/:sessionId/messages", async (req, reply) => {
+    if (!deps.store.exists(req.params.projectId)) return reply.code(404).send({ error: "project not found", code: "PROJECT_NOT_FOUND" });
     if (!deps.configStore.isConfigured()) return reply.code(400).send({ error: "model not configured", code: "MODEL_NOT_CONFIGURED" });
     const parsed = continueRefactorRequestSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid request", code: "INVALID_REQUEST" });
@@ -54,6 +55,7 @@ export function registerElementRefactorRoutes(app: FastifyInstance, deps: Elemen
     } catch (error) { return fail(reply, error); }
   });
   app.post<{ Params: Session; Body: unknown }>("/api/projects/:projectId/elements/refactor-sessions/:sessionId/apply", async (req, reply) => {
+    if (!deps.store.exists(req.params.projectId)) return reply.code(404).send({ error: "project not found", code: "PROJECT_NOT_FOUND" });
     const parsed = applyRefactorRequestSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid request", code: "INVALID_REQUEST" });
     try { return applyRefactorSession(deps, req.params.projectId, req.params.sessionId, parsed.data); }
