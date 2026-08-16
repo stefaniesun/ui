@@ -18,6 +18,7 @@ const props = defineProps<{
   hoveredId?: string | null;
 }>();
 const emit = defineEmits<{ hover: [id: string | null] }>();
+const refactorPanel = ref<InstanceType<typeof ElementRefactorPanel> | null>(null);
 const refactorStore = createElementRefactorStore({
   api: elementRefactorApi,
   replaceAppliedTree: (tree, version, rootId) => props.elementStore.replaceFromRefactor(tree, version, rootId),
@@ -28,6 +29,9 @@ function startRefactor(id: string) {
   refactorStore.open({ projectId: props.projectId, region: region.value, tree: props.elementStore.tree.value, treeVersion: props.elementStore.treeVersion.value, rootId: id });
 }
 function discardRefactor() { refactorStore.discard(); props.elementStore.editingLocked.value = false; }
+async function sendRefactor(instruction: string) {
+  if (await refactorStore.send(instruction)) refactorPanel.value?.clearSubmitted();
+}
 async function applyRefactor() { await refactorStore.apply(); if (!refactorStore.rootId.value) props.elementStore.editingLocked.value = false; }
 
 const single = computed(() =>
@@ -312,11 +316,11 @@ function onRenamePrompt(id: string) {
           <span class="label">背景</span>
           <input
             data-test="region-background-swatch" class="picker" type="color"
-            :value="regionBackground" @input="onRegionBackground"
+            :value="regionBackground" :disabled="refactorStore.rootId.value !== null" @input="onRegionBackground"
           />
           <input
             data-test="region-background" class="hex"
-            :value="regionBackground" @change="onRegionBackground"
+            :value="regionBackground" :disabled="refactorStore.rootId.value !== null" @change="onRegionBackground"
           />
         </span>
         <span v-if="props.elementStore.busy.value" class="label">
@@ -390,12 +394,13 @@ function onRenamePrompt(id: string) {
         />
         <ElementRefactorPanel
           v-if="refactorStore.rootId.value"
+          ref="refactorPanel"
           :session="refactorStore.session.value"
           :messages="refactorStore.messages.value"
           :diffs="refactorStore.diffs.value"
           :busy="refactorStore.busy.value"
           :error="refactorStore.error.value"
-          @send="refactorStore.send"
+          @send="sendRefactor"
           @apply="applyRefactor"
           @reset="refactorStore.reset"
           @discard="discardRefactor"

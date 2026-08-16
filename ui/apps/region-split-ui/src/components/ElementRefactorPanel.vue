@@ -4,7 +4,18 @@ import type { RefactorDiffItem, RefactorSessionResponse } from "@region-split/co
 const props = defineProps<{ session: RefactorSessionResponse | null; messages: Array<{ role: string; content: string }>; diffs: RefactorDiffItem[]; busy: boolean; error: string }>();
 const emit = defineEmits<{ send: [instruction: string]; apply: []; reset: []; discard: []; "set-view": [view: "original" | "candidate"] }>();
 const instruction = ref("");
-function submit() { const value = instruction.value.trim(); if (!value || props.busy) return; emit("send", value); instruction.value = ""; }
+const pendingInstruction = ref("");
+function submit() {
+  const value = instruction.value.trim();
+  if (!value || props.busy) return;
+  pendingInstruction.value = value;
+  emit("send", value);
+}
+function clearSubmitted() {
+  if (instruction.value.trim() === pendingInstruction.value) instruction.value = "";
+  pendingInstruction.value = "";
+}
+defineExpose({ clearSubmitted });
 </script>
 <template>
   <section class="element-refactor-panel" data-test="ai-refactor-panel">

@@ -212,7 +212,7 @@ export function createElementStore(api: StoreApi) {
     /** 人工改这个区域自身的背景色 */
     async setRegionBackground(projectId: string, region: Rect, color: string) {
       const current = tree.value;
-      if (!current) return;
+      if (!current || editingLocked.value) return;
       const value = color.trim().toLowerCase();
       if (!/^#[0-9a-f]{6}$/.test(value) || current.background === value) return;
       tree.value = { ...current, background: value };
