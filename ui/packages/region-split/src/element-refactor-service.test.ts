@@ -8,7 +8,7 @@ import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { createRefactorSession, continueRefactorSession, RefactorServiceError } from "./element-refactor-service.js";
 import { hashElementTree } from "./element-subtree.js";
 import { ProjectStore } from "./store.js";
-import type { ElementRefactorModel } from "./element-refactor-model.js";
+import { ElementRefactorModelOutputError, type ElementRefactorModel } from "./element-refactor-model.js";
 
 const region = { x: 0, y: 0, w: 100, h: 100 };
 function node(id: string, parentId: string | null = null): ElementNode {
@@ -59,6 +59,47 @@ describe("element refactor service", () => {
     expect(deps.model.refactorElements).toHaveBeenLastCalledWith(expect.objectContaining({ current: deps.candidate.subtree, history: expect.any(Array) }));
     await expect(continueRefactorSession(deps, "p1", first.sessionId, { candidateVersion: 1, instruction: "过期" }))
       .rejects.toMatchObject({ code: "CANDIDATE_VERSION_CONFLICT" });
+  });
+
+  it("rejects a crop that is not fully covered by the source image", async () => {
+    const deps = await fixture();
+    const oversized = originalTree();
+    oversized.nodes[0] = { ...oversized.nodes[0]!, box: { x: 0, y: 0, w: 101, h: 100 } };
+    oversized.nodes[1] = { ...oversized.nodes[1]!, box: { x: 10, y: 10, w: 40, h: 20 } };
+    deps.store.writeElementTree("p1", oversized, { x: 0, y: 0, w: 101, h: 100 });
+    await expect(createRefactorSession(deps, "p1", { region: { x: 0, y: 0, w: 101, h: 100 }, rootId: "root", treeVersion: hashElementTree(oversized), instruction: "越界" }))
+      .rejects.toMatchObject({ code: "INVALID_SCOPE" });
+  });
+
+  it("rejects a late concurrent continuation instead of overwriting", async () => {
+    const deps = await fixture();
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    const first = await createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "首轮" });
+    let resolveFirst!: (value: typeof deps.candidate) => void;
+    let resolveSecond!: (value: typeof deps.candidate) => void;
+    vi.mocked(deps.model.refactorElements)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve; }));
+    const slow = continueRefactorSession(deps, "p1", first.sessionId, { candidateVersion: 1, instruction: "慢" });
+    await vi.waitFor(() => expect(resolveFirst).toBeTypeOf("function"));
+    const fast = continueRefactorSession(deps, "p1", first.sessionId, { candidateVersion: 1, instruction: "快" });
+    await vi.waitFor(() => expect(resolveSecond).toBeTypeOf("function"));
+    resolveSecond(deps.candidate);
+    await expect(fast).resolves.toMatchObject({ candidateVersion: 2 });
+    resolveFirst(deps.candidate);
+    await expect(slow).rejects.toMatchObject({ code: "CANDIDATE_VERSION_CONFLICT" });
+  });
+
+  it("repairs one typed model output error", async () => {
+    const deps = await fixture();
+    vi.mocked(deps.model.refactorElements)
+      .mockRejectedValueOnce(new ElementRefactorModelOutputError("bad JSON"))
+      .mockResolvedValueOnce(deps.candidate);
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    await expect(createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "修复输出" }))
+      .resolves.toMatchObject({ candidateVersion: 1 });
+    expect(vi.mocked(deps.model.refactorElements).mock.calls[1]![0].validationFeedback)
+      .toEqual([{ code: "refactor.model-output", message: "bad JSON" }]);
   });
 
   it("repairs one invalid candidate and preserves the previous candidate if repair fails", async () => {

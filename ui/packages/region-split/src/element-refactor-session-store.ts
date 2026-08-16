@@ -49,16 +49,26 @@ export class RefactorSessionStore {
     return clone(session);
   }
 
-  get(id: string): RefactorSession | null {
+  peek(id: string): RefactorSession | null {
     const session = this.#sessions.get(id);
     if (!session) return null;
-    const now = this.#now();
-    if (session.expiresAt <= now) {
+    if (session.expiresAt <= this.#now()) {
       this.#sessions.delete(id);
       return null;
     }
-    session.expiresAt = now + this.#ttlMs;
     return clone(session);
+  }
+
+  get(id: string): RefactorSession | null {
+    const stored = this.#sessions.get(id);
+    if (!stored) return null;
+    const now = this.#now();
+    if (stored.expiresAt <= now) {
+      this.#sessions.delete(id);
+      return null;
+    }
+    stored.expiresAt = now + this.#ttlMs;
+    return clone(stored);
   }
 
   update(id: string, updater: (current: RefactorSession) => RefactorSession): RefactorSession {

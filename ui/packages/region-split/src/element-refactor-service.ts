@@ -1,5 +1,8 @@
 import sharp from "sharp";
-import type { ElementRefactorModel } from "./element-refactor-model.js";
+import {
+  ElementRefactorModelOutputError,
+  type ElementRefactorModel,
+} from "./element-refactor-model.js";
 import type {
   ContinueRefactorRequest,
   CreateRefactorSessionRequest,
@@ -37,9 +40,18 @@ function response(session: NonNullable<ReturnType<RefactorSessionStore["get"]>>)
 }
 
 async function crop(store: ProjectStore, projectId: string, box: { x: number; y: number; w: number; h: number }): Promise<string> {
-  return (await sharp(store.readElementSourceImage(projectId)).extract({
-    left: box.x, top: box.y, width: box.w, height: box.h,
-  }).png().toBuffer()).toString("base64");
+  const values = [box.x, box.y, box.w, box.h];
+  if (!values.every(Number.isSafeInteger) || box.x < 0 || box.y < 0 || box.w <= 0 || box.h <= 0) {
+    throw new RefactorServiceError("INVALID_SCOPE", "refactor scope must use positive safe integer image coordinates");
+  }
+  const image = sharp(store.readElementSourceImage(projectId));
+  const metadata = await image.metadata();
+  if (!metadata.width || !metadata.height
+    || box.x + box.w > metadata.width || box.y + box.h > metadata.height) {
+    throw new RefactorServiceError("INVALID_SCOPE", "refactor scope is not fully covered by the source image");
+  }
+  return (await image.extract({ left: box.x, top: box.y, width: box.w, height: box.h })
+    .png().toBuffer()).toString("base64");
 }
 
 async function generateValidated(
@@ -49,14 +61,25 @@ async function generateValidated(
   region: CreateRefactorSessionRequest["region"],
   original: ReturnType<typeof extractElementSubtree>,
 ): Promise<RefactorCandidate> {
-  let candidate = await deps.model.refactorElements(args);
-  let validation = validateRefactorCandidate({ tree, region, original, candidate: candidate.subtree });
-  if (!validation.valid) {
-    candidate = await deps.model.refactorElements({ ...args, validationFeedback: validation.violations });
-    validation = validateRefactorCandidate({ tree, region, original, candidate: candidate.subtree });
+  let candidate: RefactorCandidate | null = null;
+  let feedback = [] as ReturnType<typeof validateRefactorCandidate>["violations"];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      candidate = await deps.model.refactorElements({
+        ...args,
+        ...(feedback.length > 0 ? { validationFeedback: feedback } : {}),
+      });
+      const validation = validateRefactorCandidate({ tree, region, original, candidate: candidate.subtree });
+      if (validation.valid) return candidate;
+      feedback = validation.violations;
+    } catch (error) {
+      if (!(error instanceof ElementRefactorModelOutputError)) {
+        throw new RefactorServiceError("MODEL_ERROR", (error as Error).message);
+      }
+      feedback = [{ code: "refactor.model-output", message: error.message }];
+    }
   }
-  if (!validation.valid) throw new RefactorServiceError("INVALID_CANDIDATE", validation.violations.map(item => item.message).join("; "));
-  return candidate;
+  throw new RefactorServiceError("INVALID_CANDIDATE", feedback.map(item => item.message).join("; "));
 }
 
 export async function createRefactorSession(
@@ -92,7 +115,7 @@ export async function continueRefactorSession(
   sessionId: string,
   request: ContinueRefactorRequest,
 ): Promise<RefactorSessionResponse> {
-  const session = deps.sessions.get(sessionId);
+  const session = deps.sessions.peek(sessionId);
   if (!session || session.projectId !== projectId) throw new RefactorServiceError("SESSION_NOT_FOUND", "refactor session not found");
   if (session.candidateVersion !== request.candidateVersion) throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed");
   const tree = deps.store.readElementTree(projectId, regionKey(session.region));
@@ -103,11 +126,22 @@ export async function continueRefactorSession(
     cropBase64, original: session.original, current: session.candidate.subtree,
     instruction: request.instruction, history: session.history, bounds: root.box,
   }, tree, session.region, session.original);
-  const updated = deps.sessions.update(sessionId, current => ({
-    ...current,
-    candidateVersion: current.candidateVersion + 1,
-    candidate,
-    history: [...current.history, { role: "user", content: request.instruction }, { role: "assistant", content: candidate.explanation }],
-  }));
+  let updated;
+  try {
+    updated = deps.sessions.update(sessionId, current => {
+      if (current.candidateVersion !== request.candidateVersion) {
+        throw new RefactorServiceError("CANDIDATE_VERSION_CONFLICT", "candidate version has changed");
+      }
+      return {
+        ...current,
+        candidateVersion: current.candidateVersion + 1,
+        candidate,
+        history: [...current.history, { role: "user", content: request.instruction }, { role: "assistant", content: candidate.explanation }],
+      };
+    });
+  } catch (error) {
+    if (error instanceof RefactorServiceError) throw error;
+    throw new RefactorServiceError("SESSION_NOT_FOUND", "refactor session not found");
+  }
   return response(updated);
 }
