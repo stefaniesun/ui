@@ -27,15 +27,16 @@ export function createElementRefactorStore(deps: {
     projectId.value = input.projectId; region.value = input.region; originalTree.value = structuredClone(input.tree);
     treeVersion.value = input.treeVersion; rootId.value = input.rootId; session.value = null; messages.value = []; error.value = "";
   }
-  async function send(instruction: string) {
-    if (!instruction.trim() || !rootId.value || !region.value || busy.value) return;
+  async function send(instruction: string): Promise<boolean> {
+    if (!instruction.trim() || !rootId.value || !region.value || busy.value) return false;
     busy.value = true; error.value = "";
     try {
       const next = session.value
         ? await deps.api.sendMessage(projectId.value, session.value.sessionId, { candidateVersion: session.value.candidateVersion, instruction })
         : await deps.api.createSession(projectId.value, { region: region.value, rootId: rootId.value, treeVersion: treeVersion.value, instruction });
       session.value = next; messages.value = [...messages.value, { role: "user", content: instruction }, { role: "assistant", content: next.explanation }]; view.value = "candidate";
-    } catch (cause) { error.value = (cause as Error).message; }
+      return true;
+    } catch (cause) { error.value = (cause as Error).message; return false; }
     finally { busy.value = false; }
   }
   async function apply() {
