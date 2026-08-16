@@ -58,7 +58,7 @@ const rows = computed(() => {
         locked: props.locked && node.id !== props.refactorRootId,
       }"
       :style="{ '--depth': depth }"
-      @click="emit('select', node.id)"
+      @click="!props.locked && emit('select', node.id)"
       @mouseenter="emit('hover', node.id)"
       @mouseleave="emit('hover', null)"
     >
@@ -66,7 +66,7 @@ const rows = computed(() => {
       <span
         data-test="element-name"
         class="name"
-        @dblclick.stop="emit('rename', node.id)"
+        @dblclick.stop="!props.locked && emit('rename', node.id)"
       >{{ node.displayName }}</span>
       <span v-if="node.repeat" data-test="element-repeat" class="meta">
         ×{{ node.repeat.count }}

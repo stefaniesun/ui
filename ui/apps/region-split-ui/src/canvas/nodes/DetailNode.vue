@@ -20,12 +20,15 @@ const props = defineProps<{
 const emit = defineEmits<{ hover: [id: string | null] }>();
 const refactorStore = createElementRefactorStore({
   api: elementRefactorApi,
-  replaceAppliedTree: (tree, version) => props.elementStore.replaceFromRefactor(tree, version),
+  replaceAppliedTree: (tree, version, rootId) => props.elementStore.replaceFromRefactor(tree, version, rootId),
 });
 function startRefactor(id: string) {
-  if (!region.value || !props.elementStore.tree.value || !props.elementStore.treeVersion.value) return;
+  if (!region.value || !props.elementStore.tree.value || !props.elementStore.treeVersion.value || props.elementStore.dirty.value) return;
+  props.elementStore.editingLocked.value = true;
   refactorStore.open({ projectId: props.projectId, region: region.value, tree: props.elementStore.tree.value, treeVersion: props.elementStore.treeVersion.value, rootId: id });
 }
+function discardRefactor() { refactorStore.discard(); props.elementStore.editingLocked.value = false; }
+async function applyRefactor() { await refactorStore.apply(); if (!refactorStore.rootId.value) props.elementStore.editingLocked.value = false; }
 
 const single = computed(() =>
   props.selectedRegions.length === 1 ? props.selectedRegions[0]! : null);
@@ -54,7 +57,7 @@ const emptyResult = computed(() => parsed.value && nodes.value.length === 0);
 // 选中的区域一变就重新载入。边界变了 regionKey 就失配，界面自然回到"未解析"——
 // 区域范围变了，树本来就该重算。
 watch(region, async next => {
-  refactorStore.discard();
+  discardRefactor();
   if (next && props.projectId) await props.elementStore.load(props.projectId, next);
 }, { immediate: true });
 
@@ -300,7 +303,7 @@ function onRenamePrompt(id: string) {
       <div class="bar">
         <button
           data-test="detect-elements"
-          :disabled="props.elementStore.busy.value"
+          :disabled="props.elementStore.busy.value || refactorStore.rootId.value !== null"
           @click="detect"
         >{{ parsed ? "重新解析" : "解析元素" }}</button>
         <span class="label">{{ single?.displayName }}</span>
@@ -361,9 +364,9 @@ function onRenamePrompt(id: string) {
           :nodes="nodes"
           :selected-id="props.elementStore.selectedId.value"
           :hovered-id="props.hoveredId ?? null"
-          @select="props.elementStore.select"
+          @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
           @hover="emit('hover', $event)"
-          @add-container="onAddContainer"
+          @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
         />
       </section>
 
@@ -379,7 +382,7 @@ function onRenamePrompt(id: string) {
           :hovered-id="props.hoveredId ?? null"
           :refactor-root-id="refactorStore.rootId.value"
           :locked="refactorStore.rootId.value !== null"
-          @select="props.elementStore.select"
+          @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
           @hover="emit('hover', $event)"
           @remove="onRemove"
           @rename="onRenamePrompt"
@@ -393,11 +396,16 @@ function onRenamePrompt(id: string) {
           :busy="refactorStore.busy.value"
           :error="refactorStore.error.value"
           @send="refactorStore.send"
-          @apply="refactorStore.apply"
+          @apply="applyRefactor"
           @reset="refactorStore.reset"
-          @discard="refactorStore.discard"
+          @discard="discardRefactor"
           @set-view="refactorStore.view.value = $event"
         />
+        <button
+          v-if="!refactorStore.rootId.value && props.elementStore.undoSnapshot.value"
+          data-test="undo-ai-refactor"
+          @click="region && props.elementStore.undoRefactor(props.projectId, region)"
+        >撤销 AI 重构</button>
         <ElementProperties
           v-else
           :node="props.elementStore.selectedNode.value"

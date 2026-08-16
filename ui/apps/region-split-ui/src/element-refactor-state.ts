@@ -5,7 +5,7 @@ import type { ElementRefactorApi } from "./element-refactor-api.js";
 export type RefactorView = "original" | "candidate";
 export function createElementRefactorStore(deps: {
   api: ElementRefactorApi;
-  replaceAppliedTree: (tree: ElementTree, version: string) => void;
+  replaceAppliedTree: (tree: ElementTree, version: string, candidateRootId: string) => void;
 }) {
   const session = shallowRef<RefactorSessionResponse | null>(null);
   const originalTree = shallowRef<ElementTree | null>(null);
@@ -42,8 +42,9 @@ export function createElementRefactorStore(deps: {
     if (!session.value || busy.value) return;
     busy.value = true; error.value = "";
     try {
+      const candidateRootId = session.value.candidate.rootId;
       const result = await deps.api.apply(projectId.value, session.value.sessionId, { candidateVersion: session.value.candidateVersion, treeVersion: treeVersion.value });
-      deps.replaceAppliedTree(result.tree, result.treeVersion); discard();
+      deps.replaceAppliedTree(result.tree, result.treeVersion, candidateRootId); discard();
     } catch (cause) { error.value = (cause as Error).message; }
     finally { busy.value = false; }
   }

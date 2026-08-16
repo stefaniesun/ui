@@ -30,6 +30,9 @@ function clearTreeBorderRadii(next: ElementTree | null): ElementTree | null {
 export function createElementStore(api: StoreApi) {
   const tree = shallowRef<ElementTree | null>(null);
   const treeVersion = ref<string | null>(null);
+  const dirty = ref(false);
+  const editingLocked = ref(false);
+  const undoSnapshot = shallowRef<{ tree: ElementTree; treeVersion: string | null } | null>(null);
   const busyLabel = ref("");
   const error = ref("");
   const selectedId = ref<string | null>(null);
@@ -60,30 +63,46 @@ export function createElementStore(api: StoreApi) {
 
   async function commit(projectId: string, region: Rect, next: ElementNode[]): Promise<void> {
     const current = tree.value;
-    if (!current) return;
+    if (!current || editingLocked.value) return;
     // 先落本地再落盘：保存失败时保留本地编辑不回滚，只报错，
     // 与 state.ts 里 persistNow 的做法一致。
     const edited: ElementTree = { ...current, nodes: next };
     tree.value = edited;
+    dirty.value = true;
+    undoSnapshot.value = null;
     error.value = "";
     try {
       const saved = await api.putElements(projectId, region, edited);
       tree.value = saved.tree;
       treeVersion.value = saved.treeVersion ?? null;
+      dirty.value = false;
     } catch (err) {
       error.value = (err as Error).message;
     }
   }
 
   return {
-    tree, treeVersion, nodes, busy, busyLabel, error, selectedId, selectedNode,
+    tree, treeVersion, dirty, editingLocked, undoSnapshot, nodes, busy, busyLabel, error, selectedId, selectedNode,
 
     select(id: string | null) { selectedId.value = id; },
 
-    replaceFromRefactor(next: ElementTree, version: string) {
+    replaceFromRefactor(next: ElementTree, version: string, candidateRootId: string) {
+      if (tree.value) undoSnapshot.value = { tree: structuredClone(tree.value), treeVersion: treeVersion.value };
       tree.value = next;
       treeVersion.value = version;
-      selectedId.value = next.nodes[0]?.id ?? null;
+      dirty.value = false;
+      selectedId.value = candidateRootId;
+    },
+
+    async undoRefactor(projectId: string, region: Rect) {
+      const snapshot = undoSnapshot.value;
+      if (!snapshot || editingLocked.value) return;
+      const saved = await api.putElements(projectId, region, snapshot.tree);
+      tree.value = saved.tree;
+      treeVersion.value = saved.treeVersion ?? null;
+      selectedId.value = snapshot.tree.nodes[0]?.id ?? null;
+      undoSnapshot.value = null;
+      dirty.value = false;
     },
 
     async load(projectId: string, region: Rect) {
@@ -92,6 +111,8 @@ export function createElementStore(api: StoreApi) {
         const loaded = await api.getElements(projectId, region.y, region.h);
         tree.value = clearTreeBorderRadii(loaded.tree);
         treeVersion.value = loaded.treeVersion;
+        dirty.value = false;
+        undoSnapshot.value = null;
         selectedId.value = null;
         scrollOverrides.clear();
       } catch (err) { error.value = (err as Error).message; }
