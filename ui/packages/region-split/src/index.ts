@@ -6,6 +6,7 @@ export * from "./element-detect.js";
 export * from "./element-layout.js";
 export * from "./element-refactor-types.js";
 export * from "./element-subtree.js";
+export * from "./element-refactor-validate.js";
 export * from "./model.js";
 export * from "./model-config.js";
 export * from "./store.js";
