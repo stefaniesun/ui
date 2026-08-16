@@ -5,7 +5,9 @@ import sharp from "sharp";
 import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
 import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
 import { elementTreeSchema, regionKey } from "./element-types.js";
-import type { SegmentModel } from "./model.js";
+import { RefactorSessionStore } from "./element-refactor-session-store.js";
+import { registerElementRefactorRoutes } from "./element-refactor-routes.js";
+import type { AiModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
 import type { ProjectStore } from "./store.js";
 import type { Rect, Region } from "./types.js";
@@ -13,8 +15,9 @@ import type { Rect, Region } from "./types.js";
 export interface ServerDeps {
   store: ProjectStore;
   configStore: ModelConfigStore;
-  createModel: (config: ModelConfig) => SegmentModel;
+  createModel: (config: ModelConfig) => AiModel;
   detectSurface?: DetectSurface;
+  refactorSessions?: RefactorSessionStore;
 }
 
 type ProjectParams = { projectId: string };
@@ -28,6 +31,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.register(multipart, { limits: { fileSize: 32 * 1024 * 1024 } });
   const { store, configStore } = deps;
   const currentModel = () => deps.createModel(configStore.read());
+  const refactorSessions = deps.refactorSessions ?? new RefactorSessionStore();
+  registerElementRefactorRoutes(app, { ...deps, sessions: refactorSessions });
+  const pruneTimer = setInterval(() => refactorSessions.pruneExpired(), 5 * 60 * 1000);
+  pruneTimer.unref();
+  app.addHook("onClose", async () => clearInterval(pruneTimer));
 
   app.post("/api/projects", async (req, reply) => {
     const file = await req.file();
@@ -117,7 +125,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       }
       // 没解析过返回 null 而不是 404：这是正常状态，不是错误。
       // 键只由纵向跨度决定，x/w 传 0 是刻意的。
-      return { tree: store.readElementTree(projectId, regionKey({ x: 0, y, w: 0, h })) };
+      const key = regionKey({ x: 0, y, w: 0, h });
+      const tree = store.readElementTree(projectId, key);
+      return { tree, treeVersion: tree ? store.readElementTreeVersion(projectId, key) : null };
     });
 
   app.post<{ Params: ProjectParams; Body: { region: Rect } }>(
@@ -147,7 +157,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         return reply.code(422).send({ error: "invalid element tree" });
       }
       try {
-        return { tree: store.writeElementTree(projectId, parsed.data, req.body.region) };
+        const tree = store.writeElementTree(projectId, parsed.data, req.body.region);
+        return { tree, treeVersion: store.readElementTreeVersion(projectId, tree.regionKey) };
       } catch (err) {
         return reply.code(422).send({ error: (err as Error).message });
       }

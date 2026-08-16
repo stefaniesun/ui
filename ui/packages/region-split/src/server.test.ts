@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 import { buildServer } from "./server.js";
 import { ProjectStore } from "./store.js";
 import { ModelConfigStore } from "./model-config.js";
-import type { SegmentModel } from "./model.js";
+import type { AiModel } from "./model.js";
 
-const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
+const model = (overrides: Partial<AiModel> = {}): AiModel => ({
   segment: async () => [
     { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
     { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
@@ -17,10 +17,11 @@ const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   // 用抛错而不是返回空：这些用例不该走到分类逻辑，真走到了应该立刻炸出来
   classifyChildren: async () => { throw new Error("unused"); },
+  refactorElements: async () => { throw new Error("unused"); },
   ...overrides,
 });
 
-function makeApp(m: SegmentModel = model(), configured = true) {
+function makeApp(m: AiModel = model(), configured = true) {
   const root = mkdtempSync(join(tmpdir(), "rs-"));
   const store = new ProjectStore(join(root, "projects"));
   const configPath = join(root, "region-split.config.json");
@@ -279,7 +280,7 @@ describe("element routes", () => {
       method: "GET", url: `/api/projects/${projectId}/elements?y=0&h=400`,
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().tree).toBeNull();
+    expect(res.json()).toEqual({ tree: null, treeVersion: null });
   });
 
   it("404s for an unknown project", async () => {
@@ -300,6 +301,7 @@ describe("element routes", () => {
       method: "GET", url: `/api/projects/${projectId}/elements?y=0&h=400`,
     });
     expect(read.json().tree.regionKey).toBe("0-400");
+    expect(read.json().treeVersion).toMatch(/^[a-f0-9]{64}$/);
   });
 
   // 检测是纯本地像素计算，不依赖模型配置

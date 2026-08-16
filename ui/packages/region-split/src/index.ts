@@ -10,6 +10,7 @@ export * from "./element-refactor-validate.js";
 export * from "./element-refactor-model.js";
 export * from "./element-refactor-session-store.js";
 export * from "./element-refactor-service.js";
+export * from "./element-refactor-routes.js";
 export * from "./model.js";
 export * from "./model-config.js";
 export * from "./store.js";
