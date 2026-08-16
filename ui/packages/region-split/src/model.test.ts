@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { createOpenAiModel } from "./model.js";
+import type { ElementNode } from "./element-types.js";
+
+function element(id: string, parentId: string | null = null): ElementNode {
+  return {
+    id, parentId, box: { x: 10, y: 20, w: 100, h: 80 }, kind: "component",
+    displayName: id, style: {}, uniformity: 1, source: "auto", classification: "tool",
+    scrollX: false, scrollY: false, positioning: "flow",
+  };
+}
 
 function fakeFetch(...contents: string[]) {
   const queue = contents.slice();
@@ -72,6 +81,49 @@ describe("createOpenAiModel.segment", () => {
     await expect(model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [], panels: [] }))
       .rejects.toThrow(/model request timed out after 20ms/);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createOpenAiModel.refactorElements", () => {
+  const candidate = JSON.stringify({
+    subtree: { rootId: "new-root", nodes: [element("new-root")] },
+    explanation: "补齐组件层级",
+  });
+  const input = {
+    cropBase64: "CROP_ONLY",
+    original: { rootId: "root", nodes: [element("root")] },
+    current: { rootId: "root", nodes: [element("root"), element("child", "root")] },
+    instruction: "为每个文字补充入口组件",
+    history: [{ role: "user" as const, content: "这是入口列表" }],
+    bounds: { x: 10, y: 20, w: 100, h: 80 },
+  };
+
+  it("sends the crop and complete constrained refactor context", async () => {
+    const fetchImpl = fakeFetch(candidate);
+    const model = createOpenAiModel(cfg(fetchImpl));
+    await expect(model.refactorElements(input)).resolves.toMatchObject({ explanation: "补齐组件层级" });
+    const body = String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body);
+    expect(body).toContain("data:image/png;base64,CROP_ONLY");
+    expect(body).toContain("为每个文字补充入口组件");
+    expect(body).toContain("original");
+    expect(body).toContain("current");
+    expect(body).toContain("single root");
+    expect(body).not.toContain("image.clean.png");
+  });
+
+  it("parses a fenced candidate response", async () => {
+    const model = createOpenAiModel(cfg(fakeFetch("```json\n" + candidate + "\n```")));
+    await expect(model.refactorElements(input)).resolves.toMatchObject({
+      subtree: { rootId: "new-root" },
+    });
+  });
+
+  it("throws a readable typed error for an invalid candidate", async () => {
+    const model = createOpenAiModel(cfg(fakeFetch("not-json")));
+    await expect(model.refactorElements(input)).rejects.toMatchObject({
+      name: "ElementRefactorModelOutputError",
+      message: expect.stringMatching(/unparsable/),
+    });
   });
 });
 

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { refactorCandidateSchema } from "./element-refactor-types.js";
+import {
+  ElementRefactorModelOutputError,
+  type ElementRefactorModel,
+} from "./element-refactor-model.js";
 import { regionTypes, type RawSegment, type RegionType } from "./types.js";
 
 export interface RegionNaming {
@@ -40,6 +45,8 @@ export interface SegmentModel {
     mayBeWhole?: boolean;
   }): Promise<ClassifyResult>;
 }
+
+export interface AiModel extends SegmentModel, ElementRefactorModel {}
 
 const segmentsSchema = z.object({
   regions: z.array(z.object({
@@ -123,6 +130,16 @@ const CLASSIFY_PROMPT = [
  * 只在几何已经标出"这一组间隙小得反常"时才追加这段。
  * 让模型自由拍平任何容器是危险的——它会把 [图标, 文字] 这种真实结构也并掉。
  */
+const REFACTOR_PROMPT = [
+  "You refactor one selected UI element fragment into a complete candidate element subtree.",
+  "Return JSON only: {\"subtree\":{\"rootId\":string,\"nodes\":ElementNode[]},\"explanation\":string}.",
+  "The subtree must have exactly one single root. Its parentId must equal the supplied original root parentId.",
+  "Every other node must reference a parent inside the candidate subtree. Never reference elements outside the scope.",
+  "All boxes use the existing absolute coordinate system and must stay inside the supplied bounds.",
+  "Reuse an original node id only when the semantic element remains the same; otherwise create a unique id.",
+  "Use only fields and enum values present in the supplied original/current element JSON.",
+].join("\n");
+
 const WHOLE_RULE = [
   "另外：这些子元素有可能是**同一个元素被误切开**的（比如一个图标被从中间切成两半）。",
   "如果确实如此，在 whole 字段里给出这个整体的类型和名字；否则 whole 必须为 null。",
@@ -147,7 +164,7 @@ const DEFAULT_TIMEOUT_MS = 120000;
 
 export function createOpenAiModel(cfg: {
   baseUrl: string; apiKey: string; model: string; fetchImpl?: typeof fetch; timeoutMs?: number;
-}): SegmentModel {
+}): AiModel {
   const doFetch = cfg.fetchImpl ?? fetch;
   const endpoint = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
   const timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -205,6 +222,26 @@ export function createOpenAiModel(cfg: {
   }
 
   return {
+    async refactorElements(input) {
+      const userText = JSON.stringify({
+        instruction: input.instruction,
+        bounds: input.bounds,
+        original: input.original,
+        current: input.current,
+        history: input.history,
+        ...(input.validationFeedback ? { validationFeedback: input.validationFeedback } : {}),
+      });
+      const raw = await ask(REFACTOR_PROMPT, userText, input.cropBase64);
+      try {
+        return refactorCandidateSchema.parse(extractJson(raw));
+      } catch (error) {
+        const detail = error instanceof z.ZodError
+          ? `invalid shape: ${error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`
+          : "unparsable content";
+        throw new ElementRefactorModelOutputError(`model returned ${detail}`, { cause: error });
+      }
+    },
+
     async segment(input) {
       const userText = [
         `图片尺寸：宽 ${input.width}，高 ${input.height}（像素）。`,
