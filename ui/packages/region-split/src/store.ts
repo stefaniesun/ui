@@ -11,8 +11,22 @@ import {
   checkInvariants, regionSplitDocSchema, type Rect, type Region, type RegionSplitDoc,
 } from "./types.js";
 
+interface AtomicFileOps {
+  exists(path: string): boolean;
+  write(path: string, content: string): void;
+  rename(from: string, to: string): void;
+  remove(path: string): void;
+}
+
+const atomicFileOps: AtomicFileOps = {
+  exists: existsSync,
+  write: (path, content) => writeFileSync(path, content, "utf8"),
+  rename: renameSync,
+  remove: path => rmSync(path, { force: true }),
+};
+
 export class ProjectStore {
-  constructor(private root: string) {}
+  constructor(private root: string, private fileOps: AtomicFileOps = atomicFileOps) {}
 
   newProjectId(): string {
     const now = new Date();
@@ -75,20 +89,30 @@ export class ProjectStore {
     const backup = `${target}.${token}.bak`;
     mkdirSync(this.projectDir(projectId), { recursive: true });
     let movedOriginal = false;
+    let committed = false;
     try {
-      writeFileSync(temporary, JSON.stringify(doc, null, 2) + "\n", "utf8");
-      if (existsSync(target)) {
-        renameSync(target, backup);
+      this.fileOps.write(temporary, JSON.stringify(doc, null, 2) + "\n");
+      if (this.fileOps.exists(target)) {
+        this.fileOps.rename(target, backup);
         movedOriginal = true;
       }
-      renameSync(temporary, target);
-      rmSync(backup, { force: true });
+      this.fileOps.rename(temporary, target);
+      committed = true;
     } catch (error) {
-      if (movedOriginal && !existsSync(target) && existsSync(backup)) renameSync(backup, target);
+      if (movedOriginal && !committed && !this.fileOps.exists(target) && this.fileOps.exists(backup)) {
+        try {
+          this.fileOps.rename(backup, target);
+          movedOriginal = false;
+        } catch (restoreError) {
+          throw new Error(`element write failed and recovery backup remains at ${backup}`, { cause: restoreError });
+        }
+      }
       throw error;
     } finally {
-      rmSync(temporary, { force: true });
-      rmSync(backup, { force: true });
+      try { this.fileOps.remove(temporary); } catch { /* 提交语义不由临时文件清理决定 */ }
+      if (committed || !movedOriginal) {
+        try { this.fileOps.remove(backup); } catch { /* 新正式文件已提交，保留多余备份可后续清理 */ }
+      }
     }
   }
 
@@ -114,6 +138,7 @@ export class ProjectStore {
   }
 
   writeElementTree(projectId: string, tree: ElementTree, region: Rect): ElementTree {
+    if (tree.regionKey !== regionKey(region)) throw new Error("element tree region key mismatch");
     const violations = checkElementTreeInvariants(tree, region);
     if (violations.length > 0) {
       throw new Error(`invariant violated: ${violations.map(v => v.code).join(", ")}`);

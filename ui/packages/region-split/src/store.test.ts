@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -136,6 +136,29 @@ describe("element trees", () => {
     expect(() => store.writeElementTree(
       "p1", tree([{ ...root, box: { x: 0, y: 100, w: 375, h: 900 } }]), region,
     )).toThrow(/invariant/);
+  });
+
+  it("restores the original when installing the temporary file fails", () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "rs-atomic-"));
+    const base = new ProjectStore(rootDir);
+    base.writeDoc("p1", doc());
+    base.writeElementTree("p1", tree([root]), region);
+    const bytes = readFileSync(base.elementsPath("p1"), "utf8");
+    let renameCalls = 0;
+    const store = new ProjectStore(rootDir, {
+      exists: path => { try { readFileSync(path); return true; } catch { return false; } },
+      write: (path, content) => writeFileSync(path, content, "utf8"),
+      rename: (from, to) => {
+        renameCalls++;
+        if (renameCalls === 2) throw new Error("install failed");
+        renameSync(from, to);
+      },
+      remove: path => rmSync(path, { force: true }),
+    });
+    expect(() => store.replaceElementSubtree("p1", region, base.readElementTreeVersion("p1", regionKey(region))!, "n1", {
+      rootId: "new", nodes: [{ ...root, id: "new" }],
+    })).toThrow("install failed");
+    expect(readFileSync(base.elementsPath("p1"), "utf8")).toBe(bytes);
   });
 
   it("atomically replaces a subtree only at the expected tree version", () => {

@@ -127,6 +127,16 @@ export function applyRefactorSession(
   if (session.treeVersion !== request.treeVersion) {
     throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
   }
+  const current = deps.store.readElementTree(projectId, regionKey(session.region));
+  if (!current || hashElementTree(current) !== session.treeVersion) {
+    throw new RefactorServiceError("TREE_VERSION_CONFLICT", "element tree has changed");
+  }
+  const validation = validateRefactorCandidate({
+    tree: current, region: session.region, original: session.original, candidate: session.candidate.subtree,
+  });
+  if (!validation.valid) {
+    throw new RefactorServiceError("INVALID_CANDIDATE", validation.violations.map(item => item.message).join("; "));
+  }
   let result;
   try {
     result = deps.store.replaceElementSubtree(
