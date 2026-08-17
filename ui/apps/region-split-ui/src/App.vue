@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import PipelineCanvas from "./canvas/PipelineCanvas.vue";
 import DetailNode from "./canvas/nodes/DetailNode.vue";
+import CodeNode from "./canvas/nodes/CodeNode.vue";
 import RegionsNode, { type RegionNodeError } from "./canvas/nodes/RegionsNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
 import ErrorDialog from "./components/ErrorDialog.vue";
@@ -82,7 +83,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
     <PipelineCanvas
       :status="workspaceStatus"
       :detail-status="detailStatus"
+      :code-status="selectedRegions.length === 1 ? 'active' : 'idle'"
       :show-detail="analyzed"
+      :show-code="analyzed"
     >
       <template #status>{{ analyzed ? `${store.regions.value.length} 个区域` : hasImage ? "自动分析中" : "等待上传" }}</template>
       <RegionsNode
@@ -104,6 +107,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
           :element-store="elementStore"
           :hovered-id="hoveredElementId"
           @hover="hoveredElementId = $event"
+        />
+      </template>
+      <template #code-status>
+        {{ selectedRegions.length === 1 ? selectedRegions[0]!.displayName : "待选择" }}
+      </template>
+      <template #code>
+        <CodeNode
+          :project-id="store.projectId.value"
+          :selected-regions="selectedRegions"
+          :api="httpApi"
         />
       </template>
     </PipelineCanvas>
