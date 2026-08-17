@@ -95,6 +95,63 @@ describe("ElementOverlay", () => {
     expect(wrapper.emitted("add-container")).toBeFalsy();
   });
 
+  /**
+   * 取色的落点就在这张解析图上。
+   *
+   * 这组测试是冲着一类具体故障去的：「区域原图」预览被移除后，取色的两个处理函数
+   * 没有任何元素绑定，成了死代码，可"吸管"按钮还留在界面上——按下去进入取色态，
+   * 却没有任何地方能接住那一下点击。类型检查和其余测试当时全是绿的。
+   */
+  describe("取色", () => {
+    // jsdom 的 getBoundingClientRect 全是 0，于是缩放取 1、原点取 0，
+    // 坐标就是「区域原点 + 客户端坐标」，可以精确断言
+    it("reports the picked point in image coordinates", async () => {
+      const wrapper = mountOverlay({ picking: true });
+      await wrapper.find('[data-test="element-stage"]').trigger("click", { clientX: 30, clientY: 40 });
+      expect(wrapper.emitted("pick")![0]).toEqual([{ x: 30, y: 140 }]);
+    });
+
+    it("reports hover with both image coordinates and stage offset", async () => {
+      const wrapper = mountOverlay({ picking: true });
+      await wrapper.find('[data-test="element-stage"]')
+        .trigger("mousemove", { clientX: 12, clientY: 8 });
+      expect(wrapper.emitted("pick-hover")![0])
+        .toEqual([{ x: 12, y: 108, offsetX: 12, offsetY: 8 }]);
+    });
+
+    it("clears the hover when the pointer leaves", async () => {
+      const wrapper = mountOverlay({ picking: true });
+      await wrapper.find('[data-test="element-stage"]').trigger("mouseleave");
+      expect(wrapper.emitted("pick-hover")![0]).toEqual([null]);
+    });
+
+    // 一次点击既取色又建了个框，是最容易漏掉的那种叠加故障
+    it("does not draw a new container while picking", async () => {
+      const wrapper = mountOverlay({ picking: true });
+      const stage = wrapper.find('[data-test="element-stage"]');
+      await stage.trigger("pointerdown", { button: 0, clientX: 0, clientY: 0 });
+      await stage.trigger("pointermove", { clientX: 60, clientY: 60 });
+      await stage.trigger("pointerup");
+      expect(wrapper.emitted("add-container")).toBeFalsy();
+    });
+
+    it("stays quiet when picking is off", async () => {
+      const wrapper = mountOverlay();
+      const stage = wrapper.find('[data-test="element-stage"]');
+      await stage.trigger("click", { clientX: 30, clientY: 40 });
+      await stage.trigger("mousemove", { clientX: 30, clientY: 40 });
+      expect(wrapper.emitted("pick")).toBeFalsy();
+      expect(wrapper.emitted("pick-hover")).toBeFalsy();
+    });
+
+    // 标注框让位靠的是 .stage.picking .box 这条规则，jsdom 测不了 CSS，
+    // 至少把它依赖的那个 class 钉住
+    it("marks the stage so the boxes can step aside", () => {
+      expect(mountOverlay({ picking: true }).find('[data-test="element-stage"]').classes())
+        .toContain("picking");
+    });
+  });
+
   // jsdom 没有 PointerEvent，所以不去断言 stopPropagation 被调用，
   // 而是真的挂一个父级监听器看事件有没有冒泡上去——这更贴近实际行为：
   // 冒泡出去就会被画布当成平移手势，框选就废了。

@@ -286,30 +286,36 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener("keydown", onKeydown));
 onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
-function sampleAt(event: MouseEvent): string | null {
-  const img = sourceImg.value;
-  if (!img || !context || !img.naturalWidth) return null;
-  const rect = img.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return null;
-  const x = Math.floor((event.clientX - rect.left) / rect.width * img.naturalWidth);
-  const y = Math.floor((event.clientY - rect.top) / rect.height * img.naturalHeight);
-  if (x < 0 || y < 0 || x >= img.naturalWidth || y >= img.naturalHeight) return null;
-  const [r, g, b] = context.getImageData(x, y, 1, 1).data;
+/**
+ * 按**原图坐标**取色。
+ *
+ * 不能再拿承载图片的 `<img>` 的显示矩形去换算——那张图现在是 1px 的隐藏预加载图，
+ * 只用来喂 canvas。落点改到了元素解析图上，坐标由 ElementOverlay 换算好再传进来。
+ * canvas 画的是区域裁图，所以减掉区域原点就是 canvas 内的像素坐标。
+ */
+function sampleImage(x: number, y: number): string | null {
+  const rect = region.value;
+  if (!rect || !context) return null;
+  const cx = x - rect.x;
+  const cy = y - rect.y;
+  if (cx < 0 || cy < 0 || cx >= rect.w || cy >= rect.h) return null;
+  const [r, g, b] = context.getImageData(cx, cy, 1, 1).data;
   return `#${[r, g, b].map(v => (v ?? 0).toString(16).padStart(2, "0")).join("")}`;
 }
 
-function onSourceMove(event: MouseEvent) {
-  if (!picking.value) return;
-  const color = sampleAt(event);
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+function onPickHover(
+  point: { x: number; y: number; offsetX: number; offsetY: number } | null,
+) {
+  if (!picking.value || !point) { hoverColor.value = null; return; }
+  const color = sampleImage(point.x, point.y);
   hoverColor.value = color
-    ? { x: event.clientX - rect.left, y: event.clientY - rect.top, color }
+    ? { x: point.offsetX, y: point.offsetY, color }
     : null;
 }
 
-function onSourceClick(event: MouseEvent) {
+function onPick(point: { x: number; y: number }) {
   if (!picking.value) return;
-  const color = sampleAt(event);
+  const color = sampleImage(point.x, point.y);
   const selected = props.elementStore.selectedNode.value;
   if (color && selected) onSetColor(selected.id, color);
   picking.value = false;
@@ -364,17 +370,35 @@ function onRenamePrompt(id: string) {
       <img ref="sourceImg" class="source-preload" :src="sourceUrl" alt="" aria-hidden="true" />
 
       <section data-test="detail-image" class="image-section">
-        <header>元素解析图</header>
-        <ElementOverlay
-          :project-id="props.projectId"
-          :region="region"
-          :nodes="nodes"
-          :selected-id="props.elementStore.selectedId.value"
-          :hovered-id="props.hoveredId ?? null"
-          @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
-          @hover="emit('hover', $event)"
-          @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
-        />
+        <header>
+          元素解析图
+          <span v-if="picking" data-test="picking-hint" class="hint-inline">
+            在图上点一个像素取色，Esc 取消
+          </span>
+        </header>
+        <div class="stage-wrap">
+          <ElementOverlay
+            :project-id="props.projectId"
+            :region="region"
+            :nodes="nodes"
+            :selected-id="props.elementStore.selectedId.value"
+            :hovered-id="props.hoveredId ?? null"
+            :picking="picking"
+            @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
+            @hover="emit('hover', $event)"
+            @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
+            @pick-hover="onPickHover"
+            @pick="onPick"
+          />
+          <span
+            v-if="hoverColor"
+            data-test="pick-preview"
+            class="pick-preview"
+            :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
+          >
+            <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
+          </span>
+        </div>
       </section>
 
       <p v-if="emptyResult" data-test="empty-result" class="empty-result">
@@ -448,6 +472,11 @@ function onRenamePrompt(id: string) {
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .image-section { background: #0a0d13; }
+.hint-inline { margin-left: 8px; color: var(--accent); }
+/* 取色提示气泡按舞台内偏移定位，所以外面这层必须是定位上下文 */
+.stage-wrap { position: relative; }
+.pick-preview { position: absolute; z-index: 5; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; background: #16181dee; color: white; font-size: 10px; pointer-events: none; transform: translate(12px, 12px); }
+.pick-preview i { width: 11px; height: 11px; border: 1px solid #ffffff55; border-radius: 3px; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 上下结构：图占满宽度、高度由区域宽高比决定且不设上限（标注才能纯百分比定位）；

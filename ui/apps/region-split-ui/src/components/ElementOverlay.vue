@@ -10,11 +10,16 @@ const props = defineProps<{
   nodes: ElementNode[];
   selectedId: string | null;
   hoveredId: string | null;
+  /** 取色进行中：让出所有指针交互，只报坐标 */
+  picking?: boolean;
 }>();
 const emit = defineEmits<{
   select: [id: string];
   hover: [id: string | null];
   "add-container": [box: Rect];
+  /** 图上一点的原图坐标 + 相对舞台的偏移（后者只用于摆提示气泡） */
+  "pick-hover": [point: { x: number; y: number; offsetX: number; offsetY: number } | null];
+  pick: [point: { x: number; y: number }];
 }>();
 
 /** 小于这个像素的拖拽当作误触 */
@@ -44,7 +49,8 @@ function boxStyle(box: Rect, radius = 0) {
   };
 }
 
-function toImage(event: PointerEvent): { x: number; y: number } {
+/** 只用到 clientX/clientY，取色走的是 MouseEvent，所以别把类型收窄成 PointerEvent */
+function toImage(event: { clientX: number; clientY: number }): { x: number; y: number } {
   const rect = stageEl.value!.getBoundingClientRect();
   const scaleX = rect.width > 0 ? props.region.w / rect.width : 1;
   const scaleY = rect.height > 0 ? props.region.h / rect.height : 1;
@@ -54,8 +60,32 @@ function toImage(event: PointerEvent): { x: number; y: number } {
   };
 }
 
+/**
+ * 取色的落点在这张解析图上——它底下铺的就是区域原图，和之前那张被移除的
+ * "区域原图"预览是同一个 URL，所以取到的像素一样。
+ * 这里只报坐标，不碰 canvas：采样要用原图的自然尺寸，那份状态在 DetailNode。
+ */
+function onPickMove(event: MouseEvent) {
+  if (!props.picking) return;
+  const rect = stageEl.value!.getBoundingClientRect();
+  emit("pick-hover", {
+    ...toImage(event),
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+  });
+}
+
+function onPickLeave() {
+  if (props.picking) emit("pick-hover", null);
+}
+
+function onPickClick(event: MouseEvent) {
+  if (props.picking) emit("pick", toImage(event));
+}
+
 function onDown(event: PointerEvent) {
-  if (event.button !== 0) return;
+  // 取色时不框选新容器，否则一次点击既取色又建了个框
+  if (props.picking || event.button !== 0) return;
   dragStart = toImage(event);
   dragBox.value = null;
   stageEl.value?.setPointerCapture?.(event.pointerId);
@@ -90,11 +120,15 @@ defineExpose({ cancel: onCancel });
     ref="stageEl"
     data-test="element-stage"
     class="stage"
+    :class="{ picking: props.picking }"
     :style="{ aspectRatio: `${props.region.w} / ${props.region.h}` }"
     @pointerdown.stop="onDown"
     @pointermove="onMove"
     @pointerup="onUp"
     @pointercancel="onCancel"
+    @mousemove="onPickMove"
+    @mouseleave="onPickLeave"
+    @click="onPickClick"
   >
     <img class="crop" :src="src" alt="区域原图" />
     <div
@@ -121,6 +155,8 @@ defineExpose({ cancel: onCancel });
 <style scoped>
 .stage { container-type: inline-size; position: relative; width: 100%; overflow: hidden; background: #0a0d13; cursor: crosshair; touch-action: none; }
 .crop { display: block; width: 100%; height: auto; }
+/* 取色时标注框必须让开，否则点在框上就被它 @click.stop 吃掉，取不到色 */
+.stage.picking .box { pointer-events: none; }
 .box { position: absolute; border: 1px solid #4c8dff88; }
 .box.kind-image { border-style: dashed; border-color: #e2a400cc; }
 .box.kind-grid { border-color: #3ecf8ecc; }
