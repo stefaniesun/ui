@@ -274,6 +274,22 @@ describe("element routes", () => {
     scrollX: false, scrollY: false, positioning: "flow", ...over,
   });
 
+  it("emits code for a parsed region and rejects an unparsed one", async () => {
+    const { app, projectId } = await project();
+    const missing = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({ error: "region not parsed" });
+
+    const detection = await app.inject({
+      method: "POST", url: `/api/projects/${projectId}/elements/detect`, payload: { region: REGION },
+    });
+    expect(detection.statusCode).toBe(200);
+    const emitted = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
+    expect(emitted.statusCode).toBe(200);
+    expect(emitted.json().html).toContain("<section");
+    expect(emitted.json().css).toContain("37.5vw");
+  });
+
   it("returns null before detection", async () => {
     const { app, projectId } = await project();
     const res = await app.inject({

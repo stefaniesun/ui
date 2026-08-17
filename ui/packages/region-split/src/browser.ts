@@ -6,6 +6,7 @@ export * from "./operations.js";
 export * from "./reconcile.js";
 export * from "./element-types.js";
 export * from "./element-layout.js";
+export * from "./emit-html.js";
 export * from "./element-refactor-types.js";
 export { diffElementSubtrees, replaceElementSubtree } from "./element-subtree-pure.js";
 

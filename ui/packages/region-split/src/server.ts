@@ -7,6 +7,7 @@ import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
 import { elementTreeSchema, regionKey } from "./element-types.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { registerElementRefactorRoutes } from "./element-refactor-routes.js";
+import { emitHtml } from "./emit-html.js";
 import type { AiModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
 import type { ProjectStore } from "./store.js";
@@ -128,6 +129,21 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       const key = regionKey({ x: 0, y, w: 0, h });
       const tree = store.readElementTree(projectId, key);
       return { tree, treeVersion: tree ? store.readElementTreeVersion(projectId, key) : null };
+    });
+
+  app.get<{ Params: ProjectParams; Querystring: { y?: string; h?: string } }>(
+    "/api/projects/:projectId/code", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const y = Number(req.query.y);
+      const h = Number(req.query.h);
+      if (!Number.isInteger(y) || !Number.isInteger(h)) {
+        return reply.code(400).send({ error: "invalid region" });
+      }
+      const region = { x: 0, y, w: store.readDoc(projectId).image.width, h };
+      const tree = store.readElementTree(projectId, regionKey(region));
+      if (!tree) return reply.code(404).send({ error: "region not parsed" });
+      return emitHtml({ designWidth: region.w, region, tree });
     });
 
   app.post<{ Params: ProjectParams; Body: { region: Rect } }>(
