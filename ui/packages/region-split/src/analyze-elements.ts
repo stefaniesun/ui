@@ -1,10 +1,12 @@
 import sharp from "sharp";
 import { ensureCleanImage } from "./analyze.js";
 import { detectElementTree } from "./element-detect.js";
+import { checkTextBox } from "./element-text-box.js";
 import { leafKinds, type ElementNode, type ElementTree } from "./element-types.js";
 import type { SegmentModel } from "./model.js";
 import type { ProjectStore } from "./store.js";
 import type { Rect } from "./types.js";
+import type { RawImage } from "./panels.js";
 
 /** 小于这个尺寸的区域没有解析价值 */
 export const MIN_ANALYZABLE_SIZE = 32;
@@ -84,6 +86,18 @@ export function groupForClassification(nodes: ElementNode[], region: Rect): Grou
   return groups;
 }
 
+/**
+ * 给每个文字节点填上框校验结果。
+ *
+ * 必须在模型分类**之后**跑:`kind` 是模型定的,检测阶段还不知道谁是文字。
+ * 只判断不修正——框错了该由人来改,自动挪框会把错误藏起来。
+ */
+export function markTextBoxes(raw: RawImage, nodes: ElementNode[]): ElementNode[] {
+  return nodes.map(node => node.kind === "text"
+    ? { ...node, textBox: checkTextBox(raw, node.box) }
+    : node);
+}
+
 export async function detectElements(
   deps: { store: ProjectStore; model?: SegmentModel },
   projectId: string,
@@ -111,7 +125,13 @@ export async function detectElements(
   }
 
   // 检测本身是纯本地计算：没配模型也必须拿得到层级、布局量和滚动属性
-  if (!model) return store.writeElementTree(projectId, tree, region);
+  if (!model) {
+    const raw: RawImage = {
+      data, width: info.width, height: info.height, channels: info.channels,
+    };
+    return store.writeElementTree(
+      projectId, { ...tree, nodes: markTextBoxes(raw, tree.nodes) }, region);
+  }
 
   // 每组问一次，并发发出，结果收齐后一次性落盘——只有一次写盘，
   // 不存在区域自动重命名那里要规避的读写覆盖竞态。
@@ -172,5 +192,9 @@ export async function detectElements(
   const kept = flattened.size === 0
     ? tree.nodes
     : tree.nodes.filter(node => !flattened.has(node.id));
-  return store.writeElementTree(projectId, { ...tree, nodes: kept }, region);
+  const raw: RawImage = {
+    data, width: info.width, height: info.height, channels: info.channels,
+  };
+  return store.writeElementTree(
+    projectId, { ...tree, nodes: markTextBoxes(raw, kept) }, region);
 }

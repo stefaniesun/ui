@@ -4,9 +4,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { createProject } from "./analyze.js";
-import { detectElements, groupForClassification } from "./analyze-elements.js";
+import { detectElements, groupForClassification, markTextBoxes } from "./analyze-elements.js";
 import { ProjectStore } from "./store.js";
 import type { SegmentModel } from "./model.js";
+import type { RawImage } from "./panels.js";
+
+/** 全白的假图：这条测试只关心"哪些节点被检查了"，不关心检查结果 */
+function blankImage(width: number, height: number): RawImage {
+  return { data: Buffer.from(new Uint8Array(width * height * 3).fill(255)), width, height, channels: 3 };
+}
 
 async function seeded() {
   const store = new ProjectStore(mkdtempSync(join(tmpdir(), "rs-el-")));
@@ -123,6 +129,8 @@ describe("detectElements with a model", () => {
     const leaves = tree.nodes.filter(n => !parents.has(n.id));
     expect(leaves.every(leaf => leaf.kind === "text")).toBe(true);
     expect(leaves.every(leaf => leaf.classification === "model")).toBe(true);
+    // 文字框校验接在模型分类之后跑：这里的叶子都是模型判成 text 的，落盘前都得带上 textBox
+    expect(leaves.every(leaf => leaf.textBox !== undefined)).toBe(true);
     expect(tree.namedAt).toBeDefined();
   });
 
@@ -216,5 +224,25 @@ describe("structural review: flattening an over cut group", () => {
     // 没有可疑组时两者节点数一致；有可疑组时后者更少
     expect(after.nodes.length).toBeLessThanOrEqual(before.nodes.length);
     expect(after.nodes.every(n => n.kind !== "text" || n.displayName === "碎片")).toBe(true);
+  });
+});
+
+describe("文字框校验接进检测", () => {
+  it("checks every text node and leaves the others alone", async () => {
+    const nodes = [
+      { id: "n1", kind: "text" as const },
+      { id: "n2", kind: "icon" as const },
+    ];
+    const checked = markTextBoxes(
+      blankImage(200, 100),
+      nodes.map(n => ({
+        parentId: null, box: { x: 0, y: 0, w: 40, h: 20 }, displayName: "x",
+        style: {}, uniformity: 1, source: "auto" as const,
+        classification: "model" as const, scrollX: false, scrollY: false,
+        positioning: "flow" as const, ...n,
+      })),
+    );
+    expect(checked[0]!.textBox).toBeDefined();
+    expect(checked[1]!.textBox).toBeUndefined();
   });
 });
