@@ -361,34 +361,7 @@ function onRenamePrompt(id: string) {
         </span>
       </div>
 
-      <!-- 上下两张图：上面是干净的原图，下面是带标注的解析图。
-           调整结构时要能立刻看出"标注有没有框对"，只有一张叠了标注的图对不了。 -->
-      <section data-test="detail-source" class="image-section">
-        <header>
-          区域原图
-          <span v-if="picking" data-test="picking-hint" class="hint-inline">
-            在图上点一个像素取色，Esc 取消
-          </span>
-        </header>
-        <div
-          class="source-frame"
-          :class="{ picking }"
-          :style="{ aspectRatio: `${region.w} / ${region.h}` }"
-          @mousemove="onSourceMove"
-          @mouseleave="hoverColor = null"
-          @click="onSourceClick"
-        >
-          <img ref="sourceImg" class="source-crop" :src="sourceUrl" alt="区域原图" />
-          <span
-            v-if="hoverColor"
-            data-test="pick-preview"
-            class="pick-preview"
-            :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
-          >
-            <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
-          </span>
-        </div>
-      </section>
+      <img ref="sourceImg" class="source-preload" :src="sourceUrl" alt="" aria-hidden="true" />
 
       <section data-test="detail-image" class="image-section">
         <header>元素解析图</header>
@@ -473,15 +446,8 @@ function onRenamePrompt(id: string) {
 .region-bg .picker { width: 28px; height: 24px; min-height: 24px; padding: 0 2px; }
 .region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
+.source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .image-section { background: #0a0d13; }
-.image-section + .image-section { box-shadow: inset 0 1px var(--border); }
-/* 与 ElementOverlay 的 .stage 保持同宽同比例，上下两张图才能逐像素对齐 */
-.source-frame { position: relative; width: 100%; overflow: hidden; background: #0a0d13; }
-.source-crop { display: block; width: 100%; height: auto; }
-.source-frame.picking { cursor: crosshair; }
-.hint-inline { margin-left: 8px; color: var(--accent); }
-.pick-preview { position: absolute; z-index: 5; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; background: #16181dee; color: white; font-size: 10px; pointer-events: none; transform: translate(12px, 12px); }
-.pick-preview i { width: 11px; height: 11px; border: 1px solid #ffffff55; border-radius: 3px; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 上下结构：图占满宽度、高度由区域宽高比决定且不设上限（标注才能纯百分比定位）；

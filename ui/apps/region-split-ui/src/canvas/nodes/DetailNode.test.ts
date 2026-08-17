@@ -79,9 +79,10 @@ describe("DetailNode", () => {
 
   it("shows the selected element hierarchy number in the AI panel", async () => {
     const store = createElementStore(stubApi(parsedTree()));
-    await store.load("p1", { x: 0, y: 0, w: 400, h: 300 });
     const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)], elementStore: store }, parsedTree());
+    await store.load("p1", { x: 0, y: 0, w: 400, h: 300 });
     store.select("child");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-test="ai-selected-reference"]').text()).toContain("1.1 用户头像");
   });
@@ -133,10 +134,10 @@ describe("DetailNode", () => {
 describe("DetailNode eyedropper", () => {
   const one = [region("a", 0, 300)];
 
-  it("shows no picking hint by default", () => {
+  it("does not show the removed source comparison block", () => {
     const wrapper = mountNode({ selectedRegions: one });
-    expect(wrapper.find('[data-test="picking-hint"]').exists()).toBe(false);
-    expect(wrapper.find(".source-frame").classes()).not.toContain("picking");
+    expect(wrapper.find('[data-test="detail-source"]').exists()).toBe(false);
+    expect(wrapper.find(".source-frame").exists()).toBe(false);
   });
 
   // 读不到像素就别假装进入取色态。jsdom 没有真实 canvas，正好覆盖这条路径；
