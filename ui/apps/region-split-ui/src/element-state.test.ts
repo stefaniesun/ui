@@ -92,6 +92,16 @@ describe("createElementStore", () => {
     expect(store.tree.value!.nodes[0]!.classification).toBe("human");
   });
 
+  // 改 kind 让 textBox 的判定语境本身作废（一个 icon 从没被判过是不是单行文字）
+  it("drops textBox when the kind changes", async () => {
+    const store = createElementStore(loaded([
+      { ...node({ id: "n1", kind: "text" }), textBox: { ok: false, bands: 0, glyphAspect: 0, reason: "no-ink" } },
+    ]));
+    await store.load("p1", REGION);
+    await store.setKind("p1", REGION, "n1", "icon");
+    expect(store.tree.value!.nodes[0]!.textBox).toBeUndefined();
+  });
+
   // 删除一层是最常见的修正动作：子节点上提到父节点，不能级联删掉
   it("lifts children to the grandparent when a node is removed", async () => {
     const store = createElementStore(loaded([
@@ -259,6 +269,42 @@ describe("setBox", () => {
     await store.load("p1", REGION);
     await store.setBox("p1", REGION, "b", { x: 150, y: 0, w: 50, h: 100 });
     expect(store.tree.value!.nodes.find(n => n.id === "p")!.layout!.gap).toBe(100);
+  });
+
+  // textBox 是"这个框校验过"的凭证；框真的改了，凭证就该作废——
+  // 不然界面会对着一个刚被人工修正的框继续显示"框存疑"、继续禁用测量按钮。
+  it("drops textBox on a node whose box actually changed", async () => {
+    const store = createElementStore(loaded([
+      boxed("p", null, 0, 0, 200, 200),
+      { ...boxed("a", "p", 10, 10, 50, 20), textBox: { ok: false, bands: 2, glyphAspect: 1, reason: "multi-band" } },
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 13, y: 10, w: 50, h: 20 });
+    expect(store.tree.value!.nodes.find(n => n.id === "a")!.textBox).toBeUndefined();
+  });
+
+  // 反方向同样要顾到：一个节点的框没变，就不该动它的 textBox
+  it("keeps textBox on nodes whose box did not change", async () => {
+    const store = createElementStore(loaded([
+      { ...boxed("p", null, 0, 0, 200, 200), textBox: { ok: true, bands: 1, glyphAspect: 0.5 } },
+      boxed("a", "p", 10, 10, 50, 50),
+    ]));
+    await store.load("p1", REGION);
+    // 放大 a 顶开父框 p——p 的框跟着变，但 p 的 textBox 校验对象是 p 自己的内容，
+    // 这里只关心"没变的节点保持原值"，用一个不牵连 p 的改动来测
+    await store.setBox("p1", REGION, "a", { x: 13, y: 12, w: 50, h: 50 });
+    expect(store.tree.value!.nodes.find(n => n.id === "p")!.textBox).toEqual({ ok: true, bands: 1, glyphAspect: 0.5 });
+  });
+
+  // applyBox 会连带改动祖先的框，祖先的 textBox 也得跟着作废，不能只清被点的那个
+  it("drops textBox on an ancestor whose box grows to fit an outgrowing child", async () => {
+    const store = createElementStore(loaded([
+      { ...boxed("p", null, 0, 0, 200, 200), textBox: { ok: true, bands: 1, glyphAspect: 0.5 } },
+      boxed("a", "p", 10, 10, 50, 50),
+    ]));
+    await store.load("p1", REGION);
+    await store.setBox("p1", REGION, "a", { x: 10, y: 10, w: 300, h: 50 });
+    expect(store.tree.value!.nodes.find(n => n.id === "p")!.textBox).toBeUndefined();
   });
 });
 

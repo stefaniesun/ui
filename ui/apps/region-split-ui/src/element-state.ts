@@ -18,6 +18,17 @@ function clearBorderRadii(nodes: ElementNode[]): ElementNode[] {
   });
 }
 
+/**
+ * 一个节点的框或 kind 真的变了，它身上的 textBox 校验结果就过时了：
+ * `undefined` 表示"还没检查过"，而"未检查"允许测量字号，正好解开
+ * "先改框再测字号"这句提示和"改完框按钮还是灰的"这个死锁。
+ */
+function dropTextBox(node: ElementNode): ElementNode {
+  if (node.textBox === undefined) return node;
+  const { textBox: _drop, ...rest } = node;
+  return rest;
+}
+
 function clearTreeBorderRadii(next: ElementTree | null): ElementTree | null {
   return next ? { ...next, nodes: clearBorderRadii(next.nodes) } : null;
 }
@@ -143,7 +154,7 @@ export function createElementStore(api: StoreApi) {
         if (node.id !== id) return node;
         const style = { ...node.style };
         if (!supportsBorderRadius(kind)) delete style.borderRadius;
-        return { ...node, kind, style, classification: "human" as const };
+        return dropTextBox({ ...node, kind, style, classification: "human" as const });
       }));
     },
 
@@ -172,13 +183,18 @@ export function createElementStore(api: StoreApi) {
         return;
       }
       const before = nodes.value;
-      const changed = result.nodes.some((node, index) => {
+      const boxChanged = (node: ElementNode, index: number): boolean => {
         const old = before[index]!.box;
         return old.x !== node.box.x || old.y !== node.box.y
           || old.w !== node.box.w || old.h !== node.box.h;
-      });
+      };
+      const changed = result.nodes.some(boxChanged);
       if (!changed) return;
-      await commit(projectId, region, relayout(result.nodes));
+      // applyBox 会连带改动祖先和子孙的框，所以对所有框真的变了的节点（不只是被点的那个）
+      // 都要清掉 textBox——人工改过的框确实"还没检查过"。
+      const withDroppedTextBox = result.nodes.map((node, index) =>
+        boxChanged(node, index) ? dropTextBox(node) : node);
+      await commit(projectId, region, relayout(withDroppedTextBox));
     },
 
     /**
