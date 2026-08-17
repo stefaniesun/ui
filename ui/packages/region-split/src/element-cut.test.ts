@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import {
   CUT_INSET, cutChildren, looksLikeTextRun, measureLayout, occupancy,
+  symmetrizePadding, PADDING_SYMMETRY_TOLERANCE,
 } from "./element-cut.js";
 import type { RawImage } from "./panels.js";
 
@@ -212,5 +213,51 @@ describe("looksLikeTextRun", () => {
 
   it("returns false for a single run", () => {
     expect(looksLikeTextRun(runs([[0, 100]]))).toBe(false);
+  });
+});
+
+describe("symmetrizePadding", () => {
+  // 实测左右差 0/2/3/4/6 是测量噪声，17/20/40 是真实不对称
+  it("averages a pair that differs within tolerance", () => {
+    expect(symmetrizePadding({ top: 44, right: 38, bottom: 45, left: 32 }))
+      .toEqual({ top: 45, right: 35, bottom: 45, left: 35 });
+  });
+
+  it("leaves a genuinely asymmetric pair alone", () => {
+    expect(symmetrizePadding({ top: 79, right: 58, bottom: 56, left: 38 }))
+      .toEqual({ top: 79, right: 58, bottom: 56, left: 38 });
+  });
+
+  // 断层就在 6 与 17 之间，阈值 8 两边都要钉住
+  it("takes 8 but not 9", () => {
+    expect(symmetrizePadding({ top: 0, right: 54, bottom: 0, left: 46 }))
+      .toEqual({ top: 0, right: 50, bottom: 0, left: 50 });
+    expect(symmetrizePadding({ top: 0, right: 55, bottom: 0, left: 46 }))
+      .toEqual({ top: 0, right: 55, bottom: 0, left: 46 });
+    expect(PADDING_SYMMETRY_TOLERANCE).toBe(8);
+  });
+
+  // 一半是 0 时不能抹：那是"内容贴着一边"，不是噪声
+  it("keeps a zero side as zero", () => {
+    expect(symmetrizePadding({ top: 0, right: 0, bottom: 0, left: 6 }))
+      .toEqual({ top: 0, right: 0, bottom: 0, left: 6 });
+  });
+
+  it("handles the two axes independently", () => {
+    expect(symmetrizePadding({ top: 10, right: 40, bottom: 12, left: 12 }))
+      .toEqual({ top: 11, right: 40, bottom: 11, left: 12 });
+  });
+});
+
+describe("measureLayout 的内边距", () => {
+  // 左 32 / 右 34 差 2，应当被抹成 33
+  it("returns symmetrized padding", () => {
+    const layout = measureLayout(
+      { x: 0, y: 0, w: 100, h: 50 },
+      [{ x: 32, y: 10, w: 15, h: 30 }, { x: 52, y: 10, w: 14, h: 30 }],
+      "row",
+    );
+    expect(layout.padding.left).toBe(33);
+    expect(layout.padding.right).toBe(33);
   });
 });

@@ -176,6 +176,38 @@ export function cutChildren(raw: RawImage, rect: Rect, direction: Direction): Re
 }
 
 /**
+ * 对边内边距差到多少以内算测量噪声。
+ *
+ * 实测差值分布是明显双峰的，断层就在中间——
+ * 左右差 `0×21 2 3 4 6 | 17 20 40`，上下差 `0×21 1 1 1 3 | 23 41 44`。
+ * 取 8：噪声侧最大 6（1.33 倍余量），真实不对称侧最小 17（0.47 倍余量）。
+ * 超过 8 的是真的不对称，抹平会把内容挪错位。
+ */
+export const PADDING_SYMMETRY_TOLERANCE = 8;
+
+/**
+ * 把只差一两像素的对边内边距抹成同一个值。
+ *
+ * 设计稿里的内边距是离散的少数几档，测量值是连续的——同一个卡片量出左 32 右 34
+ * 只是抖动，写进 CSS 就成了两个不同的数。两根轴各自独立处理。
+ *
+ * **一边是 0 时不抹。** 那是"内容贴着这一边"，是真实的单边布局，不是噪声。
+ */
+export function symmetrizePadding(
+  padding: LayoutInfo["padding"],
+): LayoutInfo["padding"] {
+  const pair = (a: number, b: number): [number, number] => {
+    if (a === 0 || b === 0) return [a, b];
+    if (Math.abs(a - b) > PADDING_SYMMETRY_TOLERANCE) return [a, b];
+    const mean = Math.round((a + b) / 2);
+    return [mean, mean];
+  };
+  const [top, bottom] = pair(padding.top, padding.bottom);
+  const [left, right] = pair(padding.left, padding.right);
+  return { top, right, bottom, left };
+}
+
+/**
  * 布局量是切分的**副产品**，不是二次分析：切的方向就是 flex-direction，
  * 子块之间的间隙就是 gap，内容到父边的距离就是 padding。
  * 光有树生成不出 HTML——不知道孩子横排还是竖排、间距多少。
@@ -198,9 +230,9 @@ export function measureLayout(rect: Rect, children: Rect[], direction: Direction
   return {
     direction,
     gap: Math.max(0, Math.round(medianOf(gaps))),
-    padding: {
+    padding: symmetrizePadding({
       top: Math.max(0, top), right: Math.max(0, right),
       bottom: Math.max(0, bottom), left: Math.max(0, left),
-    },
+    }),
   };
 }
