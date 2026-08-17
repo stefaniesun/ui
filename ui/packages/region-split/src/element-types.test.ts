@@ -120,3 +120,38 @@ describe("elementNodeSchema", () => {
     expect(parsed.positioning).toBe("absolute");
   });
 });
+
+describe("textBox 字段", () => {
+  const node = (over: Record<string, unknown>) => elementNodeSchema.parse({
+    id: "n1", parentId: null, box: { x: 0, y: 0, w: 10, h: 10 },
+    kind: "text", displayName: "文字", uniformity: 1, ...over,
+  });
+
+  it("keeps a failed check with its reason", () => {
+    const parsed = node({
+      textBox: { ok: false, bands: 2, glyphAspect: 0.9, reason: "multi-band" },
+    });
+    expect(parsed.textBox).toEqual({
+      ok: false, bands: 2, glyphAspect: 0.9, reason: "multi-band",
+    });
+  });
+
+  it("keeps a passing check without a reason", () => {
+    expect(node({ textBox: { ok: true, bands: 1, glyphAspect: 0.94 } }).textBox?.ok).toBe(true);
+  });
+
+  // 没检查过和检查通过是两回事，不能给默认值
+  it("stays undefined when the box was never checked", () => {
+    expect(node({}).textBox).toBeUndefined();
+  });
+
+  it("keeps the empty-box reason distinct from multi-band", () => {
+    const parsed = node({ textBox: { ok: false, bands: 0, glyphAspect: 0, reason: "no-ink" } });
+    expect(parsed.textBox?.reason).toBe("no-ink");
+  });
+
+  it("rejects an unknown reason", () => {
+    expect(() => node({ textBox: { ok: false, bands: 1, glyphAspect: 2, reason: "什么" } }))
+      .toThrow();
+  });
+});

@@ -34,6 +34,17 @@ export const elementNodeSchema = z.object({
   source: z.enum(["auto", "manual"]).default("auto"),
   /** 这个节点的类型是谁定的。uncertain 表示还需人工指定。 */
   classification: z.enum(["tool", "model", "human", "uncertain"]).default("tool"),
+  /**
+   * 文字框的几何校验结果。**没有这个字段表示还没检查过**，
+   * 与"检查通过"是两回事，所以不给默认值。
+   * `ok: false` 的框不要在上面拟合字号——实测会算出 96px 这种离谱值。
+   */
+  textBox: z.object({
+    ok: z.boolean(),
+    bands: z.number().int().nonnegative(),
+    glyphAspect: z.number().nonnegative(),
+    reason: z.enum(["no-ink", "multi-band", "wide-glyph"]).optional(),
+  }).optional(),
 
   // 以下字段阶段一不产出，但现在就定义好，避免阶段二改 schema 破坏已存的文件。
   layout: z.object({
