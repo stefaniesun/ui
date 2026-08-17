@@ -25,6 +25,16 @@ const KIND_LABEL: Record<ElementKind, string> = {
 
 /** 按父子关系展平成深度优先序，并生成仅用于展示的层级编号 */
 const rows = computed(() => numberElementTree(props.nodes));
+
+type TextBoxCheck = NonNullable<ElementNode["textBox"]>;
+
+function suspectTitle(check: TextBoxCheck): string {
+  switch (check.reason) {
+    case "no-ink": return "框里没有墨迹，这里没有文字";
+    case "multi-band": return `框里有 ${check.bands} 段墨迹，不止一行文字`;
+    default: return `框里的内容宽高比 ${check.glyphAspect.toFixed(2)}，不像字形`;
+  }
+}
 </script>
 
 <template>
@@ -63,6 +73,12 @@ const rows = computed(() => numberElementTree(props.nodes));
       <span v-if="node.scrollX || node.scrollY" class="meta scroll">
         {{ node.scrollX ? "↔" : "" }}{{ node.scrollY ? "↕" : "" }}
       </span>
+      <span
+        v-if="node.textBox && !node.textBox.ok"
+        data-test="text-box-suspect"
+        class="suspect"
+        :title="suspectTitle(node.textBox)"
+      >框存疑</span>
       <button
         v-if="node.id === props.selectedId && !props.locked"
         data-test="start-ai-refactor"
@@ -98,5 +114,6 @@ const rows = computed(() => numberElementTree(props.nodes));
 .name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
 .meta { flex: none; color: var(--text-faint); font-size: 9px; }
 .meta.scroll { color: var(--accent); }
+.suspect { margin-left: 6px; padding: 0 4px; border-radius: 3px; color: var(--warn); background: #e2a4001f; font-size: 9px; }
 .remove { flex: none; min-height: 0; padding: 0 6px; border-color: var(--danger); color: var(--danger); }
 </style>

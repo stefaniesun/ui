@@ -44,6 +44,20 @@ const fontSize = computed(() => props.node?.style.fontSize ?? 0);
 const fontWeight = computed(() => props.node?.style.fontWeight ?? 400);
 const WEIGHTS = [300, 400, 500, 600, 700, 800];
 
+/**
+ * 框没通过校验就不给测字号——在一个圈错的框上量出来的字号是错的，
+ * 写进去比空着更糟：后面的全页字号归拢会被它带偏。
+ */
+const fontBlocked = computed(() => {
+  const check = props.node?.textBox;
+  if (!check || check.ok) return "";
+  switch (check.reason) {
+    case "no-ink": return "这个框里没有墨迹，先确认它是不是文字";
+    case "multi-band": return "这个框不止一行文字，先把框改对再测字号";
+    default: return "这个框里的内容不像字形，先确认它是不是文字";
+  }
+});
+
 function onFontSize(event: Event) {
   if (props.disabled) return;
   const raw = (event.target as HTMLInputElement).value.trim();
@@ -320,11 +334,12 @@ onBeforeUnmount(stopNudge);
         <div class="field">
           <span class="name" />
           <span class="axes">
-            <button data-test="measure-font" class="wide" :disabled="props.disabled" @click="!props.disabled && emit('measure-font')">
+            <button data-test="measure-font" class="wide" :disabled="props.disabled || fontBlocked !== ''" @click="!props.disabled && fontBlocked === '' && emit('measure-font')">
               渲染比对测字号字重
             </button>
           </span>
         </div>
+        <p v-if="fontBlocked" data-test="font-blocked" class="note blocked">{{ fontBlocked }}</p>
         <p v-if="props.fontNote" data-test="font-note" class="note">{{ props.fontNote }}</p>
       </template>
 
@@ -417,6 +432,7 @@ onBeforeUnmount(stopNudge);
 .picker-button.on { border-color: var(--accent); color: var(--accent); }
 .axes .wide { flex: 1; height: 26px; min-height: 26px; border-radius: 5px; color: var(--text-dim); font-size: 10px; }
 .note { margin: 0 0 6px 64px; color: var(--text-faint); font-size: 9px; line-height: 1.5; }
+.blocked { color: var(--warn); }
 .toggles { display: flex; gap: 4px; }
 .toggles button { min-height: 0; padding: 2px 8px; border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .toggles button.on { border-color: var(--accent); color: var(--accent); }

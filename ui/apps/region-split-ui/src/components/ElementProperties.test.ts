@@ -387,4 +387,44 @@ describe("ElementProperties font", () => {
       expect(wrapper.find('[data-test="property-font-size"]').exists()).toBe(false);
     }
   });
+
+  const textNode = (over: Partial<ElementNode>): ElementNode =>
+    ({ ...node, kind: "text", displayName: "联系客服", ...over });
+
+  it("blocks font measurement on a suspect box and says why", () => {
+    const wrapper = mount(ElementProperties, {
+      props: {
+        node: textNode({
+          textBox: { ok: false, bands: 2, glyphAspect: 0.9, reason: "multi-band" },
+        }),
+      },
+    });
+    expect(wrapper.find('[data-test="measure-font"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[data-test="font-blocked"]').text()).toContain("这个框不止一行文字");
+  });
+
+  it("names the other reason", () => {
+    const wrapper = mount(ElementProperties, {
+      props: {
+        node: textNode({
+          textBox: { ok: false, bands: 1, glyphAspect: 2.4, reason: "wide-glyph" },
+        }),
+      },
+    });
+    expect(wrapper.find('[data-test="font-blocked"]').text()).toContain("不像字形");
+  });
+
+  it("allows font measurement on a box that passed", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: textNode({ textBox: { ok: true, bands: 1, glyphAspect: 0.94 } }) },
+    });
+    expect(wrapper.find('[data-test="measure-font"]').attributes("disabled")).toBeUndefined();
+    expect(wrapper.find('[data-test="font-blocked"]').exists()).toBe(false);
+  });
+
+  // 没检查过不等于有问题
+  it("allows font measurement on an unchecked box", () => {
+    const wrapper = mount(ElementProperties, { props: { node: textNode({}) } });
+    expect(wrapper.find('[data-test="measure-font"]').attributes("disabled")).toBeUndefined();
+  });
 });

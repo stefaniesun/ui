@@ -84,6 +84,29 @@ describe("ElementTree", () => {
     const wrapper = mountTree({ nodes: [node({ id: "n1", classification: "uncertain" })] });
     expect(wrapper.find('[data-test="element-row"]').classes()).toContain("uncertain");
   });
+
+  it("flags a text node whose box failed the check", () => {
+    const wrapper = mountTree({
+      nodes: [node({
+        id: "n1", kind: "text",
+        textBox: { ok: false, bands: 2, glyphAspect: 0.9, reason: "multi-band" },
+      })],
+    });
+    expect(wrapper.find('[data-test="text-box-suspect"]').exists()).toBe(true);
+  });
+
+  it("does not flag a text node that passed", () => {
+    const wrapper = mountTree({
+      nodes: [node({ id: "n1", kind: "text", textBox: { ok: true, bands: 1, glyphAspect: 0.94 } })],
+    });
+    expect(wrapper.find('[data-test="text-box-suspect"]').exists()).toBe(false);
+  });
+
+  // 没检查过不等于有问题，不能标
+  it("does not flag an unchecked node", () => {
+    const wrapper = mountTree({ nodes: [node({ id: "n1", kind: "text" })] });
+    expect(wrapper.find('[data-test="text-box-suspect"]').exists()).toBe(false);
+  });
 });
 
 describe("ElementTree layout badges", () => {
