@@ -47,6 +47,9 @@ const WEIGHTS = [300, 400, 500, 600, 700, 800];
 /**
  * 框没通过校验就不给测字号——在一个圈错的框上量出来的字号是错的，
  * 写进去比空着更糟：后面的全页字号归拢会被它带偏。
+ *
+ * 这三支文案与 ElementTree.vue 的 suspectTitle 是两份并行的三分支文案，
+ * 改一处务必去看另一处是否也要改，否则两处说法会打架。
  */
 const fontBlocked = computed(() => {
   const check = props.node?.textBox;

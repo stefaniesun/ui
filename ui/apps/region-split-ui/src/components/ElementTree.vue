@@ -28,6 +28,8 @@ const rows = computed(() => numberElementTree(props.nodes));
 
 type TextBoxCheck = NonNullable<ElementNode["textBox"]>;
 
+// 这三支文案与 ElementProperties.vue 的 fontBlocked 是两份并行的三分支文案，
+// 改一处务必去看另一处是否也要改，否则两处说法会打架。
 function suspectTitle(check: TextBoxCheck): string {
   switch (check.reason) {
     case "no-ink": return "框里没有墨迹，这里没有文字";
@@ -74,7 +76,7 @@ function suspectTitle(check: TextBoxCheck): string {
         {{ node.scrollX ? "↔" : "" }}{{ node.scrollY ? "↕" : "" }}
       </span>
       <span
-        v-if="node.textBox && !node.textBox.ok"
+        v-if="node.kind === 'text' && node.textBox && !node.textBox.ok"
         data-test="text-box-suspect"
         class="suspect"
         :title="suspectTitle(node.textBox)"

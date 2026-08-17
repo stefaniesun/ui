@@ -107,6 +107,18 @@ describe("ElementTree", () => {
     const wrapper = mountTree({ nodes: [node({ id: "n1", kind: "text" })] });
     expect(wrapper.find('[data-test="text-box-suspect"]').exists()).toBe(false);
   });
+
+  // setKind 会清掉 textBox，这条路径基本走不到，但保险起见：
+  // 一个已经改成非文字 kind 的节点不该再顶着旧的存疑徽标
+  it("does not flag a node whose kind is no longer text", () => {
+    const wrapper = mountTree({
+      nodes: [node({
+        id: "n1", kind: "icon",
+        textBox: { ok: false, bands: 2, glyphAspect: 0.9, reason: "multi-band" },
+      })],
+    });
+    expect(wrapper.find('[data-test="text-box-suspect"]').exists()).toBe(false);
+  });
 });
 
 describe("ElementTree layout badges", () => {
