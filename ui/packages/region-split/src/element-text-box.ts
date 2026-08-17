@@ -65,7 +65,8 @@ export interface TextBoxCheck {
   bands: number;
   /** 列游程段宽中位数 / 墨高 */
   glyphAspect: number;
-  reason?: "multi-band" | "wide-glyph";
+  /** 拒绝原因：`no-ink` 是框里没有墨迹、`multi-band` 是不止一行、`wide-glyph` 是内容不像字形 */
+  reason?: "no-ink" | "multi-band" | "wide-glyph";
 }
 
 /**
@@ -80,7 +81,7 @@ export function checkTextBox(raw: RawImage, rect: Rect): TextBoxCheck {
   const bands = bandRuns.length;
 
   if (bands === 0 || colRuns.length === 0) {
-    return { ok: false, bands, glyphAspect: 0, reason: "multi-band" };
+    return { ok: false, bands, glyphAspect: 0, reason: "no-ink" };
   }
 
   // 墨高取行投影的实际跨度，不取框高——框可能比内容大

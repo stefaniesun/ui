@@ -100,6 +100,10 @@ describe("checkTextBox", () => {
   it("rejects a box with no ink at all", async () => {
     const blank = await raw(
       sharp({ create: { width: 40, height: 20, channels: 3, background: "#ffffff" } }).png());
-    expect(checkTextBox(blank, { x: 0, y: 0, w: 40, h: 20 }).ok).toBe(false);
+    const check = checkTextBox(blank, { x: 0, y: 0, w: 40, h: 20 });
+    expect(check.ok).toBe(false);
+    // 0 段不是"多段"，下游界面会把 reason 直接拼成中文提示
+    expect(check.reason).toBe("no-ink");
+    expect(check.bands).toBe(0);
   });
 });
