@@ -363,6 +363,11 @@ describe("textBox 字段", () => {
     expect(node({}).textBox).toBeUndefined();
   });
 
+  it("keeps the empty-box reason distinct from multi-band", () => {
+    const parsed = node({ textBox: { ok: false, bands: 0, glyphAspect: 0, reason: "no-ink" } });
+    expect(parsed.textBox?.reason).toBe("no-ink");
+  });
+
   it("rejects an unknown reason", () => {
     expect(() => node({ textBox: { ok: false, bands: 1, glyphAspect: 2, reason: "什么" } }))
       .toThrow();
@@ -394,7 +399,7 @@ Expected: FAIL,第一条断言得到 `undefined`——zod 默认剥掉未声明�
     ok: z.boolean(),
     bands: z.number().int().nonnegative(),
     glyphAspect: z.number().nonnegative(),
-    reason: z.enum(["multi-band", "wide-glyph"]).optional(),
+    reason: z.enum(["no-ink", "multi-band", "wide-glyph"]).optional(),
   }).optional(),
 ```
 
@@ -660,10 +665,22 @@ Expected: FAIL,找不到 `[data-test="text-box-suspect"]` 与 `[data-test="font-
           v-if="node.textBox && !node.textBox.ok"
           data-test="text-box-suspect"
           class="suspect"
-          :title="node.textBox.reason === 'multi-band'
-            ? `框里有 ${node.textBox.bands} 段墨迹，不止一行文字`
-            : `框里的内容宽高比 ${node.textBox.glyphAspect.toFixed(2)}，不像字形`"
+          :title="suspectTitle(node.textBox)"
         >框存疑</span>
+```
+
+在该组件的 `<script setup>` 里加上标题文案函数(三种 reason 各说各的,别把空框说成"不止一行"):
+
+```ts
+type TextBoxCheck = NonNullable<ElementNode["textBox"]>;
+
+function suspectTitle(check: TextBoxCheck): string {
+  switch (check.reason) {
+    case "no-ink": return "框里没有墨迹，这里没有文字";
+    case "multi-band": return `框里有 ${check.bands} 段墨迹，不止一行文字`;
+    default: return `框里的内容宽高比 ${check.glyphAspect.toFixed(2)}，不像字形`;
+  }
+}
 ```
 
 并在该组件的 `<style scoped>` 里加:
@@ -690,9 +707,11 @@ Expected: FAIL,找不到 `[data-test="text-box-suspect"]` 与 `[data-test="font-
 const fontBlocked = computed(() => {
   const check = props.node?.textBox;
   if (!check || check.ok) return "";
-  return check.reason === "multi-band"
-    ? "这个框不止一行文字，先把框改对再测字号"
-    : "这个框里的内容不像字形，先确认它是不是文字";
+  switch (check.reason) {
+    case "no-ink": return "这个框里没有墨迹，先确认它是不是文字";
+    case "multi-band": return "这个框不止一行文字，先把框改对再测字号";
+    default: return "这个框里的内容不像字形，先确认它是不是文字";
+  }
 });
 ```
 
