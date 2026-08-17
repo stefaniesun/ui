@@ -47,6 +47,12 @@ describe("inkCols", () => {
 import { checkTextBox } from "./element-text-box.js";
 import { readFile } from "node:fs/promises";
 
+/**
+ * 这里读的是 test-fixtures/maicai.png（原图），生产环境走的是
+ * image.clean.png（抹掉系统外壳后的图）。这两张图在 maicai 这个基准上
+ * 尺寸相同、下面测的框也都远离顶底带，所以断言对得上——但这是巧合不是
+ * 保证，换基准图时要重新核对两张图在被测框位置上是否一致。
+ */
 /** 基准图上的真实文字框，坐标是原图像素 */
 const FIXTURE = "test-fixtures/maicai.png";
 async function fixture(): Promise<RawImage> {
@@ -105,5 +111,32 @@ describe("checkTextBox", () => {
     // 0 段不是"多段"，下游界面会把 reason 直接拼成中文提示
     expect(check.reason).toBe("no-ink");
     expect(check.bands).toBe(0);
+  });
+
+  // 手机 UI 里白字深底极常见（主按钮、徽章、深色头部）。量"离框内众数背景色
+  // 的距离"而不是"离白色的距离"，深底浅字也能正确识别成单行文字
+  it("accepts light glyphs on a dark background", async () => {
+    const darkBg = await raw(
+      sharp({ create: { width: 60, height: 40, channels: 3, background: "#1a1a1a" } })
+        .composite([0, 20, 40].map(left => ({
+          input: { create: { width: 6, height: 30, channels: 3, background: "#f5f5f5" } },
+          top: 5, left,
+        }))).png());
+    const check = checkTextBox(darkBg, { x: 0, y: 0, w: 60, h: 40 });
+    expect(check.ok).toBe(true);
+    expect(check.reason).toBeUndefined();
+  });
+
+  // 实测过的具体反例：红底白字的主按钮不应被判成"框里没有墨迹"
+  it("does not call a red button with white text 'no ink'", async () => {
+    const redButton = await raw(
+      sharp({ create: { width: 60, height: 40, channels: 3, background: "#e93b3b" } })
+        .composite([0, 20, 40].map(left => ({
+          input: { create: { width: 6, height: 30, channels: 3, background: "#ffffff" } },
+          top: 5, left,
+        }))).png());
+    const check = checkTextBox(redButton, { x: 0, y: 0, w: 60, h: 40 });
+    expect(check.reason).not.toBe("no-ink");
+    expect(check.ok).toBe(true);
   });
 });
