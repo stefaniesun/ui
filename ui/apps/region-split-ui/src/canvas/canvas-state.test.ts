@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NODE_POSITIONS,
+  bezierPath,
   clampZoom,
   fitBounds,
   loadNodePositions,
+  portAnchors,
   saveNodePositions,
   zoomAtPoint,
 } from "./canvas-state.js";
@@ -38,7 +40,30 @@ describe("canvas state", () => {
   });
 });
 
-describe("two node positions", () => {
+describe("端口与连线", () => {
+  it("defaults the code node to the right of the detail node", () => {
+    expect(DEFAULT_NODE_POSITIONS.code.x).toBeGreaterThan(DEFAULT_NODE_POSITIONS.detail.x);
+  });
+  it("anchors ports on the node edges at the header line", () => {
+    const [first] = portAnchors(
+      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 40 }, code: { x: 1000, y: 80 } },
+      { workspace: 400, detail: 300, code: 300 },
+    );
+    expect(first).toEqual({ from: { x: 400, y: 21 }, to: { x: 500, y: 61 } });
+  });
+  it("links workspace to detail and detail to code", () => {
+    expect(portAnchors(
+      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 0 }, code: { x: 1000, y: 0 } },
+      { workspace: 400, detail: 300, code: 300 },
+    )).toHaveLength(2);
+  });
+  it("draws cubic curves with horizontal handles", () => {
+    expect(bezierPath({ x: 0, y: 0 }, { x: 200, y: 100 })).toBe("M 0 0 C 100 0, 100 100, 200 100");
+    expect(bezierPath({ x: 0, y: 0 }, { x: 20, y: 0 })).toBe("M 0 0 C 60 0, -40 0, 20 0");
+  });
+});
+
+describe("three node positions", () => {
   it("places the detail node to the right of the workspace", () => {
     expect(DEFAULT_NODE_POSITIONS.detail.x)
       .toBeGreaterThan(DEFAULT_NODE_POSITIONS.workspace.x);
@@ -51,11 +76,12 @@ describe("two node positions", () => {
     const loaded = loadNodePositions(storage, "nodes", DEFAULT_NODE_POSITIONS);
     expect(loaded.workspace).toEqual({ x: 5, y: 6 });
     expect(loaded.detail).toEqual(DEFAULT_NODE_POSITIONS.detail);
+    expect(loaded.code).toEqual(DEFAULT_NODE_POSITIONS.code);
   });
 
-  it("round trips both node positions", () => {
+  it("round trips all node positions", () => {
     const written: Record<string, string> = {};
-    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 } };
+    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 }, code: { x: 5, y: 6 } };
     saveNodePositions({ setItem: (k, v) => { written[k] = v; } }, "nodes", positions);
     const loaded = loadNodePositions(
       { getItem: (k: string) => written[k] ?? null }, "nodes", DEFAULT_NODE_POSITIONS);

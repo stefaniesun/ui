@@ -17,7 +17,7 @@ export interface ViewportSize {
   height: number;
 }
 
-export type NodeId = "workspace" | "detail";
+export type NodeId = "workspace" | "detail" | "code";
 export type NodePositions = Record<NodeId, Point>;
 
 export interface StorageReader {
@@ -35,6 +35,7 @@ export const NODE_POSITIONS_STORAGE_KEY = "region-split:canvas-node-positions:v2
 export const DEFAULT_NODE_POSITIONS: NodePositions = {
   workspace: { x: 120, y: 80 },
   detail: { x: 1345, y: 80 },
+  code: { x: 2185, y: 80 },
 };
 
 export function clampZoom(zoom: number): number {
@@ -102,4 +103,22 @@ export function saveNodePositions(
   } catch {
     // Storage is an optional enhancement; private mode and quota failures are harmless.
   }
+}
+
+const PORT_Y = 21;
+const PIPELINE: readonly [NodeId, NodeId][] = [["workspace", "detail"], ["detail", "code"]];
+
+export function portAnchors(
+  positions: NodePositions, widths: Record<NodeId, number>,
+): { from: Point; to: Point }[] {
+  return PIPELINE.map(([from, to]) => ({
+    from: { x: positions[from].x + widths[from], y: positions[from].y + PORT_Y },
+    to: { x: positions[to].x, y: positions[to].y + PORT_Y },
+  }));
+}
+
+const MIN_HANDLE = 60;
+export function bezierPath(from: Point, to: Point): string {
+  const handle = Math.max(MIN_HANDLE, Math.abs(to.x - from.x) * 0.5);
+  return `M ${from.x} ${from.y} C ${from.x + handle} ${from.y}, ${to.x - handle} ${to.y}, ${to.x} ${to.y}`;
 }

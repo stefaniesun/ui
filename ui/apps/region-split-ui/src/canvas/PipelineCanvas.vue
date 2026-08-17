@@ -4,9 +4,11 @@ import PipelineNode from "./PipelineNode.vue";
 import {
   DEFAULT_NODE_POSITIONS,
   NODE_POSITIONS_STORAGE_KEY,
+  bezierPath,
   clampZoom,
   fitBounds,
   loadNodePositions,
+  portAnchors,
   saveNodePositions,
   zoomAtPoint,
   type NodeId,
@@ -18,8 +20,10 @@ import {
 const props = withDefaults(defineProps<{
   status?: "idle" | "active" | "done" | "warn";
   detailStatus?: "idle" | "active" | "done" | "warn";
+  codeStatus?: "idle" | "active" | "done" | "warn";
   showDetail?: boolean;
-}>(), { status: "idle", detailStatus: "idle", showDetail: false });
+  showCode?: boolean;
+}>(), { status: "idle", detailStatus: "idle", codeStatus: "idle", showDetail: false, showCode: false });
 
 const rootEl = ref<HTMLElement | null>(null);
 const workspaceEl = ref<HTMLElement | null>(null);
@@ -33,6 +37,14 @@ const positions = reactive<NodePositions>(loadNodePositions(
 const fallbackSize = { width: 1105, height: 700 };
 /** 详情节点的宽度，与模板里 PipelineNode 的 :width 保持一致 */
 const DETAIL_WIDTH = 760;
+const CODE_WIDTH = 760;
+const linkPaths = computed(() => {
+  const anchors = portAnchors(positions, {
+    workspace: fallbackSize.width, detail: DETAIL_WIDTH, code: CODE_WIDTH,
+  });
+  const visible = [props.showDetail, props.showDetail && props.showCode];
+  return anchors.filter((_, index) => visible[index]).map(({ from, to }) => bezierPath(from, to));
+});
 const worldTransform = computed(() => `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`);
 const zoomLabel = computed(() => `${Math.round(viewport.zoom * 100)}%`);
 
@@ -115,6 +127,7 @@ function contentBounds() {
   };
   const boxes = [measure("workspace", fallbackSize.width)];
   if (props.showDetail) boxes.push(measure("detail", DETAIL_WIDTH));
+  if (props.showCode) boxes.push(measure("code", CODE_WIDTH));
   const left = Math.min(...boxes.map(box => box.x));
   const top = Math.min(...boxes.map(box => box.y));
   const right = Math.max(...boxes.map(box => box.x + box.width));
@@ -165,6 +178,9 @@ defineExpose({ fitAll, refreshLayout, viewport, positions });
     @wheel="onWheel"
   >
     <div class="world" :style="{ transform: worldTransform }">
+      <svg class="links" aria-hidden="true">
+        <path v-for="(d, index) in linkPaths" :key="index" :d="d" />
+      </svg>
       <div ref="workspaceEl">
         <PipelineNode
           node-id="workspace"
@@ -174,7 +190,7 @@ defineExpose({ fitAll, refreshLayout, viewport, positions });
           :min-height="fallbackSize.height"
           :status="props.status"
           :input="false"
-          :output="false"
+          :output="true"
           @drag-start="onNodeDragStart"
         >
           <template #status><slot name="status" /></template>
@@ -188,12 +204,27 @@ defineExpose({ fitAll, refreshLayout, viewport, positions });
           :width="DETAIL_WIDTH"
           :min-height="420"
           :status="props.detailStatus"
-          :input="false"
-          :output="false"
+          :input="true"
+          :output="true"
           @drag-start="onNodeDragStart"
         >
           <template #status><slot name="detail-status" /></template>
           <slot name="detail" />
+        </PipelineNode>
+        <PipelineNode
+          v-if="props.showCode"
+          node-id="code"
+          title="代码产出"
+          :position="positions.code"
+          :width="CODE_WIDTH"
+          :min-height="420"
+          :status="props.codeStatus"
+          :input="true"
+          :output="false"
+          @drag-start="onNodeDragStart"
+        >
+          <template #status><slot name="code-status" /></template>
+          <slot name="code" />
         </PipelineNode>
       </div>
     </div>
@@ -211,6 +242,8 @@ defineExpose({ fitAll, refreshLayout, viewport, positions });
 .pipeline-canvas { position: relative; width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-canvas); background-image: radial-gradient(circle, #424751 1px, transparent 1px); background-size: 22px 22px; touch-action: none; cursor: grab; }
 .pipeline-canvas:active { cursor: grabbing; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 0; }
+.links path { fill: none; stroke: var(--border-strong); stroke-width: 2; }
 .zoom-controls { position: absolute; right: 18px; bottom: 18px; z-index: 20; display: flex; gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 8px; background: #24272eee; box-shadow: 0 8px 24px #0008; }
 .zoom-controls button { width: 32px; height: 30px; min-height: 30px; padding: 0; }
 .zoom-controls .zoom-label { width: 56px; color: var(--text-dim); font-size: 11px; }
