@@ -29,6 +29,22 @@ export function extractElementSubtree(tree: ElementTree, rootId: string): Elemen
   return { rootId, nodes: tree.nodes.filter(node => ids.has(node.id)) };
 }
 
+/**
+ * 模型产出的几何从来没被人工/像素校验过，textBox 抄自输入或干脆是猜的都不可信。
+ * "未检查"是唯一诚实的状态，所以候选子树落地前一律剥掉这个字段——
+ * 同时也用在发给模型的 original/current 上，省 token，也不给模型抄的机会。
+ */
+export function stripTextBox(subtree: ElementSubtree): ElementSubtree {
+  return {
+    ...subtree,
+    nodes: subtree.nodes.map(node => {
+      if (node.textBox === undefined) return node;
+      const { textBox: _drop, ...rest } = node;
+      return rest;
+    }),
+  };
+}
+
 export function replaceElementSubtree(
   tree: ElementTree,
   rootId: string,

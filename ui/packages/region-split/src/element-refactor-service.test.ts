@@ -75,6 +75,42 @@ describe("element refactor service", () => {
       .rejects.toMatchObject({ code: "CANDIDATE_VERSION_CONFLICT" });
   });
 
+  // 模型的几何从没被校验过：textBox 抄自输入或干脆是编的都不可信,
+  // "未检查"才是诚实的状态
+  it("strips textBox from a model candidate after applying it", async () => {
+    const deps = await fixture();
+    vi.mocked(deps.model.refactorElements).mockResolvedValueOnce({
+      subtree: {
+        rootId: "new-root",
+        nodes: [{ ...node("new-root"), textBox: { ok: true, bands: 1, glyphAspect: 0.5 } }],
+      },
+      explanation: "changed",
+    });
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    const result = await createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "重构" });
+    expect(result.candidate.nodes[0]!.textBox).toBeUndefined();
+    const applied = applyRefactorSession(deps, "p1", result.sessionId, { candidateVersion: 1, treeVersion: result.treeVersion });
+    expect(applied.tree.nodes.find(item => item.id === "new-root")!.textBox).toBeUndefined();
+  });
+
+  // 序列化给模型的原始子树也不能带 textBox，否则模型可能把 ok:true 抄到一个
+  // 它刚改过框的节点上——一个从未校验过的框就此带着"校验通过"的凭证落盘
+  it("strips textBox from the subtree serialized to the model", async () => {
+    const deps = await fixture();
+    const treeWithTextBox = deps.store.readElementTree("p1", "0-100")!;
+    deps.store.writeElementTree("p1", {
+      ...treeWithTextBox,
+      nodes: treeWithTextBox.nodes.map(item => item.id === "root"
+        ? { ...item, textBox: { ok: false, bands: 2, glyphAspect: 1, reason: "multi-band" as const } }
+        : item),
+    }, region);
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    await createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "重构" });
+    const call = vi.mocked(deps.model.refactorElements).mock.calls[0]![0];
+    expect(call.original.nodes.find(item => item.id === "root")?.textBox).toBeUndefined();
+    expect(call.current.nodes.find(item => item.id === "root")?.textBox).toBeUndefined();
+  });
+
   it("rejects a crop that is not fully covered by the source image", async () => {
     const deps = await fixture();
     const oversized = originalTree();

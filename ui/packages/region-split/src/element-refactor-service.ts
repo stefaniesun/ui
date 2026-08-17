@@ -14,7 +14,7 @@ import type {
 } from "./element-refactor-types.js";
 import { validateRefactorCandidate } from "./element-refactor-validate.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
-import { diffElementSubtrees, extractElementSubtree, hashElementTree } from "./element-subtree.js";
+import { diffElementSubtrees, extractElementSubtree, hashElementTree, stripTextBox } from "./element-subtree.js";
 import type { ElementNode } from "./element-types.js";
 import { regionKey } from "./element-types.js";
 import type { ProjectStore } from "./store.js";
@@ -94,10 +94,16 @@ async function generateValidated(
   let feedback = [] as ReturnType<typeof validateRefactorCandidate>["violations"];
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      candidate = await deps.model.refactorElements({
+      // original/current 出门前剥掉 textBox：省 token，也不给模型抄一个真值凭证的机会。
+      const raw = await deps.model.refactorElements({
             ...args,
+        original: stripTextBox(args.original),
+        current: stripTextBox(args.current),
         ...(feedback.length > 0 ? { validationFeedback: feedback } : {}),
       });
+      // 模型的几何从没被校验过，textBox（不管是它自己编的还是从输入抄来的）都不可信；
+      // "未检查"是唯一诚实的状态。
+      candidate = { ...raw, subtree: stripTextBox(raw.subtree) };
       const validation = validateRefactorCandidate({ tree, region, original, candidate: candidate.subtree });
       if (validation.valid) return candidate;
       feedback = validation.violations;

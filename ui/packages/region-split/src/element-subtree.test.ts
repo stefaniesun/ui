@@ -5,6 +5,7 @@ import {
   extractElementSubtree,
   hashElementTree,
   replaceElementSubtree,
+  stripTextBox,
 } from "./element-subtree.js";
 import type { ElementSubtree, RefactorDiffKind } from "./element-refactor-types.js";
 
@@ -113,6 +114,14 @@ describe("element subtree primitives", () => {
       "name-changed", "box-changed", "layout-changed", "style-changed",
     ];
     for (const kind of expected) expect(kinds).toContain(kind);
+  });
+
+  it("strips textBox from every node that has one, leaving the rest untouched", () => {
+    const withCheck: ElementNode = { ...node({ id: "a" }), textBox: { ok: true, bands: 1, glyphAspect: 0.5 } };
+    const without = node({ id: "b" });
+    const stripped = stripTextBox({ rootId: "a", nodes: [withCheck, without] });
+    expect(stripped.nodes[0]!.textBox).toBeUndefined();
+    expect(stripped.nodes[1]).toBe(without);
   });
 
   it("compares structured properties independent of object key insertion order", () => {
