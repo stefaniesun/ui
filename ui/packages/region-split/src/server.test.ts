@@ -287,7 +287,8 @@ describe("element routes", () => {
     const emitted = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
     expect(emitted.statusCode).toBe(200);
     expect(emitted.json().html).toContain("<section");
-    expect(emitted.json().css).toContain("37.5vw");
+    expect(emitted.json().css).toContain("width: 100vw");
+    expect(emitted.json().css).toContain("height: 106.6667vw");
   });
 
   it("returns null before detection", async () => {

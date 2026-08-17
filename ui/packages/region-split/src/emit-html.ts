@@ -23,11 +23,12 @@ export function toVw(px: number, designWidth: number): string {
 
 export function flexDeviation(parent: Rect, children: readonly Rect[], layout: LayoutInfo): number {
   const horizontal = layout.direction === "row";
-  let expected = (horizontal ? parent.x + layout.padding.left : parent.y + layout.padding.top);
+  const start = (box: Rect) => horizontal ? box.x : box.y;
+  const sorted = [...children].sort((a, b) => start(a) - start(b));
+  let expected = horizontal ? parent.x + layout.padding.left : parent.y + layout.padding.top;
   let deviation = 0;
-  for (const child of children) {
-    const actual = horizontal ? child.x : child.y;
-    deviation += Math.abs(actual - expected);
+  for (const child of sorted) {
+    deviation = Math.max(deviation, Math.abs(start(child) - expected));
     expected += (horizontal ? child.w : child.h) + layout.gap;
   }
   return deviation;
@@ -57,6 +58,10 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
   const deviations = new Map<string, number>();
   for (const parent of tree.nodes) {
     if (!parent.layout) continue;
+    if (parent.repeat) {
+      flexParents.add(parent.id);
+      continue;
+    }
     const flowChildren = (byParent.get(parent.id) ?? []).filter((child) => child.positioning !== "absolute");
     const deviation = flexDeviation(parent.box, flowChildren.map((child) => child.box), parent.layout);
     deviations.set(parent.id, deviation);
@@ -107,12 +112,8 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     }
     if (node.repeat && node.layout) {
       const { top, right, bottom, left } = node.layout.padding;
-      const itemSize = Math.max(0, node.repeat.pitch - node.layout.gap);
-      lines.push("  display: grid;");
-      lines.push(node.layout.direction === "row"
-        ? `  grid-template-columns: repeat(${node.repeat.count}, ${toVw(itemSize, designWidth)});`
-        : `  grid-template-rows: repeat(${node.repeat.count}, ${toVw(itemSize, designWidth)});`);
-      lines.push(`  ${node.layout.direction === "row" ? "column" : "row"}-gap: ${toVw(node.layout.gap, designWidth)};`);
+      lines.push("  display: flex;");
+      lines.push(`  flex-direction: ${node.layout.direction};`);
       lines.push(`  padding: ${toVw(top, designWidth)} ${toVw(right, designWidth)} ${toVw(bottom, designWidth)} ${toVw(left, designWidth)};`);
     } else if (node.layout && flexParents.has(node.id)) {
       lines.push("  display: flex;");
@@ -125,6 +126,19 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     }
     lines.push("}");
     cssBlocks.push(lines.join("\n"));
+    if (node.repeat) {
+      cssBlocks.push([
+        `/* ${node.displayName}：${node.repeat.count} 项重复，按中心距出等宽格子。`,
+        "   子块宽度不同，用 gap 会让位置沿主轴累积偏移。 */",
+        `.e-${classKey(node.id)} > * {`,
+        `  width: ${toVw(node.repeat.pitch, designWidth)} !important;`,
+        "  display: flex;",
+        "  justify-content: center;",
+        "  align-items: center;",
+        "  flex: 0 0 auto;",
+        "}",
+      ].join("\n"));
+    }
   }
   return { html, css: cssBlocks.join("\n\n") };
 }

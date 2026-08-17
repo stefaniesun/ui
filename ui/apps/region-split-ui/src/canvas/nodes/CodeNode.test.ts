@@ -40,6 +40,17 @@ describe("CodeNode", () => {
     await wrapper.find('[data-test="overlay-opacity"]').setValue("30");
     expect(wrapper.find('[data-test="code-frame"]').attributes("style")).toContain("0.3");
   });
+  it("ignores an in-flight result after the region changes", async () => {
+    let resolve!: (code: { html: string; css: string }) => void;
+    const api = { getCode: vi.fn(() => new Promise<{ html: string; css: string }>((done) => { resolve = done; })) };
+    const wrapper = mountNode({ selectedRegions: [region(0, 338)] }, api);
+    await wrapper.find('[data-test="generate-code"]').trigger("click");
+    await wrapper.setProps({ selectedRegions: [region(400, 200)] });
+    resolve({ html: "<section>old</section>", css: "" });
+    await nextTick(); await nextTick();
+    expect(wrapper.find('[data-test="code-frame"]').exists()).toBe(false);
+  });
+
   it("drops the previous output when the region changes", async () => {
     const wrapper = mountNode({ selectedRegions: [region(0, 338)] }, stubApi({ html: "<section></section>", css: "" }));
     await wrapper.find('[data-test="generate-code"]').trigger("click"); await nextTick(); await nextTick();

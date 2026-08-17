@@ -14,7 +14,8 @@ const code = ref<{ html: string; css: string } | null>(null);
 const error = ref("");
 const busy = ref(false);
 const opacity = ref(50);
-watch(region, () => { code.value = null; error.value = ""; });
+let requestVersion = 0;
+watch(region, () => { requestVersion += 1; code.value = null; error.value = ""; busy.value = false; });
 const srcdoc = computed(() => code.value
   ? `<!doctype html><meta charset="utf-8"><style>*{margin:0;padding:0}html,body{overflow:hidden}${code.value.css}</style>${code.value.html}`
   : "");
@@ -23,16 +24,19 @@ const sourceUrl = computed(() => region.value ? regionImageUrl(props.projectId, 
 async function generate() {
   const rect = region.value;
   if (!rect || busy.value) return;
+  const version = ++requestVersion;
   busy.value = true;
   error.value = "";
   try {
-    code.value = await props.api.getCode(props.projectId, rect.y, rect.h);
+    const result = await props.api.getCode(props.projectId, rect.y, rect.h);
+    if (version === requestVersion) code.value = result;
   } catch (err) {
+    if (version !== requestVersion) return;
     const message = (err as Error).message;
     error.value = message.includes("not parsed") ? "这个区域还没有元素树，先在区域详情里解析元素" : message;
     code.value = null;
   } finally {
-    busy.value = false;
+    if (version === requestVersion) busy.value = false;
   }
 }
 function download(name: string, content: string) {

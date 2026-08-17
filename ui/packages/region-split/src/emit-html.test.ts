@@ -81,12 +81,14 @@ describe("layout selection", () => {
     const { css } = emit([parent, node({ id: "a", parentId: "p", box: { x: 10, y: 100, w: 50, h: 50 } }), node({ id: "b", parentId: "p", box: { x: 80, y: 100, w: 50, h: 50 } }), node({ id: "badge", parentId: "p", positioning: "absolute" })]);
     expect(css).toMatch(/\.e-badge \{[^}]*position: absolute/s);
   });
-  it("uses repeat pitch as an equal grid", () => {
+  it("uses repeat pitch as equal centred cells without gap", () => {
     const repeated = node({ id: "p", box: { x: 0, y: 100, w: 400, h: 50 }, repeat: { count: 4, templateId: "a", pitch: 90 }, layout: { direction: "row", gap: 10, padding: { top: 0, right: 10, bottom: 0, left: 10 } } });
     const { css } = emit([repeated, node({ id: "a", parentId: "p", box: { x: 10, y: 100, w: 80, h: 50 } })]);
-    expect(css).toContain("display: grid");
-    expect(css).toContain("grid-template-columns: repeat(4, 6.8376vw)");
-    expect(css).toContain("column-gap: 0.8547vw");
+    expect(css).toContain("4 项重复");
+    expect(css).toMatch(/\.e-p > \* \{[^}]*width: 7.6923vw !important[^}]*justify-content: center/s);
+    expect(css).not.toMatch(/\.e-a \{[^}]*position: absolute/s);
+    const container = /\.e-p \{([^}]*)\}/.exec(css)![1]!;
+    expect(container).not.toContain("gap:");
   });
   it("uses a two pixel tolerance", () => expect(FLEX_TOLERANCE).toBe(2));
 });
