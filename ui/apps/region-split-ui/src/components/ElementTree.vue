@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ElementKind, ElementNode } from "@region-split/core/browser";
+import { numberElementTree } from "../element-tree-numbering.js";
 
 const props = defineProps<{
   nodes: ElementNode[];
@@ -22,32 +23,16 @@ const KIND_LABEL: Record<ElementKind, string> = {
   icon: "图标", image: "图片", decoration: "装饰",
 };
 
-/** 按父子关系展平成深度优先序，深度用于缩进 */
-const rows = computed(() => {
-  const childrenOf = new Map<string | null, ElementNode[]>();
-  for (const node of props.nodes) {
-    const list = childrenOf.get(node.parentId) ?? [];
-    list.push(node);
-    childrenOf.set(node.parentId, list);
-  }
-  const out: { node: ElementNode; depth: number }[] = [];
-  const walk = (parentId: string | null, depth: number) => {
-    for (const node of childrenOf.get(parentId) ?? []) {
-      out.push({ node, depth });
-      walk(node.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  return out;
-});
+/** 按父子关系展平成深度优先序，并生成仅用于展示的层级编号 */
+const rows = computed(() => numberElementTree(props.nodes));
 </script>
 
 <template>
   <div class="element-tree">
     <p v-if="rows.length === 0" class="empty">尚未解析</p>
     <div
-      v-for="{ node, depth } in rows"
-      :key="node.id"
+      v-for="{ node, depth, number } in rows"
+      :key="`${number}:${node.id}`"
       data-test="element-row"
       class="row"
       :class="{
@@ -62,6 +47,7 @@ const rows = computed(() => {
       @mouseenter="emit('hover', node.id)"
       @mouseleave="emit('hover', null)"
     >
+      <span data-test="element-number" class="element-number">{{ number }}</span>
       <span class="kind" :class="`kind-${node.kind}`">{{ KIND_LABEL[node.kind] }}</span>
       <span
         data-test="element-name"
@@ -105,6 +91,7 @@ const rows = computed(() => {
 .row.hovered { border-color: var(--border-strong); background: #303540; }
 .row.selected { border-color: var(--accent); background: var(--accent-soft); }
 .row.uncertain { box-shadow: inset 0 0 0 1px var(--warn); }
+.element-number { flex: none; min-width: 25px; color: var(--accent); font-size: 10px; font-variant-numeric: tabular-nums; text-align: right; }
 .kind { flex: none; padding: 1px 5px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .kind-grid { border-color: var(--ok); color: var(--ok); }
 .kind-image { border-color: var(--warn); color: var(--warn); }

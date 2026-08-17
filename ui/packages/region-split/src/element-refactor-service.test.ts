@@ -43,10 +43,24 @@ describe("element refactor service", () => {
     const result = await createRefactorSession(deps, "p1", { region, rootId: "root", treeVersion: hashElementTree(tree), instruction: "重构" });
     expect(result).toMatchObject({ candidateVersion: 1, candidate: { rootId: "new-root" } });
     expect(deps.model.refactorElements).toHaveBeenCalledWith(expect.objectContaining({
+      references: [{ number: "1", id: "root", parentId: null, displayName: "root", kind: "component", box: region }, { number: "1.1", id: "child", parentId: "root", displayName: "child", kind: "text", box: { x: 10, y: 10, w: 40, h: 20 } }],
       cropBase64: expect.any(String),
       original: expect.objectContaining({ rootId: "root" }),
       current: expect.objectContaining({ rootId: "root" }),
       instruction: "重构",
+    }));
+  });
+
+  it("numbers a nested refactor subtree from its selected root", async () => {
+    const deps = await fixture();
+    const tree = deps.store.readElementTree("p1", "0-100")!;
+    const version = hashElementTree(tree);
+    vi.mocked(deps.model.refactorElements).mockResolvedValueOnce({
+      subtree: { rootId: "child", nodes: [node("child", "root")] }, explanation: "unchanged",
+    });
+    await createRefactorSession(deps, "p1", { region, rootId: "child", treeVersion: version, instruction: "重构子节点" });
+    expect(deps.model.refactorElements).toHaveBeenCalledWith(expect.objectContaining({
+      references: [{ number: "1", id: "child", parentId: "root", displayName: "child", kind: "text", box: { x: 10, y: 10, w: 40, h: 20 } }],
     }));
   });
 

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import DetailNode from "./DetailNode.vue";
 import { createElementStore } from "../../element-state.js";
 import type { StoreApi } from "../../api.js";
-import type { ElementTree, Region } from "@region-split/core/browser";
+import type { ElementNode, ElementTree, Region } from "@region-split/core/browser";
 
 function stubApi(tree: ElementTree | null = null): StoreApi {
   return {
@@ -16,6 +16,15 @@ function stubApi(tree: ElementTree | null = null): StoreApi {
 }
 const emptyTree = (): ElementTree =>
   ({ regionKey: "0-300", detectedAt: "2026-08-13T00:00:00.000Z", nodes: [] });
+const element = (over: Partial<ElementNode> & Pick<ElementNode, "id">): ElementNode => ({
+  parentId: null, box: { x: 0, y: 0, w: 100, h: 100 }, kind: "component", displayName: "节点",
+  style: {}, uniformity: 1, source: "auto", classification: "tool", scrollX: false, scrollY: false,
+  positioning: "flow", ...over,
+});
+const parsedTree = (): ElementTree => ({
+  ...emptyTree(),
+  nodes: [element({ id: "root", displayName: "登录区" }), element({ id: "child", parentId: "root", displayName: "用户头像", kind: "icon" })],
+});
 
 const region = (id: string, y: number, h: number): Region => ({
   id, displayName: `名-${id}`, type: "other", bounds: { x: 0, y, w: 400, h },
@@ -58,6 +67,23 @@ describe("DetailNode", () => {
     const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] });
     expect(wrapper.find('[data-test="detail-image"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="detail-inspector"]').exists()).toBe(true);
+  });
+
+  it("always shows the AI panel and asks for an element selection", async () => {
+    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] }, emptyTree());
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="ai-refactor-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="ai-empty-selection"]').text()).toContain("请选择元素");
+    expect(wrapper.find('[data-test="ai-send"]').attributes("disabled")).toBeDefined();
+  });
+
+  it("shows the selected element hierarchy number in the AI panel", async () => {
+    const store = createElementStore(stubApi(parsedTree()));
+    await store.load("p1", { x: 0, y: 0, w: 400, h: 300 });
+    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)], elementStore: store }, parsedTree());
+    store.select("child");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-test="ai-selected-reference"]').text()).toContain("1.1 用户头像");
   });
 
   it("hides the empty notice before anything is parsed", () => {

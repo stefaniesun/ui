@@ -250,6 +250,7 @@ export function createOpenAiModel(cfg: {
         bounds: input.bounds,
         original: input.original,
         current: input.current,
+        references: input.references,
         history: input.history,
         ...(input.validationFeedback ? { validationFeedback: input.validationFeedback } : {}),
       });

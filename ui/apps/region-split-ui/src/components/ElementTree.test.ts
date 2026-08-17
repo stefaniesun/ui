@@ -25,6 +25,24 @@ describe("ElementTree", () => {
     expect(wrapper.text()).toContain("文字");
   });
 
+  it("shows dot-separated hierarchy numbers without changing nodes", () => {
+    const input = [
+      node({ id: "n1", displayName: "卡片" }),
+      node({ id: "n2", parentId: "n1", displayName: "文字", kind: "text" }),
+      node({ id: "n3", parentId: "n2", displayName: "深层", kind: "icon" }),
+      node({ id: "n4", displayName: "另一个根" }),
+      node({ id: "n5", parentId: "n4", displayName: "子节点", kind: "image" }),
+    ];
+    const interleaved = [input[3]!, input[1]!, input[0]!, input[4]!, input[2]!];
+    const snapshot = structuredClone(interleaved);
+    const wrapper = mountTree({ nodes: interleaved });
+    expect(wrapper.findAll('[data-test="element-number"]').map((item) => item.text()))
+      .toEqual(["1", "1.1", "2", "2.1", "2.1.1"]);
+    expect(wrapper.findAll('[data-test="element-name"]').map((item) => item.text()))
+      .toEqual(["另一个根", "子节点", "卡片", "文字", "深层"]);
+    expect(interleaved).toEqual(snapshot);
+  });
+
   it("indents children below their parent", () => {
     const rows = mountTree().findAll('[data-test="element-row"]');
     expect(rows[0]!.attributes("style")).toContain("--depth: 0");

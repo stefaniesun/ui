@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import {
   ElementRefactorModelOutputError,
+  type ElementReference,
   type ElementRefactorModel,
 } from "./element-refactor-model.js";
 import type {
@@ -14,6 +15,7 @@ import type {
 import { validateRefactorCandidate } from "./element-refactor-validate.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { diffElementSubtrees, extractElementSubtree, hashElementTree } from "./element-subtree.js";
+import type { ElementNode } from "./element-types.js";
 import { regionKey } from "./element-types.js";
 import type { ProjectStore } from "./store.js";
 
@@ -32,6 +34,27 @@ export class RefactorServiceError extends Error {
     super(message);
     this.name = "RefactorServiceError";
   }
+}
+
+function buildReferences(nodes: readonly ElementNode[]): ElementReference[] {
+  const childrenOf = new Map<string | null, ElementNode[]>();
+  const knownIds = new Set(nodes.map((node) => node.id));
+  for (const node of nodes) childrenOf.set(node.parentId, [...(childrenOf.get(node.parentId) ?? []), node]);
+  const references: ElementReference[] = [];
+  const visited = new Set<ElementNode>();
+  const visit = (node: ElementNode, number: string, depth = 0): void => {
+    if (visited.has(node)) return;
+    visited.add(node);
+    references.push({ number, id: node.id, parentId: node.parentId, displayName: node.displayName, kind: node.kind, box: node.box });
+    for (const [index, child] of (childrenOf.get(node.id) ?? []).entries()) {
+      visit(child, `${number}.${index + 1}`, depth + 1);
+    }
+  };
+  let rootIndex = 0;
+  const roots = nodes.filter((node) => node.parentId === null || !knownIds.has(node.parentId));
+  for (const node of roots) visit(node, `${++rootIndex}`);
+  for (const node of nodes) if (!visited.has(node)) visit(node, `${++rootIndex}`);
+  return references;
 }
 
 function response(session: NonNullable<ReturnType<RefactorSessionStore["get"]>>): RefactorSessionResponse {
@@ -72,7 +95,7 @@ async function generateValidated(
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       candidate = await deps.model.refactorElements({
-        ...args,
+            ...args,
         ...(feedback.length > 0 ? { validationFeedback: feedback } : {}),
       });
       const validation = validateRefactorCandidate({ tree, region, original, candidate: candidate.subtree });
@@ -107,7 +130,7 @@ export async function createRefactorSession(
   const history = [{ role: "user" as const, content: request.instruction }];
   const candidate = await generateValidated(deps, {
     cropBase64, original, current: original, instruction: request.instruction,
-    history: [], bounds: root.box,
+    history: [], references: buildReferences(original.nodes), bounds: root.box,
   }, tree, request.region, original);
   const session = deps.sessions.create({
     projectId, region: request.region, rootId: request.rootId, treeVersion: version,
@@ -192,7 +215,8 @@ export async function continueRefactorSession(
   const cropBase64 = await crop(deps.store, projectId, root.box);
   const candidate = await generateValidated(deps, {
     cropBase64, original: session.original, current: session.candidate.subtree,
-    instruction: request.instruction, history: session.history, bounds: root.box,
+    instruction: request.instruction, history: session.history,
+    references: buildReferences(session.candidate.subtree.nodes), bounds: root.box,
   }, tree, session.region, session.original);
   let updated;
   try {

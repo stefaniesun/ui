@@ -8,6 +8,7 @@ import ElementRefactorPanel from "../../components/ElementRefactorPanel.vue";
 import ElementTree from "../../components/ElementTree.vue";
 import { elementRefactorApi } from "../../element-refactor-api.js";
 import { createElementRefactorStore } from "../../element-refactor-state.js";
+import { elementNumberMap } from "../../element-tree-numbering.js";
 import type { ElementStore } from "../../element-state.js";
 import { REFERENCE_SIZE, matchFont, type MetricsSource } from "../../font-metrics.js";
 
@@ -23,13 +24,29 @@ const refactorStore = createElementRefactorStore({
   api: elementRefactorApi,
   replaceAppliedTree: (tree, version, rootId) => props.elementStore.replaceFromRefactor(tree, version, rootId),
 });
-function startRefactor(id: string) {
-  if (!region.value || !props.elementStore.tree.value || !props.elementStore.treeVersion.value || props.elementStore.dirty.value) return;
+function startRefactor(id: string): boolean {
+  if (props.elementStore.busy.value) {
+    refactorStore.error.value = "元素仍在载入或解析中，请稍后再试";
+    return false;
+  }
+  if (!region.value || !props.elementStore.tree.value || !props.elementStore.treeVersion.value || props.elementStore.dirty.value) {
+    refactorStore.error.value = "请先完成元素解析并保存当前修改";
+    return false;
+  }
   props.elementStore.editingLocked.value = true;
   refactorStore.open({ projectId: props.projectId, region: region.value, tree: props.elementStore.tree.value, treeVersion: props.elementStore.treeVersion.value, rootId: id });
+  return true;
 }
-function discardRefactor() { refactorStore.discard(); props.elementStore.editingLocked.value = false; }
+function discardRefactor() {
+  refactorStore.discard();
+  props.elementStore.editingLocked.value = false;
+  props.elementStore.select(null);
+}
 async function sendRefactor(instruction: string) {
+  if (!refactorStore.rootId.value) {
+    const selectedId = props.elementStore.selectedId.value;
+    if (!selectedId || !startRefactor(selectedId)) return;
+  }
   if (await refactorStore.send(instruction)) refactorPanel.value?.clearSubmitted();
 }
 async function applyRefactor() { await refactorStore.apply(); if (!refactorStore.rootId.value) props.elementStore.editingLocked.value = false; }
@@ -42,6 +59,19 @@ const sourceUrl = computed(() =>
 const nodes = computed(() => refactorStore.rootId.value
   ? (refactorStore.previewTree.value?.nodes ?? [])
   : props.elementStore.nodes.value);
+const selectedReference = computed(() => {
+  const selectedId = refactorStore.rootId.value
+    ? (refactorStore.session.value?.candidate.rootId ?? refactorStore.rootId.value)
+    : props.elementStore.selectedId.value;
+  const selected = nodes.value.find((node) => node.id === selectedId);
+  if (!selected) return null;
+  return { number: elementNumberMap(nodes.value).get(selected.id) ?? "?", displayName: selected.displayName };
+});
+const propertyNode = computed(() => refactorStore.rootId.value
+  ? nodes.value.find((node) => node.id === props.elementStore.selectedId.value)
+    ?? nodes.value.find((node) => node.id === (refactorStore.session.value?.candidate.rootId ?? refactorStore.rootId.value))
+    ?? null
+  : props.elementStore.selectedNode.value);
 /** 区域自身的背景色，检测时测出，人工可改 */
 const regionBackground = computed(() =>
   props.elementStore.tree.value?.background ?? "#ffffff");
@@ -392,28 +422,9 @@ function onRenamePrompt(id: string) {
           @rename="onRenamePrompt"
           @start-refactor="startRefactor"
         />
-        <ElementRefactorPanel
-          v-if="refactorStore.rootId.value"
-          ref="refactorPanel"
-          :session="refactorStore.session.value"
-          :messages="refactorStore.messages.value"
-          :diffs="refactorStore.diffs.value"
-          :busy="refactorStore.busy.value"
-          :error="refactorStore.error.value"
-          @send="sendRefactor"
-          @apply="applyRefactor"
-          @reset="refactorStore.reset"
-          @discard="discardRefactor"
-          @set-view="refactorStore.view.value = $event"
-        />
-        <button
-          v-if="!refactorStore.rootId.value && props.elementStore.undoSnapshot.value"
-          data-test="undo-ai-refactor"
-          @click="region && props.elementStore.undoRefactor(props.projectId, region)"
-        >撤销 AI 重构</button>
         <ElementProperties
-          v-else
-          :node="props.elementStore.selectedNode.value"
+          :node="propertyNode"
+          :disabled="refactorStore.rootId.value !== null"
           @rename="onRenameValue"
           @set-kind="onSetKind"
           @set-scroll="onSetScroll"
@@ -426,6 +437,27 @@ function onRenamePrompt(id: string) {
           :picking="picking"
           @toggle-picking="togglePicking"
         />
+        <ElementRefactorPanel
+          v-if="parsed"
+          ref="refactorPanel"
+          :session="refactorStore.session.value"
+          :messages="refactorStore.messages.value"
+          :diffs="refactorStore.diffs.value"
+          :busy="refactorStore.busy.value"
+          :error="refactorStore.error.value"
+          :selected-reference="selectedReference"
+          @send="sendRefactor"
+          @apply="applyRefactor"
+          @reset="refactorStore.reset"
+          @discard="discardRefactor"
+          @set-view="refactorStore.view.value = $event"
+        />
+        <button
+          v-if="!refactorStore.rootId.value && props.elementStore.undoSnapshot.value"
+          class="undo-refactor"
+          data-test="undo-ai-refactor"
+          @click="region && props.elementStore.undoRefactor(props.projectId, region)"
+        >撤销 AI 重构</button>
       </section>
     </template>
   </div>
@@ -454,5 +486,7 @@ function onRenamePrompt(id: string) {
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 上下结构：图占满宽度、高度由区域宽高比决定且不设上限（标注才能纯百分比定位）；
    下段是固定高度的树与属性检查器，不随区域高矮变化。 */
-.inspector { height: 320px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; border-top: 1px solid var(--border); }
+.inspector { height: 500px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; border-top: 1px solid var(--border); }
+.inspector > .element-refactor-panel { grid-column: 1 / -1; }
+.undo-refactor { position: absolute; right: 8px; transform: translateY(8px); }
 </style>

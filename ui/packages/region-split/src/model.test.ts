@@ -95,6 +95,7 @@ describe("createOpenAiModel.refactorElements", () => {
     current: { rootId: "root", nodes: [element("root"), element("child", "root")] },
     instruction: "为每个文字补充入口组件",
     history: [{ role: "user" as const, content: "这是入口列表" }],
+    references: [{ number: "1", id: "root", parentId: null, displayName: "root", kind: "component", box: { x: 10, y: 20, w: 100, h: 80 } }],
     bounds: { x: 10, y: 20, w: 100, h: 80 },
   };
 

@@ -6,12 +6,22 @@ export interface ElementRefactorMessage {
   content: string;
 }
 
+export interface ElementReference {
+  number: string;
+  id: string;
+  parentId: string | null;
+  displayName: string;
+  kind: string;
+  box: { x: number; y: number; w: number; h: number };
+}
+
 export interface ElementRefactorModelInput {
   cropBase64: string;
   original: ElementSubtree;
   current: ElementSubtree;
   instruction: string;
   history: ElementRefactorMessage[];
+  references: ElementReference[];
   bounds: Rect;
   validationFeedback?: InvariantViolation[];
 }

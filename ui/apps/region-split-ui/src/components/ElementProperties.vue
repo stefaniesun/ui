@@ -8,6 +8,7 @@ import { supportsBorderRadius } from "../element-state.js";
 
 const props = defineProps<{
   node: ElementNode | null;
+  disabled?: boolean;
   picking?: boolean;
   fontNote?: string;
 }>();
@@ -44,6 +45,7 @@ const fontWeight = computed(() => props.node?.style.fontWeight ?? 400);
 const WEIGHTS = [300, 400, 500, 600, 700, 800];
 
 function onFontSize(event: Event) {
+  if (props.disabled) return;
   const raw = (event.target as HTMLInputElement).value.trim();
   const value = Number(raw);
   if (props.node && raw !== "" && Number.isFinite(value) && value > 0) {
@@ -51,6 +53,7 @@ function onFontSize(event: Event) {
   }
 }
 function onFontWeight(event: Event) {
+  if (props.disabled) return;
   const value = Number((event.target as HTMLSelectElement).value);
   if (props.node && Number.isFinite(value)) {
     emit("set-font", props.node.id, { fontWeight: value });
@@ -63,10 +66,12 @@ const KIND_LABEL: Record<ElementKind, string> = {
 };
 
 function onRename(event: Event) {
+  if (props.disabled) return;
   const value = (event.target as HTMLInputElement).value.trim();
   if (props.node && value) emit("rename", props.node.id, value);
 }
 function onKind(event: Event) {
+  if (props.disabled) return;
   const value = (event.target as HTMLSelectElement).value as ElementKind;
   if (props.node) emit("set-kind", props.node.id, value);
 }
@@ -85,7 +90,7 @@ watch(() => props.node, node => {
 
 /** 提交一个新框，钳制交给 store；提交后强制回同步一次草稿 */
 function submit(box: Rect) {
-  if (!props.node) return;
+  if (props.disabled || !props.node) return;
   emit("set-box", props.node.id, box);
   // 钳制后的结果**可能与原值相同**（比如已经贴着父边还想再往左），
   // 这时 props 不变、watch 不触发，输入框会留着刚打进去的越界值。
@@ -99,6 +104,7 @@ function submit(box: Rect) {
  * `v-model.number` 对空串不会给出 NaN，光判断 draft 拦不住"清空输入框"。
  */
 function onBox(axis: "x" | "y" | "w" | "h", event: Event) {
+  if (props.disabled) return;
   const raw = (event.target as HTMLInputElement).value.trim();
   const value = Number(raw);
   if (!props.node) return;
@@ -110,6 +116,7 @@ function onBox(axis: "x" | "y" | "w" | "h", event: Event) {
 }
 
 function onRadius(event: Event) {
+  if (props.disabled) return;
   const raw = (event.target as HTMLInputElement).value.trim();
   const value = Number(raw);
   if (!props.node) return;
@@ -118,17 +125,19 @@ function onRadius(event: Event) {
 }
 
 function onRadiusToggle(event: Event) {
-  if (!props.node) return;
+  if (props.disabled || !props.node) return;
   const enabled = (event.target as HTMLInputElement).checked;
   emit("set-radius", props.node.id, enabled ? (radius.value > 0 ? radius.value : 8) : 0);
 }
 
 function onColor(event: Event) {
+  if (props.disabled) return;
   const value = (event.target as HTMLInputElement).value.trim();
   if (props.node && /^#[0-9a-fA-F]{6}$/.test(value)) emit("set-color", props.node.id, value);
 }
 
 function nudgeRadius(delta: number) {
+  if (props.disabled) return;
   if (props.node) emit("set-radius", props.node.id, radius.value + delta);
 }
 
@@ -137,16 +146,18 @@ const REPEAT_MS = 120;
 let repeatTimer: number | undefined;
 
 function nudge(axis: "x" | "y" | "w" | "h", delta: number) {
-  if (!props.node) return;
+  if (props.disabled || !props.node) return;
   submit({ ...props.node.box, [axis]: props.node.box[axis] + delta });
 }
 
 function startNudge(axis: "x" | "y" | "w" | "h", delta: number) {
+  if (props.disabled) return;
   nudge(axis, delta);
   window.clearInterval(repeatTimer);
   repeatTimer = window.setInterval(() => nudge(axis, delta), REPEAT_MS);
 }
 function startRadius(delta: number) {
+  if (props.disabled) return;
   nudgeRadius(delta);
   window.clearInterval(repeatTimer);
   repeatTimer = window.setInterval(() => nudgeRadius(delta), REPEAT_MS);
@@ -159,16 +170,16 @@ onBeforeUnmount(stopNudge);
 </script>
 
 <template>
-  <div class="properties">
+  <div class="properties" :class="{ disabled: props.disabled }">
     <p v-if="!props.node" class="empty">选择一个元素查看属性</p>
     <template v-else>
       <label class="field">
         <span class="name">名称</span>
-        <input data-test="property-name" :value="props.node.displayName" @change="onRename" />
+        <input data-test="property-name" :value="props.node.displayName" :disabled="props.disabled" @change="onRename" />
       </label>
       <label class="field">
         <span class="name">类型</span>
-        <select data-test="property-kind" :value="props.node.kind" @change="onKind">
+        <select data-test="property-kind" :value="props.node.kind" :disabled="props.disabled" @change="onKind">
           <option v-for="kind in elementKinds" :key="kind" :value="kind">
             {{ KIND_LABEL[kind] }}
           </option>
@@ -181,11 +192,11 @@ onBeforeUnmount(stopNudge);
         <span class="name">位置</span>
         <span class="axes">
           <label>X<input
-            v-model.number="draft.x" data-test="property-x" type="number"
+            v-model.number="draft.x" data-test="property-x" type="number" :disabled="props.disabled"
             @change="onBox('x', $event)"
           /></label>
           <label>Y<input
-            v-model.number="draft.y" data-test="property-y" type="number"
+            v-model.number="draft.y" data-test="property-y" type="number" :disabled="props.disabled"
             @change="onBox('y', $event)"
           /></label>
         </span>
@@ -195,19 +206,19 @@ onBeforeUnmount(stopNudge);
         <span class="pad">
           <button
             data-test="nudge-left" title="左移（按住连续）"
-            @pointerdown="startNudge('x', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('x', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >←</button>
           <button
             data-test="nudge-up" title="上移（按住连续）"
-            @pointerdown="startNudge('y', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('y', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >↑</button>
           <button
             data-test="nudge-down" title="下移（按住连续）"
-            @pointerdown="startNudge('y', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('y', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >↓</button>
           <button
             data-test="nudge-right" title="右移（按住连续）"
-            @pointerdown="startNudge('x', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('x', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >→</button>
         </span>
       </div>
@@ -216,11 +227,11 @@ onBeforeUnmount(stopNudge);
         <span class="name">尺寸</span>
         <span class="axes">
           <label>W<input
-            v-model.number="draft.w" data-test="property-w" type="number" :min="MIN_BOX_SIZE"
+            v-model.number="draft.w" data-test="property-w" type="number" :min="MIN_BOX_SIZE" :disabled="props.disabled"
             @change="onBox('w', $event)"
           /></label>
           <label>H<input
-            v-model.number="draft.h" data-test="property-h" type="number" :min="MIN_BOX_SIZE"
+            v-model.number="draft.h" data-test="property-h" type="number" :min="MIN_BOX_SIZE" :disabled="props.disabled"
             @change="onBox('h', $event)"
           /></label>
         </span>
@@ -230,19 +241,19 @@ onBeforeUnmount(stopNudge);
         <span class="pad">
           <button
             data-test="nudge-narrower" title="变窄（按住连续）"
-            @pointerdown="startNudge('w', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('w', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >宽−</button>
           <button
             data-test="nudge-wider" title="变宽（按住连续）"
-            @pointerdown="startNudge('w', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('w', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >宽＋</button>
           <button
             data-test="nudge-shorter" title="变矮（按住连续）"
-            @pointerdown="startNudge('h', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('h', -1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >高−</button>
           <button
             data-test="nudge-taller" title="变高（按住连续）"
-            @pointerdown="startNudge('h', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startNudge('h', 1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >高＋</button>
         </span>
       </div>
@@ -252,24 +263,24 @@ onBeforeUnmount(stopNudge);
         <span class="axes">
           <label class="toggle">
             <input
-              data-test="border-radius-toggle" type="checkbox" :checked="radiusEnabled"
+              data-test="border-radius-toggle" type="checkbox" :checked="radiusEnabled" :disabled="props.disabled"
               @change="onRadiusToggle"
             />
             <span>{{ radiusEnabled ? "开启" : "关闭" }}</span>
           </label>
           <label v-if="radiusEnabled"><input
-            data-test="property-radius" type="number" min="0" :value="radius"
+            data-test="property-radius" type="number" min="0" :value="radius" :disabled="props.disabled"
             @change="onRadius"
           /></label>
         </span>
         <span v-if="radiusEnabled" class="pad radius-pad">
           <button
             data-test="radius-minus" title="减小圆角（按住连续）"
-            @pointerdown="startRadius(-1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startRadius(-1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >−</button>
           <button
             data-test="radius-plus" title="增大圆角（按住连续）"
-            @pointerdown="startRadius(1)" @pointerup="stopNudge" @pointerleave="stopNudge"
+            :disabled="props.disabled" @pointerdown="startRadius(1)" @pointerup="stopNudge" @pointerleave="stopNudge"
           >＋</button>
         </span>
       </div>
@@ -278,16 +289,17 @@ onBeforeUnmount(stopNudge);
         <span class="name">颜色</span>
         <span class="axes">
           <input
-            data-test="property-color-swatch" class="picker" type="color"
+            data-test="property-color-swatch" class="picker" type="color" :disabled="props.disabled"
             :value="color" @input="onColor"
           />
-          <input data-test="property-color" :value="color" @change="onColor" />
+          <input data-test="property-color" :value="color" :disabled="props.disabled" @change="onColor" />
           <button
             data-test="pick-color"
             class="picker-button"
             :class="{ on: props.picking }"
             title="在上方原图上点像素取色"
-            @click="emit('toggle-picking')"
+            :disabled="props.disabled"
+            @click="!props.disabled && emit('toggle-picking')"
           >吸管</button>
         </span>
       </div>
@@ -297,10 +309,10 @@ onBeforeUnmount(stopNudge);
           <span class="name">字号</span>
           <span class="axes">
             <input
-              data-test="property-font-size" type="number" min="1" step="0.5"
+              data-test="property-font-size" type="number" min="1" step="0.5" :disabled="props.disabled"
               :value="fontSize || ''" placeholder="未测" @change="onFontSize"
             />
-            <select data-test="property-font-weight" :value="fontWeight" @change="onFontWeight">
+            <select data-test="property-font-weight" :value="fontWeight" :disabled="props.disabled" @change="onFontWeight">
               <option v-for="w in WEIGHTS" :key="w" :value="w">{{ w }}</option>
             </select>
           </span>
@@ -308,7 +320,7 @@ onBeforeUnmount(stopNudge);
         <div class="field">
           <span class="name" />
           <span class="axes">
-            <button data-test="measure-font" class="wide" @click="emit('measure-font')">
+            <button data-test="measure-font" class="wide" :disabled="props.disabled" @click="!props.disabled && emit('measure-font')">
               渲染比对测字号字重
             </button>
           </span>
@@ -381,6 +393,9 @@ onBeforeUnmount(stopNudge);
 </template>
 
 <style scoped>
+.properties { pointer-events: auto; }
+.properties.disabled { opacity: .7; }
+.properties.disabled input, .properties.disabled select, .properties.disabled button { pointer-events: none; }
 .properties { height: 100%; padding: 8px; overflow: auto; border-left: 1px solid var(--border); background: var(--bg-node); }
 .empty { padding: 24px 8px; color: var(--text-faint); font-size: 10px; text-align: center; }
 .field { display: flex; align-items: center; gap: 8px; min-height: 30px; margin-bottom: 4px; font-size: 10px; }
