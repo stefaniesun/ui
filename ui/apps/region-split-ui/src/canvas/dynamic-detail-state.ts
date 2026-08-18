@@ -43,7 +43,8 @@ export function loadDetailPositions(
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return Object.fromEntries(
-      Object.entries(parsed).filter(([id, point]) => validIds.has(id) && isPoint(point)),
+      Object.entries(parsed).filter((entry): entry is [string, Point] =>
+        validIds.has(entry[0]) && isPoint(entry[1])),
     );
   } catch {
     return {};

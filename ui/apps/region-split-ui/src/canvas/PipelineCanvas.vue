@@ -1,250 +1,378 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import PipelineNode from "./PipelineNode.vue";
+import type { Region } from "@region-split/core/browser";
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import type { ElementStore } from "../element-state.js";
 import {
-  DEFAULT_NODE_POSITIONS,
-  NODE_POSITIONS_STORAGE_KEY,
   bezierPath,
   clampZoom,
   fitBounds,
+  DEFAULT_NODE_POSITIONS,
   loadNodePositions,
-  portAnchors,
+  NODE_POSITIONS_STORAGE_KEY,
   saveNodePositions,
-  zoomAtPoint,
-  type NodeId,
-  type NodePositions,
+  type Bounds,
   type Point,
   type Viewport,
 } from "./canvas-state.js";
+import {
+  centerNodeViewport,
+  detailNodeId,
+  loadDetailPositions,
+  nextDetailPosition,
+  saveDetailPositions,
+  screenPointToWorld,
+} from "./dynamic-detail-state.js";
+import PipelineNode from "./PipelineNode.vue";
 
 const props = withDefaults(defineProps<{
-  status?: "idle" | "active" | "done" | "warn";
-  detailStatus?: "idle" | "active" | "done" | "warn";
-  codeStatus?: "idle" | "active" | "done" | "warn";
-  showDetail?: boolean;
+  regions?: Region[];
+  projectId?: string;
+  getRegionAnchor?: (regionId: string) => Point | null;
+  createElementStore?: () => ElementStore;
   showCode?: boolean;
-}>(), { status: "idle", detailStatus: "idle", codeStatus: "idle", showDetail: false, showCode: false });
+  storage?: Storage;
+}>(), {
+  regions: () => [],
+  projectId: "",
+  getRegionAnchor: undefined,
+  createElementStore: undefined,
+  showCode: false,
+  storage: undefined,
+});
 
-const rootEl = ref<HTMLElement | null>(null);
-const workspaceEl = ref<HTMLElement | null>(null);
-let resizeObserver: ResizeObserver | null = null;
-const viewport = reactive<Viewport>({ x: 0, y: 0, zoom: 1 });
-const positions = reactive<NodePositions>(loadNodePositions(
-  typeof localStorage === "undefined" ? undefined : localStorage,
+const emit = defineEmits<{ viewportChange: [viewport: Viewport] }>();
+const canvas = ref<HTMLElement | null>(null);
+const viewport = reactive<Viewport>({ x: 40, y: 40, zoom: 0.72 });
+const fixedPositions = reactive(loadNodePositions(
+  props.storage ?? globalThis.localStorage,
   NODE_POSITIONS_STORAGE_KEY,
   DEFAULT_NODE_POSITIONS,
 ));
-const fallbackSize = { width: 1105, height: 700 };
-/** 详情节点的宽度，与模板里 PipelineNode 的 :width 保持一致 */
-const DETAIL_WIDTH = 760;
-const CODE_WIDTH = 760;
-const linkPaths = computed(() => {
-  const anchors = portAnchors(positions, {
-    workspace: fallbackSize.width, detail: DETAIL_WIDTH, code: CODE_WIDTH,
+const detailPositions = reactive<Record<string, Point>>({});
+const openRegionIds = ref<string[]>([]);
+const elementStores = new Map<string, ElementStore>();
+const detailHoveredIds = reactive<Record<string, string | null>>({});
+const highlightedRegionId = ref<string | null>(null);
+const connectionStarts = reactive<Record<string, Point>>({});
+let highlightTimer: ReturnType<typeof setTimeout> | undefined;
+let connectionFrame = 0;
+let drag: { nodeId: string; start: Point; origin: Point } | null = null;
+let pan: { start: Point; origin: Point } | null = null;
+let resizeObserver: ResizeObserver | undefined;
+
+const WORKSPACE = { width: 1105, height: 700 };
+const DETAIL = { width: 760, height: 600 };
+const CODE = { width: 760, height: 600 };
+
+const regionById = computed(() => new Map(props.regions.map(region => [region.id, region])));
+const openedRegions = computed(() => openRegionIds.value.flatMap(id => {
+  const region = regionById.value.get(id);
+  return region ? [region] : [];
+}));
+const transform = computed(() => `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`);
+const detailPositionKey = computed(() => `region-split:detail-node-positions:${props.projectId}:v1`);
+const links = computed(() => openedRegions.value.flatMap(region => {
+  const from = connectionStarts[region.id];
+  const toPosition = detailPositions[region.id];
+  if (!from || !toPosition) return [];
+  return [{ id: region.id, path: bezierPath(from, { x: toPosition.x, y: toPosition.y + 21 }) }];
+}));
+
+function storageTarget(): Storage | undefined {
+  return props.storage ?? globalThis.localStorage;
+}
+
+function persist(): void {
+  saveNodePositions(storageTarget(), NODE_POSITIONS_STORAGE_KEY, fixedPositions);
+  saveDetailPositions(storageTarget(), detailPositionKey.value, detailPositions);
+}
+
+function occupiedDetailBounds(): Bounds[] {
+  return openRegionIds.value.flatMap(id => {
+    const position = detailPositions[id];
+    return position ? [{ ...position, ...DETAIL }] : [];
   });
-  const visible = [props.showDetail, props.showDetail && props.showCode];
-  return anchors.filter((_, index) => visible[index]).map(({ from, to }) => bezierPath(from, to));
-});
-const worldTransform = computed(() => `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`);
-const zoomLabel = computed(() => `${Math.round(viewport.zoom * 100)}%`);
-
-let interaction: null | {
-  kind: "pan" | "node";
-  nodeId: NodeId;
-  start: Point;
-  origin: Point;
-} = null;
-
-function pointerPoint(event: PointerEvent | WheelEvent): Point {
-  const rect = rootEl.value?.getBoundingClientRect();
-  return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
 }
 
-function onCanvasPointerDown(event: PointerEvent) {
-  if (event.button !== 0 && event.button !== 1) return;
-  // pan 分支不读 nodeId，填 workspace 只为满足类型
-  interaction = {
-    kind: "pan", nodeId: "workspace",
-    start: pointerPoint(event), origin: { x: viewport.x, y: viewport.y },
-  };
-  rootEl.value?.setPointerCapture?.(event.pointerId);
-  event.preventDefault();
+function refreshConnectionsNow(): void {
+  if (!canvas.value || !props.getRegionAnchor) return;
+  const rect = canvas.value.getBoundingClientRect();
+  for (const id of openRegionIds.value) {
+    const anchor = props.getRegionAnchor(id);
+    if (anchor) connectionStarts[id] = screenPointToWorld(anchor, rect, viewport);
+    else delete connectionStarts[id];
+  }
 }
 
-function onNodeDragStart(event: PointerEvent, nodeId: string) {
+function refreshConnections(): void {
+  if (connectionFrame) cancelAnimationFrame(connectionFrame);
+  connectionFrame = requestAnimationFrame(() => {
+    connectionFrame = 0;
+    refreshConnectionsNow();
+  });
+}
+
+function focusDetail(regionId: string): void {
+  const position = detailPositions[regionId];
+  const rect = canvas.value?.getBoundingClientRect();
+  if (position && rect) {
+    Object.assign(viewport, centerNodeViewport(
+      { ...position, ...DETAIL },
+      { width: rect.width, height: rect.height },
+      viewport.zoom,
+    ));
+    emit("viewportChange", { ...viewport });
+  }
+  highlightedRegionId.value = regionId;
+  if (highlightTimer) clearTimeout(highlightTimer);
+  highlightTimer = setTimeout(() => {
+    if (highlightedRegionId.value === regionId) highlightedRegionId.value = null;
+  }, 900);
+  nextTick(refreshConnections);
+}
+
+function openDetail(regionId: string): void {
+  if (!regionById.value.has(regionId)) return;
+  if (openRegionIds.value.includes(regionId)) {
+    focusDetail(regionId);
+    return;
+  }
+  if (!detailPositions[regionId]) {
+    detailPositions[regionId] = nextDetailPosition(
+      { ...fixedPositions.workspace, ...WORKSPACE },
+      occupiedDetailBounds(),
+      DETAIL,
+      1500,
+    );
+  }
+  if (props.createElementStore) elementStores.set(regionId, props.createElementStore());
+  detailHoveredIds[regionId] = null;
+  openRegionIds.value = [...openRegionIds.value, regionId];
+  persist();
+  nextTick(() => focusDetail(regionId));
+}
+
+function closeDetail(regionId: string): void {
+  openRegionIds.value = openRegionIds.value.filter(id => id !== regionId);
+  elementStores.delete(regionId);
+  delete detailHoveredIds[regionId];
+  delete connectionStarts[regionId];
+  if (highlightedRegionId.value === regionId) highlightedRegionId.value = null;
+}
+
+function setDetailHovered(regionId: string, id: string | null): void {
+  detailHoveredIds[regionId] = id;
+}
+
+function nodePosition(nodeId: string): Point | undefined {
+  if (nodeId.startsWith("detail:")) return detailPositions[nodeId.slice(7)];
+  return fixedPositions[nodeId as keyof typeof fixedPositions];
+}
+
+function startNodeDrag(event: PointerEvent, nodeId: string): void {
   if (event.button !== 0) return;
-  const id = nodeId as NodeId;
-  interaction = {
-    kind: "node", nodeId: id, start: pointerPoint(event), origin: { ...positions[id] },
-  };
-  rootEl.value?.setPointerCapture?.(event.pointerId);
-  event.preventDefault();
+  const position = nodePosition(nodeId);
+  if (!position) return;
+  drag = { nodeId, start: { x: event.clientX, y: event.clientY }, origin: { ...position } };
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", stopPointer);
 }
 
-function onPointerMove(event: PointerEvent) {
-  if (!interaction) return;
-  const point = pointerPoint(event);
-  const dx = point.x - interaction.start.x;
-  const dy = point.y - interaction.start.y;
-  if (interaction.kind === "pan") {
-    viewport.x = interaction.origin.x + dx;
-    viewport.y = interaction.origin.y + dy;
+function startPan(event: PointerEvent): void {
+  if (event.target !== canvas.value && !(event.target as HTMLElement).classList.contains("grid")) return;
+  pan = { start: { x: event.clientX, y: event.clientY }, origin: { x: viewport.x, y: viewport.y } };
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", stopPointer);
+}
+
+function onPointerMove(event: PointerEvent): void {
+  if (drag) {
+    const position = nodePosition(drag.nodeId);
+    if (!position) return;
+    position.x = drag.origin.x + (event.clientX - drag.start.x) / viewport.zoom;
+    position.y = drag.origin.y + (event.clientY - drag.start.y) / viewport.zoom;
+    refreshConnections();
+  } else if (pan) {
+    viewport.x = pan.origin.x + event.clientX - pan.start.x;
+    viewport.y = pan.origin.y + event.clientY - pan.start.y;
+    emit("viewportChange", { ...viewport });
+    refreshConnections();
+  }
+}
+
+function stopPointer(): void {
+  if (drag) persist();
+  drag = null;
+  pan = null;
+  window.removeEventListener("pointermove", onPointerMove);
+  window.removeEventListener("pointerup", stopPointer);
+}
+
+function onWheel(event: WheelEvent): void {
+  event.preventDefault();
+  if (event.ctrlKey || event.metaKey) {
+    const oldZoom = viewport.zoom;
+    const nextZoom = clampZoom(oldZoom * (event.deltaY > 0 ? 0.9 : 1.1));
+    const rect = canvas.value!.getBoundingClientRect();
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+    viewport.x = px - ((px - viewport.x) / oldZoom) * nextZoom;
+    viewport.y = py - ((py - viewport.y) / oldZoom) * nextZoom;
+    viewport.zoom = nextZoom;
   } else {
-    positions[interaction.nodeId] = {
-      x: interaction.origin.x + dx / viewport.zoom,
-      y: interaction.origin.y + dy / viewport.zoom,
-    };
+    viewport.x -= event.deltaX;
+    viewport.y -= event.deltaY;
   }
+  emit("viewportChange", { ...viewport });
+  refreshConnections();
 }
 
-function endInteraction() {
-  if (interaction?.kind === "node") {
-    saveNodePositions(typeof localStorage === "undefined" ? undefined : localStorage, NODE_POSITIONS_STORAGE_KEY, positions);
+function zoomBy(factor: number): void {
+  const rect = canvas.value?.getBoundingClientRect();
+  if (!rect) return;
+  const oldZoom = viewport.zoom;
+  const nextZoom = clampZoom(oldZoom * factor);
+  viewport.x = rect.width / 2 - ((rect.width / 2 - viewport.x) / oldZoom) * nextZoom;
+  viewport.y = rect.height / 2 - ((rect.height / 2 - viewport.y) / oldZoom) * nextZoom;
+  viewport.zoom = nextZoom;
+  emit("viewportChange", { ...viewport });
+  refreshConnections();
+}
+
+function fitAll(): void {
+  const rect = canvas.value?.getBoundingClientRect();
+  if (!rect) return;
+  const bounds: Bounds[] = [{ ...fixedPositions.workspace, ...WORKSPACE }];
+  for (const id of openRegionIds.value) {
+    const position = detailPositions[id];
+    if (position) bounds.push({ ...position, ...DETAIL });
   }
-  interaction = null;
+  if (props.showCode) bounds.push({ ...fixedPositions.code, ...CODE });
+  const left = Math.min(...bounds.map(bound => bound.x));
+  const top = Math.min(...bounds.map(bound => bound.y));
+  const right = Math.max(...bounds.map(bound => bound.x + bound.width));
+  const bottom = Math.max(...bounds.map(bound => bound.y + bound.height));
+  Object.assign(viewport, fitBounds(
+    { x: left, y: top, width: right - left, height: bottom - top },
+    { width: rect.width, height: rect.height },
+  ));
+  emit("viewportChange", { ...viewport });
+  refreshConnections();
 }
 
-function setZoom(next: number, center?: Point) {
-  const rect = rootEl.value?.getBoundingClientRect();
-  const point = center ?? { x: (rect?.width ?? 0) / 2, y: (rect?.height ?? 0) / 2 };
-  Object.assign(viewport, zoomAtPoint(viewport, clampZoom(next), point));
-}
-
-function onWheel(event: WheelEvent) {
-  event.preventDefault();
-  setZoom(viewport.zoom * Math.exp(-event.deltaY * .0015), pointerPoint(event));
-}
-
-/** 两个节点的并集包围盒——只算 workspace 会把详情节点挡在视口外 */
-function contentBounds() {
-  const measure = (id: NodeId, fallbackWidth: number) => {
-    const node = workspaceEl.value?.querySelector<HTMLElement>(`[data-node-id="${id}"]`);
-    return {
-      ...positions[id],
-      width: node?.offsetWidth || fallbackWidth,
-      height: node?.offsetHeight || fallbackSize.height,
-    };
-  };
-  const boxes = [measure("workspace", fallbackSize.width)];
-  if (props.showDetail) boxes.push(measure("detail", DETAIL_WIDTH));
-  if (props.showCode) boxes.push(measure("code", CODE_WIDTH));
-  const left = Math.min(...boxes.map(box => box.x));
-  const top = Math.min(...boxes.map(box => box.y));
-  const right = Math.max(...boxes.map(box => box.x + box.width));
-  const bottom = Math.max(...boxes.map(box => box.y + box.height));
-  return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-function fitAll() {
-  const rect = rootEl.value?.getBoundingClientRect();
-  if (!rect?.width || !rect.height) return;
-  Object.assign(viewport, fitBounds(contentBounds(), { width: rect.width, height: rect.height }, 64));
-}
-
-async function refreshLayout() {
-  await nextTick();
-  fitAll();
-}
-
-function onResize() { fitAll(); }
-
-onMounted(async () => {
-  await nextTick();
-  const node = workspaceEl.value?.querySelector<HTMLElement>('[data-node-id="workspace"]');
-  if (node && typeof ResizeObserver !== "undefined") {
-    resizeObserver = new ResizeObserver(() => fitAll());
-    resizeObserver.observe(node);
+watch(() => props.regions.map(region => region.id), ids => {
+  const validIds = new Set(ids);
+  for (const id of openRegionIds.value) {
+    if (!validIds.has(id)) closeDetail(id);
   }
-  fitAll();
-  window.addEventListener("resize", onResize);
+  refreshConnections();
+}, { deep: true });
+
+watch(() => props.projectId, () => {
+  openRegionIds.value = [];
+  elementStores.clear();
+  for (const id of Object.keys(detailPositions)) delete detailPositions[id];
+  const restored = loadDetailPositions(storageTarget(), detailPositionKey.value, new Set(props.regions.map(region => region.id)));
+  Object.assign(detailPositions, restored);
 });
+
+onMounted(() => {
+  const restored = loadDetailPositions(storageTarget(), detailPositionKey.value, new Set(props.regions.map(region => region.id)));
+  Object.assign(detailPositions, restored);
+  resizeObserver = new ResizeObserver(refreshConnections);
+  if (canvas.value) resizeObserver.observe(canvas.value);
+  window.addEventListener("resize", refreshConnections);
+  requestAnimationFrame(fitAll);
+});
+
 onBeforeUnmount(() => {
+  if (highlightTimer) clearTimeout(highlightTimer);
+  if (connectionFrame) cancelAnimationFrame(connectionFrame);
   resizeObserver?.disconnect();
-  window.removeEventListener("resize", onResize);
+  window.removeEventListener("resize", refreshConnections);
+  stopPointer();
 });
 
-defineExpose({ fitAll, refreshLayout, viewport, positions });
+defineExpose({ openDetail, closeDetail, refreshConnections, fitAll });
 </script>
 
 <template>
-  <div
-    ref="rootEl"
-    class="pipeline-canvas"
-    data-test="pipeline-canvas"
-    @pointerdown="onCanvasPointerDown"
-    @pointermove="onPointerMove"
-    @pointerup="endInteraction"
-    @pointercancel="endInteraction"
-    @wheel="onWheel"
-  >
-    <div class="world" :style="{ transform: worldTransform }">
-      <svg class="links" aria-hidden="true">
-        <path v-for="(d, index) in linkPaths" :key="index" :d="d" />
+  <section ref="canvas" class="pipeline-canvas" @pointerdown="startPan" @wheel="onWheel">
+    <div class="grid" />
+    <div class="world" :style="{ transform }">
+      <svg class="links" width="10000" height="6000" aria-hidden="true">
+        <path v-for="link in links" :key="link.id" :d="link.path" />
       </svg>
-      <div ref="workspaceEl">
-        <PipelineNode
-          node-id="workspace"
-          title="图片区域对照"
-          :position="positions.workspace"
-          :width="fallbackSize.width"
-          :min-height="fallbackSize.height"
-          :status="props.status"
-          :input="false"
-          :output="true"
-          @drag-start="onNodeDragStart"
-        >
-          <template #status><slot name="status" /></template>
-          <slot />
-        </PipelineNode>
-        <PipelineNode
-          v-if="props.showDetail"
-          node-id="detail"
-          title="区域详情"
-          :position="positions.detail"
-          :width="DETAIL_WIDTH"
-          :min-height="420"
-          :status="props.detailStatus"
-          :input="true"
-          :output="true"
-          @drag-start="onNodeDragStart"
-        >
-          <template #status><slot name="detail-status" /></template>
-          <slot name="detail" />
-        </PipelineNode>
-        <PipelineNode
-          v-if="props.showCode"
-          node-id="code"
-          title="代码产出"
-          :position="positions.code"
-          :width="CODE_WIDTH"
-          :min-height="420"
-          :status="props.codeStatus"
-          :input="true"
-          :output="false"
-          @drag-start="onNodeDragStart"
-        >
-          <template #status><slot name="code-status" /></template>
-          <slot name="code" />
-        </PipelineNode>
-      </div>
+
+      <PipelineNode
+        node-id="workspace"
+        title="工作区"
+        :position="fixedPositions.workspace"
+        :width="WORKSPACE.width"
+        :min-height="WORKSPACE.height"
+        :input="false"
+        :output="false"
+        @drag-start="startNodeDrag"
+      >
+        <slot />
+      </PipelineNode>
+
+      <PipelineNode
+        v-for="region in openedRegions"
+        :key="region.id"
+        :node-id="detailNodeId(region.id)"
+        title="区域详情"
+        :position="detailPositions[region.id]!"
+        :width="DETAIL.width"
+        :min-height="DETAIL.height"
+        :input="true"
+        :output="false"
+        :closable="true"
+        :highlighted="highlightedRegionId === region.id"
+        @drag-start="startNodeDrag"
+        @close="closeDetail(region.id)"
+      >
+        <template #status><span>{{ region.displayName }}</span></template>
+        <slot
+          name="detail"
+          :region="region"
+          :element-store="elementStores.get(region.id)"
+          :hovered-id="detailHoveredIds[region.id] ?? null"
+          :set-hovered-id="(id: string | null) => setDetailHovered(region.id, id)"
+        />
+      </PipelineNode>
+
+      <PipelineNode
+        v-if="props.showCode"
+        node-id="code"
+        title="代码产出"
+        :position="fixedPositions.code"
+        :width="CODE.width"
+        :min-height="CODE.height"
+        :input="false"
+        :output="false"
+        @drag-start="startNodeDrag"
+      >
+        <slot name="code" />
+      </PipelineNode>
     </div>
 
-    <div class="zoom-controls" @pointerdown.stop>
-      <button aria-label="缩小" @click="setZoom(viewport.zoom - .1)">−</button>
-      <button class="zoom-label" aria-label="当前缩放" @click="setZoom(1)">{{ zoomLabel }}</button>
-      <button aria-label="放大" @click="setZoom(viewport.zoom + .1)">＋</button>
-      <button aria-label="适应窗口" title="适应窗口" @click="fitAll">⌗</button>
+    <div class="controls" @pointerdown.stop>
+      <button type="button" title="缩小" @click="zoomBy(0.8)">−</button>
+      <span>{{ Math.round(viewport.zoom * 100) }}%</span>
+      <button type="button" title="放大" @click="zoomBy(1.25)">＋</button>
+      <button type="button" title="适配全部节点" @click="fitAll">适配</button>
     </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.pipeline-canvas { position: relative; width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-canvas); background-image: radial-gradient(circle, #424751 1px, transparent 1px); background-size: 22px 22px; touch-action: none; cursor: grab; }
-.pipeline-canvas:active { cursor: grabbing; }
-.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-.links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 0; }
-.links path { fill: none; stroke: var(--border-strong); stroke-width: 2; }
-.zoom-controls { position: absolute; right: 18px; bottom: 18px; z-index: 20; display: flex; gap: 4px; padding: 5px; border: 1px solid var(--border); border-radius: 8px; background: #24272eee; box-shadow: 0 8px 24px #0008; }
-.zoom-controls button { width: 32px; height: 30px; min-height: 30px; padding: 0; }
-.zoom-controls .zoom-label { width: 56px; color: var(--text-dim); font-size: 11px; }
+.pipeline-canvas { position: relative; width: 100%; height: 100vh; overflow: hidden; color: var(--text); background: var(--bg-canvas); user-select: none; }
+.grid { position: absolute; inset: 0; background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px); background-size: 24px 24px; pointer-events: none; }
+.world { position: absolute; top: 0; left: 0; width: 10000px; height: 6000px; transform-origin: 0 0; }
+.links { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.links path { fill: none; stroke: var(--line); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.controls { position: fixed; right: 18px; bottom: 18px; z-index: 30; display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); box-shadow: 0 8px 20px #0006; }
+.controls button { min-width: 28px; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
+.controls span { min-width: 44px; color: var(--text-faint); font-size: 11px; text-align: center; }
 </style>
