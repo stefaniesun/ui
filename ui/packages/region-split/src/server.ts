@@ -140,10 +140,29 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       if (!Number.isInteger(y) || !Number.isInteger(h)) {
         return reply.code(400).send({ error: "invalid region" });
       }
-      const region = { x: 0, y, w: store.readDoc(projectId).image.width, h };
+      const doc = store.readDoc(projectId);
+      const region = { x: 0, y, w: doc.image.width, h };
+      if (y < 0 || h <= 0 || y + h > doc.image.height) {
+        return reply.code(400).send({ error: "region out of bounds" });
+      }
       const tree = store.readElementTree(projectId, regionKey(region));
       if (!tree) return reply.code(404).send({ error: "region not parsed" });
-      return emitHtml({ designWidth: region.w, region, tree });
+      await ensureCleanImage(store, projectId);
+      const source = store.cleanImagePath(projectId);
+      const assetNodes = tree.nodes.filter(node => node.kind === "image" || node.kind === "icon");
+      const assetSources: Record<string, string> = {};
+      for (const node of assetNodes) {
+        const { x, y: nodeY, w, h: nodeH } = node.box;
+        if (x < 0 || nodeY < 0 || w <= 0 || nodeH <= 0
+          || x + w > doc.image.width || nodeY + nodeH > doc.image.height) {
+          return reply.code(422).send({ error: `asset bounds out of image: ${node.id}` });
+        }
+        const crop = await sharp(source).extract({
+          left: x, top: nodeY, width: w, height: nodeH,
+        }).png().toBuffer();
+        assetSources[node.id] = `data:image/png;base64,${crop.toString("base64")}`;
+      }
+      return emitHtml({ designWidth: region.w, region, tree, assetSources });
     });
 
   app.post<{ Params: ProjectParams; Body: { region: Rect } }>(

@@ -8,6 +8,8 @@ export interface EmitHtmlInput {
   designWidth: number;
   region: Rect;
   tree: ElementTree;
+  /** 图片和图标节点对应的可移植资源地址，通常为内嵌 data URL。 */
+  assetSources?: Readonly<Record<string, string>>;
 }
 
 export interface EmitHtmlResult {
@@ -78,7 +80,7 @@ function topoSortByParent(
 }
 
 export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
-  const { designWidth, region, tree } = input;
+  const { designWidth, region, tree, assetSources = {} } = input;
   if (!Number.isFinite(designWidth) || designWidth <= 0) throw new Error("designWidth must be positive");
   const byParent = new Map<string | null, ElementNode[]>();
   const byId = new Map(tree.nodes.map((node) => [node.id, node]));
@@ -106,6 +108,10 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     const attributes = `class="e-${classKey(node.id)}" data-element-id="${escapeHtml(node.id)}"`;
     if (node.kind === "text") return `${indent}<span ${attributes} data-todo="text">${escapeHtml(node.displayName)}</span>`;
     if (node.kind === "icon" || node.kind === "image") {
+      const source = assetSources[node.id];
+      if (source) {
+        return `${indent}<img ${attributes} src="${escapeHtml(source)}" alt="${escapeHtml(node.displayName)}">`;
+      }
       return `${indent}<div ${attributes} data-todo="asset" aria-label="${escapeHtml(node.displayName)}"></div>`;
     }
     const content = children.length
@@ -148,6 +154,10 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     }
     lines.push(...declaration("background", node.style.background));
     lines.push(...declaration("color", node.style.color));
+    if ((node.kind === "image" || node.kind === "icon") && assetSources[node.id]) {
+      lines.push("  display: block;");
+      lines.push("  object-fit: contain;");
+    }
     if (node.style.borderRadius !== undefined) lines.push(`  border-radius: ${toVw(node.style.borderRadius, designWidth)};`);
     if (node.style.fontSize !== undefined) lines.push(`  font-size: ${toVw(node.style.fontSize, designWidth)};`);
     if (node.style.fontWeight !== undefined) lines.push(`  font-weight: ${node.style.fontWeight};`);

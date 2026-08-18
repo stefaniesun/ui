@@ -135,6 +135,26 @@ describe("region split server", () => {
     expect((await sharp(crop.rawPayload).metadata()).height).toBe(50);
   });
 
+  it("embeds detected image and icon crops in generated code", async () => {
+    const { app, store } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    const region = { x: 0, y: 0, w: 375, h: 400 };
+    store.writeElementTree(projectId, {
+      regionKey: "0-400",
+      detectedAt: "2026-08-18T00:00:00.000Z",
+      nodes: [
+        { id: "avatar", parentId: null, box: { x: 20, y: 30, w: 40, h: 50 }, kind: "image", displayName: "头像", style: {}, uniformity: 0.5, source: "auto", classification: "model", scrollX: false, scrollY: false, positioning: "flow" },
+        { id: "gear", parentId: null, box: { x: 100, y: 30, w: 24, h: 24 }, kind: "icon", displayName: "设置", style: {}, uniformity: 0.8, source: "auto", classification: "model", scrollX: false, scrollY: false, positioning: "flow" },
+      ],
+    }, region);
+
+    const result = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
+    expect(result.statusCode).toBe(200);
+    expect(result.json().html).toContain('<img class="e-avatar"');
+    expect(result.json().html).toMatch(/src="data:image\/png;base64,[^"]+"/);
+    expect(result.json().html).toContain('alt="设置"');
+  });
+
   it("serves the cleaned image by default and the untouched original on demand", async () => {
     const { app, store } = makeApp();
     const { projectId } = (await upload(app)).json();

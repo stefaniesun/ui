@@ -32,9 +32,25 @@ describe("emitHtml", () => {
     const { html } = emit([node({ id: "n1", kind: "text", displayName: "<b>&x</b>" })]);
     expect(html).toContain("<span"); expect(html).toContain("&lt;b&gt;&amp;x&lt;/b&gt;"); expect(html).toContain('data-todo="text"');
   });
-  it("renders an icon as an asset placeholder", () => {
-    const { html } = emit([node({ id: "n1", kind: "icon" })]);
-    expect(html).toContain('data-todo="asset"'); expect(html).not.toContain("<img");
+  it("renders image and icon assets as accessible images", () => {
+    const result = emitHtml({
+      designWidth: 1170,
+      region: REGION,
+      tree: tree([
+        node({ id: "photo", kind: "image", displayName: "用户头像" }),
+        node({ id: "settings", kind: "icon", displayName: "设置图标" }),
+      ]),
+      assetSources: {
+        photo: "data:image/png;base64,photo",
+        settings: "data:image/png;base64,settings",
+      },
+    });
+    expect(result.html).toContain('<img class="e-photo"');
+    expect(result.html).toContain('src="data:image/png;base64,photo"');
+    expect(result.html).toContain('alt="用户头像"');
+    expect(result.html).toContain('src="data:image/png;base64,settings"');
+    expect(result.html).not.toContain('data-todo="asset"');
+    expect(result.css).toContain("object-fit: contain");
   });
   it("writes measured colours and radius", () => {
     const { css } = emit([node({ id: "n1", kind: "image", style: { background: "#ffffff", color: "#191919", borderRadius: 34 } })]);
