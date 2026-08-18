@@ -183,7 +183,10 @@ export function recomputeLayout(
   }
 
   return nodes.map(node => {
-    const children = childrenOf.get(node.id) ?? [];
+    // 只用 flow 子节点参与几何计算：absolute 的角标脱离布局流，不参与等距排布。
+    // 生成器（emit-html）早就这样过滤了，这里是几何侧的对称补齐——否则角标的
+    // 中心会混进 pitch 计算，把整组的 repeat 冲掉。
+    const children = (childrenOf.get(node.id) ?? []).filter(child => child.positioning === "flow");
     if (children.length < 2) {
       // 不足两个子块谈不上布局；清掉过时的量，别让界面显示已经不成立的数字
       const { layout: _layout, repeat: _repeat, ...rest } = node;

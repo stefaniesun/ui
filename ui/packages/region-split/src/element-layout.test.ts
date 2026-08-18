@@ -296,4 +296,17 @@ describe("grid 与 repeat 的同步", () => {
     const out = recomputeLayout([container({ classification: "human" }), child("a", 10)]);
     expect(out[0]!.kind).toBe("grid");
   });
+
+  // 角标不参与等距排布。让它混进 pitch 计算，会把整组的 repeat、kind
+  // 和人工槽位一次全冲掉——而触发条件只是"在这个区域做了任何一次编辑"。
+  it("ignores an absolute badge when checking the repeat", () => {
+    const badge: ElementNode = {
+      id: "badge", parentId: "g", box: { x: 55, y: 30, w: 20, h: 20 }, kind: "icon",
+      displayName: "角标", style: {}, uniformity: 1, source: "auto",
+      classification: "tool", scrollX: false, scrollY: false, positioning: "absolute",
+    };
+    const out = recomputeLayout([container(), child("a", 10), child("b", 110), child("c", 210), badge]);
+    expect(out[0]!.repeat).toBeDefined();
+    expect(out[0]!.kind).toBe("grid");
+  });
 });
