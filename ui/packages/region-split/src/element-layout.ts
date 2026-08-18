@@ -187,9 +187,12 @@ export function recomputeLayout(
     if (children.length < 2) {
       // 不足两个子块谈不上布局；清掉过时的量，别让界面显示已经不成立的数字
       const { layout: _layout, repeat: _repeat, ...rest } = node;
+      // 等距不成立了就不该再叫"网格"——kind 与 repeat 是检测时同一个 if 里赋的，
+      // 只删一个会留下一个没有重复信息的 grid。人工定的类型不许被几何推翻。
+      const kind = node.kind === "grid" && node.classification !== "human" ? "component" : rest.kind;
       return preserveScroll.has(node.id)
-        ? { ...rest }
-        : { ...rest, scrollX: false, scrollY: false };
+        ? { ...rest, kind }
+        : { ...rest, kind, scrollX: false, scrollY: false };
     }
 
     const boxes = children.map(child => child.box);

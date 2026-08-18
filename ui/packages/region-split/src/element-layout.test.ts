@@ -284,4 +284,16 @@ describe("grid 与 repeat 的同步", () => {
     expect(out[0]!.repeat?.slot).toEqual({ w: 60, h: 60 });
     expect(out[0]!.repeat?.slotBy).toBe("human");
   });
+
+  // 删兄弟节点删到只剩一个，也是一条删掉 repeat 的路径——kind 同样不能留在 grid
+  it("demotes the kind when there are too few children left", () => {
+    const out = recomputeLayout([container(), child("a", 10)]);
+    expect(out[0]!.repeat).toBeUndefined();
+    expect(out[0]!.kind).toBe("component");
+  });
+
+  it("leaves a human-set kind alone when children run out", () => {
+    const out = recomputeLayout([container({ classification: "human" }), child("a", 10)]);
+    expect(out[0]!.kind).toBe("grid");
+  });
 });
