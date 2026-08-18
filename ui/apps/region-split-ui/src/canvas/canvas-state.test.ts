@@ -42,21 +42,18 @@ describe("canvas state", () => {
 });
 
 describe("端口与连线", () => {
-  it("defaults the code node to the right of the detail node", () => {
-    expect(DEFAULT_NODE_POSITIONS.code.x).toBeGreaterThan(DEFAULT_NODE_POSITIONS.detail.x);
-  });
   it("anchors ports on the node edges at the header line", () => {
     const [first] = portAnchors(
-      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 40 }, code: { x: 1000, y: 80 } },
-      { workspace: 400, detail: 300, code: 300 },
+      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 40 } },
+      { workspace: 400, detail: 300 },
     );
     expect(first).toEqual({ from: { x: 400, y: 21 }, to: { x: 500, y: 61 } });
   });
-  it("links workspace to detail and detail to code", () => {
+  it("links workspace to detail", () => {
     expect(portAnchors(
-      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 0 }, code: { x: 1000, y: 0 } },
-      { workspace: 400, detail: 300, code: 300 },
-    )).toHaveLength(2);
+      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 0 } },
+      { workspace: 400, detail: 300 },
+    )).toHaveLength(1);
   });
   it("draws cubic curves with horizontal handles", () => {
     expect(bezierPath({ x: 0, y: 0 }, { x: 200, y: 100 })).toBe("M 0 0 C 100 0, 100 100, 200 100");
@@ -64,25 +61,25 @@ describe("端口与连线", () => {
   });
 });
 
-describe("three node positions", () => {
+describe("two node positions", () => {
   it("places the detail node to the right of the workspace", () => {
     expect(DEFAULT_NODE_POSITIONS.detail.x)
       .toBeGreaterThan(DEFAULT_NODE_POSITIONS.workspace.x);
   });
 
-  // 旧的 v2 存档只有 workspace，必须能正常载入并给新节点用缺省位置，
-  // 所以不需要提升 storage key 的版本号——升了反而会丢掉用户摆好的位置
-  it("falls back for a node missing from an older payload", () => {
-    const storage = { getItem: () => JSON.stringify({ workspace: { x: 5, y: 6 } }) };
+  // 旧的 v2 存档里可能还带着已经废弃的 code 键（老版本的固定代码节点），必须能正常
+  // 载入并忽略它，不需要提升 storage key 的版本号——升了反而会丢掉用户摆好的位置
+  it("falls back for a node missing from an older payload, and ignores stale extra keys", () => {
+    const storage = { getItem: () => JSON.stringify({ workspace: { x: 5, y: 6 }, code: { x: 9, y: 9 } }) };
     const loaded = loadNodePositions(storage, "nodes", DEFAULT_NODE_POSITIONS);
     expect(loaded.workspace).toEqual({ x: 5, y: 6 });
     expect(loaded.detail).toEqual(DEFAULT_NODE_POSITIONS.detail);
-    expect(loaded.code).toEqual(DEFAULT_NODE_POSITIONS.code);
+    expect(loaded).not.toHaveProperty("code");
   });
 
   it("round trips all node positions", () => {
     const written: Record<string, string> = {};
-    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 }, code: { x: 5, y: 6 } };
+    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 } };
     saveNodePositions({ setItem: (k, v) => { written[k] = v; } }, "nodes", positions);
     const loaded = loadNodePositions(
       { getItem: (k: string) => written[k] ?? null }, "nodes", DEFAULT_NODE_POSITIONS);
