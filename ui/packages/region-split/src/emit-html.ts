@@ -133,8 +133,14 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     }
     // 列表项的尺寸由父节点的 `> *` 一条规则统一给出。项自己再写一遍，
     // 既是重复，也会因为选择器权重相同、后写的赢，逼得 `> *` 去用 !important。
-    const inRepeat = node.parentId !== null
-      && byId.get(node.parentId)?.repeat !== undefined
+    //
+    // 光看"父节点有没有 repeat"不够：AI 重构能产出有 repeat 但没有 layout 的
+    // 容器，这种容器不在 flexParents 里（见上面 flexParents 的构建——没有
+    // layout 直接 continue），子项走的是各自的 absolute left/top，尺寸也必须
+    // 是自己的，不能假定它在吃 `> *` 的槽位。所以要求父节点确实在 flexParents
+    // 里——parentUsesFlex 就是这个语义，跟上面判断 inFlow 用的是同一个量。
+    const inRepeat = parentUsesFlex
+      && parent?.repeat !== undefined
       && node.positioning !== "absolute";
     if (!inRepeat) {
       lines.push(`  width: ${toVw(node.box.w, designWidth)};`);

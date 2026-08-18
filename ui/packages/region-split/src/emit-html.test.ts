@@ -178,6 +178,25 @@ describe("列表槽位", () => {
     expect(rule).toContain("width: 15.3846vw");   // slot.w 180
   });
 
+  // AI 重构能产出有 repeat 但没有 layout 的容器。这时容器不在 flexParents 里，
+  // 子项走的是各自的 absolute left/top，尺寸也必须是自己的实测值——不能被
+  // `> *` 套上槽位尺寸（审查实测：142×132 被套成 219.75×134，left/top 也错了）。
+  it("keeps item sizes when repeat exists but the parent has no layout to drive flex", () => {
+    const { css } = emit([
+      node({
+        id: "g", kind: "grid", box: { x: 36, y: 100, w: 1098, h: 255 },
+        repeat: { count: 3, templateId: "c1", pitch: 219.75, slot: { w: 141, h: 134 }, slotBy: "tool" },
+      }),
+      node({ id: "c1", parentId: "g", box: { x: 74, y: 192, w: 142, h: 132 } }),
+      node({ id: "c2", parentId: "g", box: { x: 293, y: 190, w: 141, h: 134 } }),
+      node({ id: "c3", parentId: "g", box: { x: 512, y: 196, w: 103, h: 172 } }),
+    ]);
+    const item = /\.e-c1 \{([^}]*)\}/.exec(css)![1]!;
+    expect(item).toContain("width: 12.1368vw");   // 142 / 1170，自己的实测宽
+    expect(item).toContain("height: 11.2821vw");  // 132 / 1170，自己的实测高
+    expect(item).toContain("position: absolute");
+  });
+
   // 老数据的 repeat 没有槽位：退回只给主轴，别崩
   it("falls back to the pitch alone when there is no slot", () => {
     const rule = /\.e-g > \* \{([^}]*)\}/.exec(emit([
