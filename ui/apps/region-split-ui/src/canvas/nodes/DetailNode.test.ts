@@ -45,6 +45,19 @@ describe("DetailNode", () => {
     expect(mountNode().find('[data-test="detect-elements"]').text()).toBe("解析元素");
   });
 
+  it("disables generating code before the region has been parsed", () => {
+    expect(mountNode().find('[data-test="open-code"]').attributes("disabled")).toBeDefined();
+  });
+
+  it("enables generating code and emits open-code once parsed", async () => {
+    const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
+    await wrapper.vm.$nextTick();
+    const button = wrapper.find('[data-test="open-code"]');
+    expect(button.attributes("disabled")).toBeUndefined();
+    await button.trigger("click");
+    expect(wrapper.emitted("open-code")).toHaveLength(1);
+  });
+
   it("shows the region name and size", () => {
     const wrapper = mountNode({ region: region("a", 0, 300) });
     expect(wrapper.text()).toContain("名-a");
