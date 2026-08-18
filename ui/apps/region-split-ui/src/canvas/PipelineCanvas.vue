@@ -87,11 +87,21 @@ function persist(): void {
   saveDetailPositions(storageTarget(), detailPositionKey.value, detailPositions);
 }
 
+function detailBounds(regionId: string): Bounds | null {
+  const position = detailPositions[regionId];
+  if (!position) return null;
+  const element = canvas.value?.querySelector<HTMLElement>(`[data-node-id="${detailNodeId(regionId)}"]`);
+  const measuredHeight = element ? element.getBoundingClientRect().height / viewport.zoom : 0;
+  return { ...position, width: DETAIL.width, height: Math.max(DETAIL.height, measuredHeight) };
+}
+
 function occupiedDetailBounds(): Bounds[] {
-  return openRegionIds.value.flatMap(id => {
-    const position = detailPositions[id];
-    return position ? [{ ...position, ...DETAIL }] : [];
+  const bounds = openRegionIds.value.flatMap(id => {
+    const detail = detailBounds(id);
+    return detail ? [detail] : [];
   });
+  if (props.showCode) bounds.push({ ...fixedPositions.code, ...CODE });
+  return bounds;
 }
 
 function refreshConnectionsNow(): void {
@@ -117,7 +127,7 @@ function focusDetail(regionId: string): void {
   const rect = canvas.value?.getBoundingClientRect();
   if (position && rect) {
     Object.assign(viewport, centerNodeViewport(
-      { ...position, ...DETAIL },
+      detailBounds(regionId) ?? { ...position, ...DETAIL },
       { width: rect.width, height: rect.height },
       viewport.zoom,
     ));
@@ -244,8 +254,8 @@ function fitAll(): void {
   if (!rect) return;
   const bounds: Bounds[] = [{ ...fixedPositions.workspace, ...WORKSPACE }];
   for (const id of openRegionIds.value) {
-    const position = detailPositions[id];
-    if (position) bounds.push({ ...position, ...DETAIL });
+    const detail = detailBounds(id);
+    if (detail) bounds.push(detail);
   }
   if (props.showCode) bounds.push({ ...fixedPositions.code, ...CODE });
   const left = Math.min(...bounds.map(bound => bound.x));
@@ -262,9 +272,21 @@ function fitAll(): void {
 
 watch(() => props.regions.map(region => region.id), ids => {
   const validIds = new Set(ids);
+  let changed = false;
   for (const id of openRegionIds.value) {
-    if (!validIds.has(id)) closeDetail(id);
+    if (!validIds.has(id)) {
+      closeDetail(id);
+      delete detailPositions[id];
+      changed = true;
+    }
   }
+  for (const id of Object.keys(detailPositions)) {
+    if (!validIds.has(id)) {
+      delete detailPositions[id];
+      changed = true;
+    }
+  }
+  if (changed) persist();
   refreshConnections();
 }, { deep: true });
 
@@ -272,6 +294,8 @@ watch(() => props.projectId, () => {
   openRegionIds.value = [];
   elementStores.clear();
   for (const id of Object.keys(detailPositions)) delete detailPositions[id];
+  for (const id of Object.keys(connectionStarts)) delete connectionStarts[id];
+  for (const id of Object.keys(detailHoveredIds)) delete detailHoveredIds[id];
   const restored = loadDetailPositions(storageTarget(), detailPositionKey.value, new Set(props.regions.map(region => region.id)));
   Object.assign(detailPositions, restored);
 });
@@ -279,8 +303,10 @@ watch(() => props.projectId, () => {
 onMounted(() => {
   const restored = loadDetailPositions(storageTarget(), detailPositionKey.value, new Set(props.regions.map(region => region.id)));
   Object.assign(detailPositions, restored);
-  resizeObserver = new ResizeObserver(refreshConnections);
-  if (canvas.value) resizeObserver.observe(canvas.value);
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(refreshConnections);
+    if (canvas.value) resizeObserver.observe(canvas.value);
+  }
   window.addEventListener("resize", refreshConnections);
   requestAnimationFrame(fitAll);
 });

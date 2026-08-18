@@ -28,6 +28,11 @@ describe("PipelineCanvas dynamic details", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
     Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
       configurable: true,
       value: () => ({ left: 0, top: 0, width: 1200, height: 800, right: 1200, bottom: 800 }),
