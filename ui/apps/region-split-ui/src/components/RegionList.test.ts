@@ -1,7 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import RegionList from "./RegionList.vue";
-import { regionColor } from "../region-visual.js";
+import { regionColor, regionSoftColor } from "../region-visual.js";
 import { createStore } from "../state.js";
 import { makeFakeApi, makeRegion } from "../test-helpers.js";
 
@@ -29,7 +29,13 @@ describe("RegionList", () => {
     const { wrapper } = await mounted();
     const rows = wrapper.findAll("[data-test=row]");
     expect(rows[0]!.attributes("style")).toContain(`--region-color: ${regionColor("a")}`);
-    expect((rows[0]!.get(".region-port").element as HTMLElement).style.borderColor).not.toBe("");
+    expect(rows[0]!.attributes("style")).toContain(`--region-soft-color: ${regionSoftColor("a")}`);
+    const portColor = (rows[0]!.get(".region-port").element as HTMLElement).style.borderColor;
+    const expected = document.createElement("span");
+    expected.style.borderColor = regionColor("a");
+    expect(portColor).toBe(expected.style.borderColor);
+    expect(rows[0]!.get(".type").classes()).toContain("type");
+    expect(rows[0]!.get(".type").attributes("style")).toBeUndefined();
     expect(rows[1]!.attributes("style")).toContain(`--region-color: ${regionColor("b")}`);
   });
 
