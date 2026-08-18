@@ -23,8 +23,6 @@ const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
 const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
 const analyzing = computed(() => store.busy.value && store.busyLabel.value === "AI 分析中…");
-const selectedRegions = computed(() =>
-  store.regions.value.filter(region => store.selectedIds.value.includes(region.id)));
 
 function openRegionDetail(id: string) {
   pipelineCanvas.value?.openDetail(id);
@@ -85,7 +83,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :project-id="store.projectId.value"
       :get-region-anchor="getRegionAnchor"
       :create-element-store="() => createElementStore(httpApi)"
-      :show-code="analyzed"
     >
       <RegionsNode
         ref="regionsNode"
@@ -98,22 +95,20 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         @uploaded="store.projectId.value && syncHash(store.projectId.value)"
         @error="dialogError = $event"
       />
-      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, setHoveredId }">
+      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, setHoveredId, openCode }">
         <DetailNode
           :project-id="store.projectId.value"
           :region="region"
           :element-store="elementStore"
           :hovered-id="detailHoveredId"
           @hover="setHoveredId"
+          @open-code="openCode"
         />
       </template>
-      <template #code-status>
-        {{ selectedRegions.length === 1 ? selectedRegions[0]!.displayName : "待选择" }}
-      </template>
-      <template #code>
+      <template #code="{ region }">
         <CodeNode
           :project-id="store.projectId.value"
-          :selected-regions="selectedRegions"
+          :region="region"
           :api="httpApi"
         />
       </template>
