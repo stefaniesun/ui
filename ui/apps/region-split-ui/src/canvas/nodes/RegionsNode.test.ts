@@ -139,6 +139,7 @@ describe("RegionsNode upload and analysis orchestration", () => {
     expect(wrapper.find(".comparison-images").exists()).toBe(true);
     expect(wrapper.find('[data-test="original-image"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="analysis-image"]').exists()).toBe(true);
+    expect(wrapper.get(".analysis-panel").attributes("data-no-canvas-pan")).toBe("");
     expect(wrapper.find(".region-list-column").exists()).toBe(true);
   });
 

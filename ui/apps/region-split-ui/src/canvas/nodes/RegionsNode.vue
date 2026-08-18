@@ -193,7 +193,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
               />
             </div>
           </section>
-          <section class="image-panel analysis-panel">
+          <section class="image-panel analysis-panel" data-no-canvas-pan>
             <header>区域分析图</header>
             <RegionCanvas
               v-if="resultReady"
