@@ -14,7 +14,7 @@ import { REFERENCE_SIZE, matchFont, type MetricsSource } from "../../font-metric
 
 const props = defineProps<{
   projectId: string;
-  selectedRegions: Region[];
+  region: Region;
   elementStore: ElementStore;
   hoveredId?: string | null;
 }>();
@@ -51,11 +51,8 @@ async function sendRefactor(instruction: string) {
 }
 async function applyRefactor() { await refactorStore.apply(); if (!refactorStore.rootId.value) props.elementStore.editingLocked.value = false; }
 
-const single = computed(() =>
-  props.selectedRegions.length === 1 ? props.selectedRegions[0]! : null);
-const region = computed<Rect | null>(() => single.value?.bounds ?? null);
-const sourceUrl = computed(() =>
-  region.value ? regionImageUrl(props.projectId, region.value) : "");
+const region = computed<Rect>(() => props.region.bounds);
+const sourceUrl = computed(() => regionImageUrl(props.projectId, region.value));
 const nodes = computed(() => refactorStore.rootId.value
   ? (refactorStore.previewTree.value?.nodes ?? [])
   : props.elementStore.nodes.value);
@@ -337,16 +334,13 @@ function onRenamePrompt(id: string) {
 
 <template>
   <div class="detail-node" @pointerdown.stop @click.stop>
-    <p v-if="props.selectedRegions.length === 0" class="hint">选择一个区域查看详情</p>
-    <p v-else-if="props.selectedRegions.length > 1" class="hint">请选择单个区域</p>
-    <template v-else-if="region">
-      <div class="bar">
+    <div class="bar">
         <button
           data-test="detect-elements"
           :disabled="props.elementStore.busy.value || refactorStore.rootId.value !== null"
           @click="detect"
         >{{ parsed ? "重新解析" : "解析元素" }}</button>
-        <span class="label">{{ single?.displayName }}</span>
+        <span class="label">{{ props.region.displayName }}</span>
         <span class="label">{{ region.w }}×{{ region.h }}</span>
         <span v-if="parsed" class="region-bg" title="区域背景色">
           <span class="label">背景</span>
@@ -456,7 +450,6 @@ function onRenamePrompt(id: string) {
           @click="region && props.elementStore.undoRefactor(props.projectId, region)"
         >撤销 AI 重构</button>
       </section>
-    </template>
   </div>
 </template>
 

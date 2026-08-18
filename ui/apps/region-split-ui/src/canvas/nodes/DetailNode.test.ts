@@ -34,43 +34,32 @@ const region = (id: string, y: number, h: number): Region => ({
 const mountNode = (over: Record<string, unknown> = {}, tree: ElementTree | null = null) =>
   mount(DetailNode, {
     props: {
-      projectId: "p1", selectedRegions: [], elementStore: createElementStore(stubApi(tree)),
+      projectId: "p1", region: region("a", 0, 300), elementStore: createElementStore(stubApi(tree)),
       ...over,
     },
     global: { stubs: { ElementOverlay: true, ElementTree: true, ElementProperties: true } },
   });
 
 describe("DetailNode", () => {
-  it("asks for a selection when nothing is selected", () => {
-    expect(mountNode().text()).toContain("选择一个区域查看详情");
-  });
-
-  it("asks for a single selection when several are selected", () => {
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 100), region("b", 100, 100)] });
-    expect(wrapper.text()).toContain("请选择单个区域");
-    expect(wrapper.find('[data-test="detect-elements"]').exists()).toBe(false);
-  });
-
-  it("offers detection for a single region", () => {
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] });
-    expect(wrapper.find('[data-test="detect-elements"]').text()).toBe("解析元素");
+  it("offers detection for its region", () => {
+    expect(mountNode().find('[data-test="detect-elements"]').text()).toBe("解析元素");
   });
 
   it("shows the region name and size", () => {
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] });
+    const wrapper = mountNode({ region: region("a", 0, 300) });
     expect(wrapper.text()).toContain("名-a");
     expect(wrapper.text()).toContain("400×300");
   });
 
   // 上下结构：图在上、树与属性在下
   it("stacks the image above the inspector", () => {
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] });
+    const wrapper = mountNode({ region: region("a", 0, 300) });
     expect(wrapper.find('[data-test="detail-image"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="detail-inspector"]').exists()).toBe(true);
   });
 
   it("always shows the AI panel and asks for an element selection", async () => {
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] }, emptyTree());
+    const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-test="ai-refactor-panel"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="ai-empty-selection"]').text()).toContain("请选择元素");
@@ -79,7 +68,7 @@ describe("DetailNode", () => {
 
   it("shows the selected element hierarchy number in the AI panel", async () => {
     const store = createElementStore(stubApi(parsedTree()));
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)], elementStore: store }, parsedTree());
+    const wrapper = mountNode({ region: region("a", 0, 300), elementStore: store }, parsedTree());
     await store.load("p1", { x: 0, y: 0, w: 400, h: 300 });
     store.select("child");
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -88,7 +77,7 @@ describe("DetailNode", () => {
   });
 
   it("hides the empty notice before anything is parsed", () => {
-    const wrapper = mountNode({ selectedRegions: [region("a", 0, 300)] });
+    const wrapper = mountNode({ region: region("a", 0, 300) });
     expect(wrapper.find('[data-test="empty-result"]').exists()).toBe(false);
   });
 
@@ -97,7 +86,7 @@ describe("DetailNode", () => {
     const store = createElementStore(stubApi(emptyTree()));
     const wrapper = mount(DetailNode, {
       props: {
-        projectId: "p1", selectedRegions: [region("a", 0, 300)], elementStore: store,
+        projectId: "p1", region: region("a", 0, 300), elementStore: store,
       },
       global: { stubs: { ElementOverlay: true, ElementTree: true, ElementProperties: true } },
     });
@@ -115,7 +104,7 @@ describe("DetailNode", () => {
     document.body.appendChild(parent);
     const wrapper = mount(DetailNode, {
       props: {
-        projectId: "p1", selectedRegions: [region("a", 0, 300)],
+        projectId: "p1", region: region("a", 0, 300),
         elementStore: createElementStore(stubApi()),
       },
       global: { stubs: { ElementOverlay: true, ElementTree: true, ElementProperties: true } },
@@ -132,10 +121,10 @@ describe("DetailNode", () => {
 });
 
 describe("DetailNode eyedropper", () => {
-  const one = [region("a", 0, 300)];
+  const one = region("a", 0, 300);
 
   it("does not show the removed source comparison block", () => {
-    const wrapper = mountNode({ selectedRegions: one });
+    const wrapper = mountNode({ region: one });
     expect(wrapper.find('[data-test="detail-source"]').exists()).toBe(false);
     expect(wrapper.find(".source-frame").exists()).toBe(false);
   });
@@ -143,14 +132,14 @@ describe("DetailNode eyedropper", () => {
   // 读不到像素就别假装进入取色态。jsdom 没有真实 canvas，正好覆盖这条路径；
   // 真实浏览器里的取色行为由手工验收覆盖，单测碰不到 getImageData。
   it("refuses to enter picking mode when pixels cannot be read", async () => {
-    const wrapper = mountNode({ selectedRegions: one });
+    const wrapper = mountNode({ region: one });
     await wrapper.findComponent({ name: "ElementProperties" }).vm.$emit("toggle-picking");
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-test="picking-hint"]').exists()).toBe(false);
   });
 
   it("keeps the source image clean when not picking", () => {
-    const wrapper = mountNode({ selectedRegions: one });
+    const wrapper = mountNode({ region: one });
     expect(wrapper.find('[data-test="pick-preview"]').exists()).toBe(false);
   });
 });
