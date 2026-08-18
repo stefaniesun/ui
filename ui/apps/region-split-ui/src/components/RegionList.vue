@@ -25,6 +25,7 @@ function setInputRef(el: Element | ComponentPublicInstance | null) {
 const internalHoverId = ref<string | null>(null);
 const activeHoverId = computed(() => internalHoverId.value ?? props.hoveredId ?? null);
 
+const listRef = ref<HTMLElement | null>(null);
 const rowRefs = new Map<string, HTMLElement>();
 function setRowRef(id: string, el: Element | ComponentPublicInstance | null) {
   if (el instanceof HTMLElement) rowRefs.set(id, el);
@@ -32,8 +33,13 @@ function setRowRef(id: string, el: Element | ComponentPublicInstance | null) {
 }
 
 function getRegionAnchor(id: string): { x: number; y: number } | null {
-  const rect = rowRefs.get(id)?.getBoundingClientRect();
-  return rect ? { x: rect.right, y: rect.top + rect.height / 2 } : null;
+  const rowRect = rowRefs.get(id)?.getBoundingClientRect();
+  const listRect = listRef.value?.getBoundingClientRect();
+  if (!rowRect || !listRect) return null;
+  return {
+    x: listRect.right,
+    y: Math.min(listRect.bottom, Math.max(listRect.top, rowRect.top + rowRect.height / 2)),
+  };
 }
 
 defineExpose({ getRegionAnchor });
@@ -110,7 +116,7 @@ function onRowClick(id: string, event: MouseEvent) {
     这是按视觉分割线生成的<strong>初始划分</strong>，还没经过 AI 判断。<br />
     点工具栏的「重新分析」获得语义命名的模块。
   </div>
-  <ul class="list" @scroll="emit('layoutChange')">
+  <ul ref="listRef" class="list" @scroll="emit('layoutChange')">
     <li
       v-for="(region, index) in props.store.regions.value"
       :key="region.id"

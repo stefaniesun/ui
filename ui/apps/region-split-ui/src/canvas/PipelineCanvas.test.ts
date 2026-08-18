@@ -67,6 +67,47 @@ describe("PipelineCanvas dynamic details", () => {
     expect(paths[1]!.attributes("stroke")).toBe(regionColor("b"));
   });
 
+  it("restores every connection after a temporarily missing anchor", async () => {
+    let secondAnchorReady = false;
+    const getRegionAnchor = vi.fn((id: string) => {
+      if (id === "b" && !secondAnchorReady) return null;
+      return id === "a" ? { x: 300, y: 100 } : { x: 300, y: 160 };
+    });
+    const wrapper = mount(PipelineCanvas, {
+      props: {
+        regions: [region("a", 0), region("b", 200)],
+        projectId: "p1",
+        getRegionAnchor,
+        createElementStore: () => ({ marker: Math.random() }) as never,
+      },
+      global: { stubs: { PipelineNode: false } },
+    });
+    const vm = wrapper.vm as unknown as {
+      openDetail(id: string): void;
+      refreshConnections(): void;
+    };
+    vm.openDetail("a");
+    vm.openDetail("b");
+    await wrapper.vm.$nextTick();
+    vm.refreshConnections();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".links path")).toHaveLength(1);
+
+    secondAnchorReady = true;
+    vm.refreshConnections();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll(".links path")).toHaveLength(2);
+
+    getRegionAnchor.mockClear();
+    await wrapper.get('[data-node-id="workspace"] .node-header').trigger("pointerdown", {
+      button: 0, clientX: 0, clientY: 0,
+    });
+    const move = new Event("pointermove") as PointerEvent;
+    Object.assign(move, { clientX: 20, clientY: 20 });
+    window.dispatchEvent(move);
+    expect(getRegionAnchor).toHaveBeenCalled();
+  });
+
   it("removes details whose regions disappear", async () => {
     const wrapper = mounted();
     (wrapper.vm as unknown as { openDetail(id: string): void }).openDetail("a");

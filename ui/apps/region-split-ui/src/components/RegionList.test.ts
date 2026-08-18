@@ -81,14 +81,26 @@ describe("RegionList", () => {
     expect(wrapper.emitted("open")).toHaveLength(1);
   });
 
-  it("exposes row connection anchors and reports list scrolling", async () => {
+  it("keeps connection anchors on the visible list boundary", async () => {
     const { wrapper } = await mounted();
-    const row = wrapper.findAll("[data-test=row]")[0]!.element;
-    Object.defineProperty(row, "getBoundingClientRect", {
-      value: () => ({ right: 320, top: 44, height: 40 }),
+    const list = wrapper.get(".list").element;
+    const rows = wrapper.findAll("[data-test=row]");
+    Object.defineProperty(list, "getBoundingClientRect", {
+      value: () => ({ right: 420, top: 100, bottom: 300 }),
     });
-    expect((wrapper.vm as unknown as { getRegionAnchor(id: string): unknown }).getRegionAnchor("a"))
-      .toEqual({ x: 320, y: 64 });
+    Object.defineProperty(rows[0]!.element, "getBoundingClientRect", {
+      value: () => ({ right: 400, top: 40, height: 40 }),
+    });
+    let secondRowTop = 160;
+    Object.defineProperty(rows[1]!.element, "getBoundingClientRect", {
+      value: () => ({ right: 400, top: secondRowTop, height: 40 }),
+    });
+    const vm = wrapper.vm as unknown as { getRegionAnchor(id: string): unknown };
+    expect(vm.getRegionAnchor("a")).toEqual({ x: 420, y: 100 });
+    expect(vm.getRegionAnchor("b")).toEqual({ x: 420, y: 180 });
+
+    secondRowTop = 320;
+    expect(vm.getRegionAnchor("b")).toEqual({ x: 420, y: 300 });
     await wrapper.get(".list").trigger("scroll");
     expect(wrapper.emitted("layoutChange")).toHaveLength(1);
   });
