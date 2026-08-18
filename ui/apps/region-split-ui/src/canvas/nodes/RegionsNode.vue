@@ -23,10 +23,13 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   hover: [id: string | null];
+  open: [id: string];
+  layoutChange: [];
   uploaded: [];
   error: [error: RegionNodeError];
 }>();
 const input = ref<HTMLInputElement | null>(null);
+const regionList = ref<InstanceType<typeof RegionList> | null>(null);
 const analysisFailed = ref(false);
 const configured = computed(() => Boolean(
   props.store.modelConfig.value?.baseUrl
@@ -156,7 +159,11 @@ async function onDrop(event: DragEvent) {
   await uploadAndAnalyze(event.dataTransfer?.files[0]);
 }
 
-defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError });
+function getRegionAnchor(id: string) {
+  return regionList.value?.getRegionAnchor(id) ?? null;
+}
+
+defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegionAnchor });
 </script>
 
 <template>
@@ -225,9 +232,12 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError });
         <aside class="region-list-column">
           <RegionList
             v-if="resultReady"
+            ref="regionList"
             :store="props.store"
             :hovered-id="props.hoveredId"
             @hover="emit('hover', $event)"
+            @open="emit('open', $event)"
+            @layout-change="emit('layoutChange')"
           />
           <div v-else class="list-placeholder">分析完成后显示区域列表</div>
         </aside>

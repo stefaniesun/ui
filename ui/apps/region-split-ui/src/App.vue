@@ -11,10 +11,12 @@ import { createElementStore } from "./element-state.js";
 import { createStore } from "./state.js";
 
 const store = createStore(httpApi);
-const elementStore = createElementStore(httpApi);
 const hoveredId = ref<string | null>(null);
-const hoveredElementId = ref<string | null>(null);
 const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
+const pipelineCanvas = ref<{
+  openDetail(id: string): void;
+  refreshConnections(): void;
+} | null>(null);
 const dialogError = ref<RegionNodeError | null>(null);
 const showPanels = ref(true);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
@@ -23,8 +25,13 @@ const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value 
 const analyzing = computed(() => store.busy.value && store.busyLabel.value === "AI 分析中…");
 const selectedRegions = computed(() =>
   store.regions.value.filter(region => store.selectedIds.value.includes(region.id)));
-const detailStatus = computed(() =>
-  elementStore.tree.value ? "done" : selectedRegions.value.length === 1 ? "active" : "idle");
+
+function openRegionDetail(id: string) {
+  pipelineCanvas.value?.openDetail(id);
+}
+function getRegionAnchor(id: string) {
+  return regionsNode.value?.getRegionAnchor(id) ?? null;
+}
 
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
 function isEditingTarget(target: EventTarget | null) {
@@ -44,14 +51,6 @@ function onKeydown(event: KeyboardEvent) {
   if (store.busy.value || isEditingTarget(event.target)) return;
   const mod = event.ctrlKey || event.metaKey;
   if (store.mode.value === "split" && event.key !== "Escape") return;
-  // 元素删除走 Delete；Ctrl+Z 仍然只属于区域编辑，不接管元素
-  if (event.key === "Delete" && elementStore.selectedId.value && selectedRegions.value.length === 1) {
-    event.preventDefault();
-    void elementStore.removeNode(
-      store.projectId.value, selectedRegions.value[0]!.bounds, elementStore.selectedId.value,
-    );
-    return;
-  }
   if (mod && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) void store.redo(); else void store.undo();
@@ -81,32 +80,31 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
     </div>
     <PipelineCanvas
-      :status="workspaceStatus"
-      :detail-status="detailStatus"
-      :code-status="selectedRegions.length === 1 ? 'active' : 'idle'"
-      :show-detail="analyzed"
+      ref="pipelineCanvas"
+      :regions="store.regions.value"
+      :project-id="store.projectId.value"
+      :get-region-anchor="getRegionAnchor"
+      :create-element-store="() => createElementStore(httpApi)"
       :show-code="analyzed"
     >
-      <template #status>{{ analyzed ? `${store.regions.value.length} 个区域` : hasImage ? "自动分析中" : "等待上传" }}</template>
       <RegionsNode
         ref="regionsNode"
         :store="store"
         :hovered-id="hoveredId"
         :show-panels="showPanels"
         @hover="hoveredId = $event"
+        @open="openRegionDetail"
+        @layout-change="pipelineCanvas?.refreshConnections()"
         @uploaded="store.projectId.value && syncHash(store.projectId.value)"
         @error="dialogError = $event"
       />
-      <template #detail-status>
-        {{ elementStore.tree.value ? `${elementStore.nodes.value.length} 个元素` : "待解析" }}
-      </template>
-      <template #detail>
+      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, setHoveredId }">
         <DetailNode
           :project-id="store.projectId.value"
-          :selected-regions="selectedRegions"
+          :region="region"
           :element-store="elementStore"
-          :hovered-id="hoveredElementId"
-          @hover="hoveredElementId = $event"
+          :hovered-id="detailHoveredId"
+          @hover="setHoveredId"
         />
       </template>
       <template #code-status>

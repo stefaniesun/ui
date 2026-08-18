@@ -56,12 +56,26 @@ describe("RegionList", () => {
     expect(wrapper.find("[data-test=needs-analysis]").exists()).toBe(false);
   });
 
-  it("selects on click and adds with ctrl-click", async () => {
+  it("selects and opens on a plain click but only selects with modifiers", async () => {
     const { store, wrapper } = await mounted();
     await wrapper.findAll("[data-test=row]")[1]!.trigger("click");
     expect(store.selectedIds.value).toEqual(["b"]);
+    expect(wrapper.emitted("open")?.[0]).toEqual(["b"]);
     await wrapper.findAll("[data-test=row]")[0]!.trigger("click", { ctrlKey: true });
     expect(store.selectedIds.value).toEqual(["b", "a"]);
+    expect(wrapper.emitted("open")).toHaveLength(1);
+  });
+
+  it("exposes row connection anchors and reports list scrolling", async () => {
+    const { wrapper } = await mounted();
+    const row = wrapper.findAll("[data-test=row]")[0]!.element;
+    Object.defineProperty(row, "getBoundingClientRect", {
+      value: () => ({ right: 320, top: 44, height: 40 }),
+    });
+    expect((wrapper.vm as unknown as { getRegionAnchor(id: string): unknown }).getRegionAnchor("a"))
+      .toEqual({ x: 320, y: 64 });
+    await wrapper.get(".list").trigger("scroll");
+    expect(wrapper.emitted("layoutChange")).toHaveLength(1);
   });
 
   it("locks selection and inline editing until AI analysis succeeds", async () => {
