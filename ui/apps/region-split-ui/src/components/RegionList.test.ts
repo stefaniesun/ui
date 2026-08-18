@@ -14,13 +14,14 @@ async function mounted() {
 }
 
 describe("RegionList", () => {
-  it("lists every region with type and confidence", async () => {
+  it("lists every region with type but without confidence percentage", async () => {
     const { wrapper } = await mounted();
     const rows = wrapper.findAll("[data-test=row]");
     expect(rows).toHaveLength(2);
     expect(rows[0]!.text()).toContain("名-a");
     expect(rows[0]!.text()).toContain("card");
-    expect(rows[0]!.text()).toContain("87%");
+    expect(rows[0]!.text()).not.toContain("87%");
+    expect(rows[0]!.find(".confidence").exists()).toBe(false);
   });
 
   it("badges regions that scroll, and leaves static ones unmarked", async () => {

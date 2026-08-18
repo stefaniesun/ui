@@ -148,7 +148,6 @@ function onRowClick(id: string, event: MouseEvent) {
         class="scroll"
         :title="[region.scrollX ? '可横向滑动' : '', region.scrollY ? '可纵向滑动' : ''].filter(Boolean).join(' · ')"
       >{{ region.scrollX ? "↔" : "" }}{{ region.scrollY ? "↕" : "" }}</span>
-      <span class="confidence">{{ Math.round(region.confidence * 100) }}%</span>
       <span class="region-port" aria-hidden="true" />
     </li>
   </ul>
@@ -159,7 +158,7 @@ function onRowClick(id: string, event: MouseEvent) {
 .list { min-width: 0; height: 100%; margin: 0; padding: 7px; overflow: auto; list-style: none; background: var(--bg-node); }
 .row { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
 .row.hovered { border-color: var(--border-strong); background: #303540; }.row.selected { border-color: var(--accent); background: var(--accent-soft); }.row.disabled { cursor: default; opacity: .6; }
-.index { width: 18px; color: var(--text-faint); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type,.confidence { color: var(--text-faint); font-size: 9px; }.confidence { width: 28px; text-align: right; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
+.index { width: 18px; color: var(--text-faint); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type { color: var(--text-faint); font-size: 9px; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
 .region-port { position: absolute; top: 50%; right: -13px; z-index: 2; width: 10px; height: 10px; border: 2px solid var(--accent); border-radius: 50%; background: var(--bg-canvas); transform: translateY(-50%); }
 input { flex: 1; min-width: 0; height: 25px; min-height: 25px; font-size: 10px; }
 </style>
