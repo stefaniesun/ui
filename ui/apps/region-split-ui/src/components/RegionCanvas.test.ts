@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import { createStore } from "../state.js";
+import { regionColor, regionSoftColor } from "../region-visual.js";
 import { makeDoc, makeFakeApi, makeRegion } from "../test-helpers.js";
 import RegionCanvas from "./RegionCanvas.vue";
 
@@ -23,6 +24,14 @@ describe("RegionCanvas", () => {
     expect(wrapper.get('[data-test="analysis-image"]').classes()).toContain("comparison-image");
     expect(wrapper.findAll(".overlay")).toHaveLength(2);
     expect(wrapper.findAll(".candidate-line")).toHaveLength(0);
+  });
+
+  it("assigns each region its stable border and fill colors", async () => {
+    const { wrapper } = await mounted();
+    const boxes = wrapper.findAll(".overlay");
+    expect(boxes[0]!.attributes("style")).toContain(`--region-color: ${regionColor("a")}`);
+    expect(boxes[0]!.attributes("style")).toContain(`--region-soft-color: ${regionSoftColor("a")}`);
+    expect(boxes[1]!.attributes("style")).toContain(`--region-color: ${regionColor("b")}`);
   });
 
   it("selects a region and adds another with ctrl-click", async () => {

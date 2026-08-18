@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import RegionList from "./RegionList.vue";
+import { regionColor } from "../region-visual.js";
 import { createStore } from "../state.js";
 import { makeFakeApi, makeRegion } from "../test-helpers.js";
 
@@ -22,6 +23,14 @@ describe("RegionList", () => {
     expect(rows[0]!.text()).toContain("card");
     expect(rows[0]!.text()).not.toContain("87%");
     expect(rows[0]!.find(".confidence").exists()).toBe(false);
+  });
+
+  it("colors each row and connection port by region id", async () => {
+    const { wrapper } = await mounted();
+    const rows = wrapper.findAll("[data-test=row]");
+    expect(rows[0]!.attributes("style")).toContain(`--region-color: ${regionColor("a")}`);
+    expect((rows[0]!.get(".region-port").element as HTMLElement).style.borderColor).not.toBe("");
+    expect(rows[1]!.attributes("style")).toContain(`--region-color: ${regionColor("b")}`);
   });
 
   it("badges regions that scroll, and leaves static ones unmarked", async () => {

@@ -4,6 +4,7 @@ import { canSplitAt } from "@region-split/core/browser";
 import type { Store } from "../state.js";
 import { imageUrl } from "../api.js";
 import { snapToCandidates, toImageY } from "../coords.js";
+import { regionColor, regionSoftColor } from "../region-visual.js";
 
 const props = defineProps<{
   store: Store;
@@ -63,7 +64,12 @@ function onRegionClick(id: string, event: MouseEvent) {
         :key="region.id"
         class="overlay"
         :class="{ selected: props.store.selectedIds.value.includes(region.id), hovered: props.hoveredId === region.id }"
-        :style="{ top: `${region.bounds.y * displayScale}px`, height: `${region.bounds.h * displayScale}px` }"
+        :style="{
+          top: `${region.bounds.y * displayScale}px`,
+          height: `${region.bounds.h * displayScale}px`,
+          '--region-color': regionColor(region.id),
+          '--region-soft-color': regionSoftColor(region.id),
+        }"
         @click.stop="onRegionClick(region.id, $event)"
         @mouseenter="emit('hover', region.id)"
         @mouseleave="emit('hover', null)"
@@ -83,7 +89,7 @@ function onRegionClick(id: string, event: MouseEvent) {
 .region-canvas { min-width: 0; min-height: 0; display: block; margin: 0; padding: 0; overflow: hidden; background: var(--bg-inset); }
 .stage { position: relative; width: 100%; aspect-ratio: var(--image-aspect); margin: 0; padding: 0; overflow: hidden; background: #111318; }
 .stage img { display: block; width: 100%; height: auto; }.stage.splitting { cursor: crosshair; }.panel-tint { position: absolute; inset: 0; background: repeating-linear-gradient(180deg, transparent 0 19%, #4c8dff12 19% 20%); pointer-events: none; }
-.overlay { position: absolute; z-index: 3; left: 0; right: 0; border: 1px solid #4c8dff66; background: #4c8dff08; cursor: pointer; }.overlay:hover,.overlay.hovered { background: #4c8dff22; }.overlay.selected { z-index: 4; border: 2px solid var(--accent); background: #4c8dff28; box-shadow: inset 0 0 0 1px #ffffff22; }.overlay span { position: absolute; left: 5px; top: 4px; max-width: calc(100% - 10px); overflow: hidden; padding: 2px 5px; border-radius: 4px; color: white; background: #16181dcc; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.overlay { position: absolute; z-index: 3; left: 0; right: 0; border: 1px solid var(--region-color); background: color-mix(in srgb, var(--region-soft-color) 45%, transparent); cursor: pointer; }.overlay:hover,.overlay.hovered { background: var(--region-soft-color); }.overlay.selected { z-index: 4; border: 2px solid var(--region-color); background: var(--region-soft-color); box-shadow: inset 0 0 0 1px #ffffff22, 0 0 8px color-mix(in srgb, var(--region-color) 55%, transparent); }.overlay span { position: absolute; left: 5px; top: 4px; max-width: calc(100% - 10px); overflow: hidden; padding: 2px 5px; border-radius: 4px; color: white; background: #16181dcc; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .split-line { position: absolute; z-index: 8; left: 0; right: 0; height: 2px; background: var(--accent); box-shadow: 0 0 6px var(--accent); pointer-events: none; }.split-line.snapped { background: var(--ok); }.split-line.invalid { background: var(--danger); }.split-info { position: absolute; z-index: 9; right: 5px; transform: translateY(-130%); padding: 2px 5px; border-radius: 4px; color: white; background: #16181dee; font-size: 10px; pointer-events: none; }
 .empty-state { min-height: 520px; display: grid; place-items: center; color: var(--text-faint); }
 </style>
