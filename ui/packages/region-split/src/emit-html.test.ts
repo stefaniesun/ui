@@ -81,14 +81,82 @@ describe("layout selection", () => {
     const { css } = emit([parent, node({ id: "a", parentId: "p", box: { x: 10, y: 100, w: 50, h: 50 } }), node({ id: "b", parentId: "p", box: { x: 80, y: 100, w: 50, h: 50 } }), node({ id: "badge", parentId: "p", positioning: "absolute" })]);
     expect(css).toMatch(/\.e-badge \{[^}]*position: absolute/s);
   });
+  // 列表项的尺寸改由 `> *` 统一给出，项自己不再写宽高，也就不需要 !important 去压了。
   it("uses repeat pitch as equal centred cells without gap", () => {
     const repeated = node({ id: "p", box: { x: 0, y: 100, w: 400, h: 50 }, repeat: { count: 4, templateId: "a", pitch: 90, slotBy: "tool" }, layout: { direction: "row", gap: 10, padding: { top: 0, right: 10, bottom: 0, left: 10 } } });
     const { css } = emit([repeated, node({ id: "a", parentId: "p", box: { x: 10, y: 100, w: 80, h: 50 } })]);
     expect(css).toContain("4 项重复");
-    expect(css).toMatch(/\.e-p > \* \{[^}]*width: 7.6923vw !important[^}]*justify-content: center/s);
+    expect(css).toMatch(/\.e-p > \* \{[^}]*width: 7.6923vw;[^}]*justify-content: center/s);
     expect(css).not.toMatch(/\.e-a \{[^}]*position: absolute/s);
+    const item = /\.e-a \{([^}]*)\}/.exec(css)![1]!;
+    expect(item).not.toContain("width:");
+    expect(item).not.toContain("height:");
     const container = /\.e-p \{([^}]*)\}/.exec(css)![1]!;
     expect(container).not.toContain("gap:");
   });
   it("uses a two pixel tolerance", () => expect(FLEX_TOLERANCE).toBe(2));
+});
+
+describe("列表槽位", () => {
+  /** 实测「快捷功能菜单」：pitch 219.75，槽位中位数 141×134 */
+  const grid = () => [
+    node({
+      id: "g", kind: "grid", box: { x: 36, y: 100, w: 1098, h: 255 },
+      layout: { direction: "row", gap: 98, padding: { top: 59, right: 42, bottom: 18, left: 38 } },
+      repeat: { count: 5, templateId: "c1", pitch: 219.75, slot: { w: 141, h: 134 }, slotBy: "tool" },
+    }),
+    node({ id: "c1", parentId: "g", box: { x: 74, y: 192, w: 142, h: 132 } }),
+    node({ id: "c2", parentId: "g", box: { x: 293, y: 190, w: 141, h: 134 } }),
+    node({ id: "c3", parentId: "g", box: { x: 512, y: 196, w: 103, h: 172 } }),
+  ];
+
+  // 主轴用 pitch（那才是让项等距排开的量），交叉轴用槽位
+  it("sizes the cells from the pitch and the slot", () => {
+    const rule = /\.e-g > \* \{([^}]*)\}/.exec(emit(grid()).css)![1]!;
+    expect(rule).toContain("width: 18.7821vw");   // 219.75 / 1170
+    expect(rule).toContain("height: 11.453vw");   // 134 / 1170
+  });
+
+  // 尺寸由 > * 一条规则给，项自己不再写——这才是 ul > li 该有的样子
+  it("does not repeat the size on every item", () => {
+    const item = /\.e-c1 \{([^}]*)\}/.exec(emit(grid()).css)![1]!;
+    expect(item).not.toContain("width:");
+    expect(item).not.toContain("height:");
+  });
+
+  // 项自己不写宽高之后，就不需要用 !important 去压它了
+  it("needs no important flag", () => {
+    expect(emit(grid()).css).not.toContain("!important");
+  });
+
+  it("swaps the axes for a column list", () => {
+    const rule = /\.e-g > \* \{([^}]*)\}/.exec(emit([
+      node({
+        id: "g", kind: "grid", box: { x: 0, y: 100, w: 200, h: 600 },
+        layout: { direction: "column", gap: 20, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+        repeat: { count: 3, templateId: "c1", pitch: 200, slot: { w: 180, h: 180 }, slotBy: "tool" },
+      }),
+      node({ id: "c1", parentId: "g", box: { x: 10, y: 110, w: 180, h: 180 } }),
+      node({ id: "c2", parentId: "g", box: { x: 10, y: 310, w: 180, h: 180 } }),
+      node({ id: "c3", parentId: "g", box: { x: 10, y: 510, w: 180, h: 180 } }),
+    ]).css)![1]!;
+    expect(rule).toContain("height: 17.094vw");   // pitch 200
+    expect(rule).toContain("width: 15.3846vw");   // slot.w 180
+  });
+
+  // 老数据的 repeat 没有槽位：退回只给主轴，别崩
+  it("falls back to the pitch alone when there is no slot", () => {
+    const rule = /\.e-g > \* \{([^}]*)\}/.exec(emit([
+      node({
+        id: "g", kind: "grid", box: { x: 0, y: 100, w: 300, h: 100 },
+        layout: { direction: "row", gap: 10, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+        repeat: { count: 3, templateId: "c1", pitch: 100, slotBy: "tool" },
+      }),
+      node({ id: "c1", parentId: "g", box: { x: 0, y: 100, w: 90, h: 100 } }),
+      node({ id: "c2", parentId: "g", box: { x: 100, y: 100, w: 90, h: 100 } }),
+      node({ id: "c3", parentId: "g", box: { x: 200, y: 100, w: 90, h: 100 } }),
+    ]).css)![1]!;
+    expect(rule).toContain("width: 8.547vw");
+    expect(rule).not.toContain("height:");
+  });
 });

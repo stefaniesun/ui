@@ -99,8 +99,14 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
       lines.push(`  left: ${toVw(node.box.x - origin.x, designWidth)};`);
       lines.push(`  top: ${toVw(node.box.y - origin.y, designWidth)};`);
     }
-    lines.push(`  width: ${toVw(node.box.w, designWidth)};`);
-    lines.push(`  height: ${toVw(node.box.h, designWidth)};`);
+    // 列表项的尺寸由父节点的 `> *` 一条规则统一给出。项自己再写一遍，
+    // 既是重复，也会因为选择器权重相同、后写的赢，逼得 `> *` 去用 !important。
+    const inRepeat = node.parentId !== null
+      && byId.get(node.parentId)?.repeat !== undefined;
+    if (!inRepeat) {
+      lines.push(`  width: ${toVw(node.box.w, designWidth)};`);
+      lines.push(`  height: ${toVw(node.box.h, designWidth)};`);
+    }
     lines.push(...declaration("background", node.style.background));
     lines.push(...declaration("color", node.style.color));
     if (node.style.borderRadius !== undefined) lines.push(`  border-radius: ${toVw(node.style.borderRadius, designWidth)};`);
@@ -127,11 +133,23 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     lines.push("}");
     cssBlocks.push(lines.join("\n"));
     if (node.repeat) {
+      const horizontal = node.layout?.direction !== "column";
+      const main = `${horizontal ? "width" : "height"}: `
+        + `${toVw(node.repeat.pitch, designWidth)};`;
+      // 老文件的 repeat 没有槽位，那就只给主轴，交叉轴由内容撑
+      const slot = node.repeat.slot;
+      const cross = slot
+        ? [`  ${horizontal ? "height" : "width"}: `
+           + `${toVw(horizontal ? slot.h : slot.w, designWidth)};`]
+        : [];
       cssBlocks.push([
-        `/* ${node.displayName}：${node.repeat.count} 项重复，按中心距出等宽格子。`,
-        "   子块宽度不同，用 gap 会让位置沿主轴累积偏移。 */",
+        `/* ${node.displayName}：${node.repeat.count} 项重复。`,
+        "   主轴用中心距、交叉轴用槽位；子块宽度不同，用 gap 会让位置沿主轴累积偏移。",
+        "   墨迹居中放进槽位，不拉伸——三个图标量出 56/52/54 不是误差，",
+        "   是它们本来就画得不一样大。 */",
         `.e-${classKey(node.id)} > * {`,
-        `  width: ${toVw(node.repeat.pitch, designWidth)} !important;`,
+        `  ${main}`,
+        ...cross,
         "  display: flex;",
         "  justify-content: center;",
         "  align-items: center;",
