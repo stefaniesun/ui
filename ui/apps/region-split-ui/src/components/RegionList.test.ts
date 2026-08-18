@@ -34,8 +34,7 @@ describe("RegionList", () => {
     const expected = document.createElement("span");
     expected.style.borderColor = regionColor("a");
     expect(portColor).toBe(expected.style.borderColor);
-    expect(rows[0]!.get(".type").classes()).toContain("type");
-    expect(rows[0]!.get(".type").attributes("style")).toBeUndefined();
+    expect(rows[0]!.get(".type").attributes("style")).toContain("color: var(--text-faint)");
     expect(rows[1]!.attributes("style")).toContain(`--region-color: ${regionColor("b")}`);
   });
 

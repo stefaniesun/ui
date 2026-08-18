@@ -146,7 +146,7 @@ function onRowClick(id: string, event: MouseEvent) {
       <span v-else data-test="name" class="name" @dblclick.stop="beginEdit(region.id)">
         {{ props.store.pendingRenameIds.value.includes(region.id) ? "命名中…" : region.displayName }}
       </span>
-      <span class="type">{{ region.type }}</span>
+      <span class="type" style="color: var(--text-faint)">{{ region.type }}</span>
       <span
         v-if="region.scrollX || region.scrollY"
         data-test="scroll"
