@@ -171,9 +171,9 @@ function onRowClick(id: string, event: MouseEvent) {
 <style scoped>
 .notice { margin: 6px; padding: 8px; border: 1px solid #e2a40066; border-radius: 6px; background: #e2a40012; color: var(--warn); font-size: 10px; line-height: 1.5; }
 .list { min-width: 0; height: 100%; margin: 0; padding: 7px; overflow-x: hidden; overflow-y: auto; list-style: none; background: var(--bg-node); }
-.row { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
+.row { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px 18px 7px 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
 .row.hovered { border-color: var(--region-color); background: var(--region-soft-color); background: color-mix(in srgb, var(--region-soft-color) 75%, var(--bg-inset)); }.row.selected { border-color: var(--region-color); background: var(--region-soft-color); }.row.disabled { cursor: default; opacity: .6; }
-.index { width: 18px; color: var(--region-color); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type { color: var(--text-faint); font-size: 9px; }.scroll { color: var(--accent); font-size: 10px; cursor: help; }
-.region-port { position: absolute; top: 50%; right: -13px; z-index: 2; width: 10px; height: 10px; border: 2px solid var(--region-color); border-radius: 50%; background: var(--bg-canvas); transform: translateY(-50%); }
+.index { flex: 0 0 18px; color: var(--region-color); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type { flex: 0 1 auto; min-width: 0; max-width: 58px; overflow: hidden; color: var(--text-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }.scroll { flex: 0 0 auto; color: var(--accent); font-size: 10px; cursor: help; }
+.region-port { position: absolute; top: 50%; right: -6px; z-index: 2; box-sizing: border-box; width: 10px; height: 10px; border: 2px solid var(--region-color); border-radius: 50%; background: var(--bg-canvas); transform: translateY(-50%); }
 input { flex: 1; min-width: 0; height: 25px; min-height: 25px; font-size: 10px; }
 </style>
