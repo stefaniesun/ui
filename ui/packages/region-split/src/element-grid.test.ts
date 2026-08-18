@@ -46,6 +46,32 @@ describe("detectRepeat", () => {
   it("refuses with fewer than three children", () => {
     expect(detectRepeat(row([[0, 50], [100, 50]]), "row")).toBeNull();
   });
+
+  // 入参顺序不可信：recomputeLayout 给的是数组顺序，而 AI 重构可以任意排列
+  it("finds the repeat whatever the input order", () => {
+    const boxes = [
+      { x: 200, y: 0, w: 40, h: 40 },
+      { x: 0, y: 0, w: 40, h: 40 },
+      { x: 100, y: 0, w: 40, h: 40 },
+    ];
+    const repeat = detectRepeat(boxes, "row")!;
+    expect(repeat).not.toBeNull();
+    expect(repeat.pitch).toBe(100);
+  });
+
+  // templateIndex 是下标，调用方（element-detect.ts、element-layout.ts）都拿它去
+  // "入参数组"里取模板节点。detectRepeat 内部要按主轴排序才能算对 pitch，
+  // 但绝不能把排序后的下标当成 templateIndex 返回——那样会静默指错模板。
+  it("keeps templateIndex relative to the input array, not the sorted one", () => {
+    const boxes = [
+      { x: 80, y: 0, w: 80, h: 40 }, // 最大的一个，输入顺序里排第 0 位
+      { x: 200, y: 0, w: 40, h: 40 },
+      { x: 0, y: 0, w: 40, h: 40 },
+    ];
+    const repeat = detectRepeat(boxes, "row")!;
+    expect(repeat).not.toBeNull();
+    expect(boxes[repeat.templateIndex]).toBe(boxes[0]);
+  });
 });
 
 describe("detectRepeat 的槽位", () => {

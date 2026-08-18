@@ -36,7 +36,16 @@ export interface RepeatInfo {
  */
 export function detectRepeat(boxes: Rect[], direction: Direction): RepeatInfo | null {
   if (boxes.length < 3) return null;
-  const pitches = pitchesOf(centersOf(boxes, direction));
+  // 入参顺序不可信：检测阶段传来的 boxes 天然有序（来自切分），但 recomputeLayout
+  // 传的是数组顺序——AI 重构可以任意排列。pitch 必须按主轴起点排序才能算对，
+  // 跟 detectScroll 的做法一致。
+  //
+  // 但 templateIndex 是下标，调用方（element-detect.ts、element-layout.ts）都拿它去
+  // "入参 boxes 数组本身"（或与它同序的 children 数组）取模板节点。所以下面只用
+  // 排序后的副本算 pitch，sizes/templateIndex/slot 仍然按 boxes 参数原始顺序算——
+  // 用排序后的下标当 templateIndex 返回的话，会静默指错模板，且不会报错。
+  const sorted = [...boxes].sort((a, b) => startOf(a, direction) - startOf(b, direction));
+  const pitches = pitchesOf(centersOf(sorted, direction));
   const pitch = medianOf(pitches);
   if (pitch <= 0) return null;
   if (!pitches.every(value => Math.abs(value - pitch) <= PITCH_TOLERANCE)) return null;
