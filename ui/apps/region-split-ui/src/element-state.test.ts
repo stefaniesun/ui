@@ -438,6 +438,14 @@ describe("setSlot", () => {
     await store.setSlot("p1", whole, "n1", 60, 60);
     expect(store.nodes.value[0]!.repeat).toBeUndefined();
   });
+
+  // 0 会让生成的 `> *` 出 height: 0，整行列表项塌成 0 高
+  it("never lets a slot fall below one pixel", async () => {
+    const store = createElementStore(listTree());
+    await store.load("p1", whole);
+    await store.setSlot("p1", whole, "n1", 0, 0);
+    expect(store.nodes.value[0]!.repeat?.slot).toEqual({ w: 1, h: 1 });
+  });
 });
 
 describe("setBox rejection feedback", () => {

@@ -232,7 +232,7 @@ export function createElementStore(api: StoreApi) {
     ) {
       const current = nodes.value.find(node => node.id === id);
       if (!current?.repeat) return;
-      const slot = { w: Math.max(0, Math.round(w)), h: Math.max(0, Math.round(h)) };
+      const slot = { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
       if (current.repeat.slot?.w === slot.w && current.repeat.slot?.h === slot.h) return;
       await commit(projectId, region, nodes.value.map(node => node.id === id
         ? { ...node, repeat: { ...node.repeat!, slot, slotBy: "human" as const } }
