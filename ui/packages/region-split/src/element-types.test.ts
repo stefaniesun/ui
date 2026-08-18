@@ -121,6 +121,31 @@ describe("elementNodeSchema", () => {
   });
 });
 
+describe("repeat 的槽位", () => {
+  const listNode = (over: Record<string, unknown>) => elementNodeSchema.parse({
+    id: "n1", parentId: null, box: { x: 0, y: 0, w: 10, h: 10 },
+    kind: "grid", displayName: "列表", uniformity: 1, ...over,
+  });
+
+  it("keeps the slot and who set it", () => {
+    const parsed = listNode({
+      repeat: {
+        count: 5, templateId: "c1", pitch: 219.75,
+        slot: { w: 141, h: 134 }, slotBy: "human",
+      },
+    });
+    expect(parsed.repeat?.slot).toEqual({ w: 141, h: 134 });
+    expect(parsed.repeat?.slotBy).toBe("human");
+  });
+
+  // 老文件里的 repeat 没有这两个字段，读出来不能炸
+  it("reads a legacy repeat without a slot", () => {
+    const parsed = listNode({ repeat: { count: 5, templateId: "c1", pitch: 219.75 } });
+    expect(parsed.repeat?.slot).toBeUndefined();
+    expect(parsed.repeat?.slotBy).toBe("tool");
+  });
+});
+
 describe("textBox 字段", () => {
   const node = (over: Record<string, unknown>) => elementNodeSchema.parse({
     id: "n1", parentId: null, box: { x: 0, y: 0, w: 10, h: 10 },

@@ -26,6 +26,8 @@ export interface RepeatInfo {
   count: number;
   templateIndex: number;
   pitch: number;
+  /** 槽位尺寸。子块的墨迹居中放进去，不拉伸。 */
+  slot: { w: number; h: number };
 }
 
 /**
@@ -40,7 +42,19 @@ export function detectRepeat(boxes: Rect[], direction: Direction): RepeatInfo | 
   if (!pitches.every(value => Math.abs(value - pitch) <= PITCH_TOLERANCE)) return null;
   // 模板取最大的那个子块：被截断的子块偏小，照它生成会漏内容
   const sizes = boxes.map(box => sizeOf(box, direction));
-  return { count: boxes.length, templateIndex: sizes.indexOf(Math.max(...sizes)), pitch };
+  return {
+    count: boxes.length,
+    templateIndex: sizes.indexOf(Math.max(...sizes)),
+    pitch,
+    // 槽位取中位数而不是最大值：实测「快捷功能菜单」×5 的子高是
+    // 132/134/172/129/134，那个 172 是框切错了，取最大会把整行撑高。
+    // 偏离中位数太多本身就是"这一项检测错了"的信号，与字号量化里
+    // 用簇内离散度当质量指标是同一个用法。
+    slot: {
+      w: Math.round(medianOf(boxes.map(box => box.w))),
+      h: Math.round(medianOf(boxes.map(box => box.h))),
+    },
+  };
 }
 
 /**

@@ -82,7 +82,7 @@ describe("layout selection", () => {
     expect(css).toMatch(/\.e-badge \{[^}]*position: absolute/s);
   });
   it("uses repeat pitch as equal centred cells without gap", () => {
-    const repeated = node({ id: "p", box: { x: 0, y: 100, w: 400, h: 50 }, repeat: { count: 4, templateId: "a", pitch: 90 }, layout: { direction: "row", gap: 10, padding: { top: 0, right: 10, bottom: 0, left: 10 } } });
+    const repeated = node({ id: "p", box: { x: 0, y: 100, w: 400, h: 50 }, repeat: { count: 4, templateId: "a", pitch: 90, slotBy: "tool" }, layout: { direction: "row", gap: 10, padding: { top: 0, right: 10, bottom: 0, left: 10 } } });
     const { css } = emit([repeated, node({ id: "a", parentId: "p", box: { x: 10, y: 100, w: 80, h: 50 } })]);
     expect(css).toContain("4 项重复");
     expect(css).toMatch(/\.e-p > \* \{[^}]*width: 7.6923vw !important[^}]*justify-content: center/s);

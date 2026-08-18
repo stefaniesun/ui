@@ -48,6 +48,33 @@ describe("detectRepeat", () => {
   });
 });
 
+describe("detectRepeat 的槽位", () => {
+  // 实测「快捷功能菜单」×5：宽 142/141/103/103/141、高 132/134/172/129/134。
+  // 槽位取中位数而不是最大值——172 是框切错了，取最大会把整行撑高。
+  it("takes the median of the children, not the maximum", () => {
+    const boxes = [
+      { x: 38, y: 192, w: 142, h: 132 },
+      { x: 257, y: 190, w: 141, h: 134 },
+      { x: 496, y: 196, w: 103, h: 172 },
+      { x: 714, y: 195, w: 103, h: 129 },
+      { x: 915, y: 190, w: 141, h: 134 },
+    ];
+    expect(detectRepeat(boxes, "row")!.slot).toEqual({ w: 141, h: 134 });
+  });
+
+  it("rounds the slot to whole pixels", () => {
+    const boxes = [
+      { x: 0, y: 0, w: 50, h: 41 },
+      { x: 100, y: 0, w: 51, h: 40 },
+      { x: 200, y: 0, w: 52, h: 42 },
+      { x: 300, y: 0, w: 51, h: 40 },
+    ];
+    const repeat = detectRepeat(boxes, "row")!;
+    expect(Number.isInteger(repeat.slot.w)).toBe(true);
+    expect(Number.isInteger(repeat.slot.h)).toBe(true);
+  });
+});
+
 describe("detectScroll", () => {
   // 实测分类胶囊：宽 216/216/252/180/138，间隙恒为 24，末块右端 1134，
   // 右余量 36 == 左边距 36。末块显著小于其余中位且贴住内容右边缘 = 被截断。

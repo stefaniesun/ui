@@ -179,7 +179,10 @@ function expand(
   const template = repeat ? children[repeat.templateIndex] : undefined;
   if (repeat && template) {
     parent.kind = "grid";
-    parent.repeat = { count: repeat.count, templateId: template.id, pitch: repeat.pitch };
+    parent.repeat = {
+      count: repeat.count, templateId: template.id, pitch: repeat.pitch,
+      slot: repeat.slot, slotBy: "tool",
+    };
   }
 
   const next: Direction = direction === "row" ? "column" : "row";

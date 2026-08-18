@@ -200,7 +200,12 @@ export function recomputeLayout(
 
     const next: ElementNode = { ...node, layout };
     if (repeat && template) {
-      next.repeat = { count: repeat.count, templateId: template.id, pitch: repeat.pitch };
+      const human = node.repeat?.slotBy === "human" ? node.repeat.slot : undefined;
+      next.repeat = {
+        count: repeat.count, templateId: template.id, pitch: repeat.pitch,
+        slot: human ?? repeat.slot,
+        slotBy: human ? "human" : "tool",
+      };
     } else {
       delete next.repeat;
     }

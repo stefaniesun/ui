@@ -50,7 +50,10 @@ describe("recomputeLayout", () => {
       node({ id: "n4", parentId: "n1", box: box(440, 0, 100, 100) }),
     ];
     const parent = recomputeLayout(nodes).find(item => item.id === "n1")!;
-    expect(parent.repeat).toEqual({ count: 3, templateId: "n2", pitch: 220 });
+    expect(parent.repeat).toEqual({
+      count: 3, templateId: "n2", pitch: 220,
+      slot: { w: 100, h: 100 }, slotBy: "tool",
+    });
   });
 
   // 分类胶囊行：人工把 5 个胶囊圈进一个容器后，滚动就有地方安放了
@@ -97,7 +100,7 @@ describe("recomputeLayout", () => {
       node({
         id: "n1", box: box(0, 0, 300, 100), scrollX: true,
         layout: { direction: "row", gap: 60, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
-        repeat: { count: 3, templateId: "n2", pitch: 100 },
+        repeat: { count: 3, templateId: "n2", pitch: 100, slotBy: "tool" },
       }),
       node({ id: "n2", parentId: "n1", box: box(30, 0, 40, 100) }),
     ];

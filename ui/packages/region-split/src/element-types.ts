@@ -63,6 +63,17 @@ export const elementNodeSchema = z.object({
     count: z.number().int().min(2),
     templateId: z.string().min(1),
     pitch: z.number(),
+    /**
+     * 槽位尺寸。子元素的墨迹居中放进去，不拉伸——三个图标量出
+     * 56/52/54 不是误差，是它们本来就画得不一样大。
+     * 老文件里没有这个字段，所以可选。
+     */
+    slot: z.object({
+      w: z.number().int().nonnegative(),
+      h: z.number().int().nonnegative(),
+    }).optional(),
+    /** 槽位是谁定的。human 的不被几何重算冲掉。 */
+    slotBy: z.enum(["tool", "human"]).default("tool"),
   }).optional(),
   /** absolute 的节点脱离布局流，相对父节点绝对定位（角标压在图标上那种形态）。 */
   positioning: z.enum(["flow", "absolute"]).default("flow"),
