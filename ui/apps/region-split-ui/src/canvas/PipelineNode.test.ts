@@ -26,10 +26,16 @@ describe("PipelineNode", () => {
         position: { x: 0, y: 0 },
         accentColor: "#ff5d7d",
         input: true,
+        status: "active",
       },
     });
     expect(wrapper.attributes("style")).toContain("--node-accent: #ff5d7d");
-    expect((wrapper.get(".input-port").element as HTMLElement).style.borderColor).not.toBe("");
+    const expected = document.createElement("span");
+    expected.style.borderColor = "#ff5d7d";
+    expect((wrapper.get(".input-port").element as HTMLElement).style.borderColor)
+      .toBe(expected.style.borderColor);
+    expect((wrapper.get(".status-dot").element as HTMLElement).style.backgroundColor)
+      .toBe(expected.style.borderColor);
   });
 
   it("renders focus highlight", () => {

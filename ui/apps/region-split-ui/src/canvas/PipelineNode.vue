@@ -50,7 +50,10 @@ const emit = defineEmits<{
       aria-hidden="true"
     />
     <header class="node-header" @pointerdown.stop="emit('dragStart', $event, props.nodeId)">
-      <span class="status-dot" />
+      <span
+        class="status-dot"
+        :style="props.status === 'active' ? { backgroundColor: props.accentColor ?? 'var(--accent)' } : undefined"
+      />
       <strong>{{ props.title }}</strong>
       <span class="header-meta"><slot name="status" /></span>
       <button
@@ -80,11 +83,11 @@ const emit = defineEmits<{
 .close-node:hover { color: var(--text); background: var(--bg-inset); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
 .status-done .status-dot { background: var(--ok); box-shadow: 0 0 8px #3ecf8e88; }
-.status-active .status-dot { background: var(--accent); box-shadow: 0 0 8px #4c8dffaa; }
+.status-active .status-dot { background: var(--node-accent); box-shadow: 0 0 8px color-mix(in srgb, var(--node-accent) 65%, transparent); }
 .status-warn .status-dot { background: var(--warn); }
 .node-body { min-height: inherit; padding: 14px; overflow: hidden; }
 .port { position: absolute; top: 21px; z-index: 3; width: 12px; height: 12px; border: 2px solid var(--border-strong); border-radius: 50%; background: var(--bg-canvas); transform: translateY(-50%); }
 .input-port { left: -7px; }
 .output-port { right: -7px; }
-.status-active .port, .status-done .port { border-color: var(--accent); }
+.status-active .port, .status-done .port { border-color: var(--node-accent); }
 </style>
