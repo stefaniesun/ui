@@ -180,7 +180,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
       <ActionBar v-if="resultReady" :store="props.store" />
       <div data-test="comparison-workspace" class="comparison-workspace">
         <div class="comparison-images" :style="comparisonImagesStyle">
-          <section class="image-panel">
+          <section class="image-panel" data-no-canvas-pan>
             <header>原始效果图</header>
             <div class="image-frame">
               <img
@@ -189,7 +189,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
                 class="comparison-image"
                 :src="sourceUrl"
                 alt="原始效果图"
-                @load="measureOriginalImage"
+                @load="measureOriginalImage(); emit('layoutChange')"
               />
             </div>
           </section>

@@ -191,6 +191,7 @@ function startNodeDrag(event: PointerEvent, nodeId: string): void {
   drag = { nodeId, start: { x: event.clientX, y: event.clientY }, origin: { ...position } };
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", stopPointer);
+  window.addEventListener("pointercancel", stopPointer);
 }
 
 function canStartPan(target: EventTarget | null): boolean {
@@ -206,6 +207,7 @@ function startPan(event: PointerEvent): void {
   pan = { start: { x: event.clientX, y: event.clientY }, origin: { x: viewport.x, y: viewport.y } };
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", stopPointer);
+  window.addEventListener("pointercancel", stopPointer);
 }
 
 function onPointerMove(event: PointerEvent): void {
@@ -229,6 +231,7 @@ function stopPointer(): void {
   pan = null;
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", stopPointer);
+  window.removeEventListener("pointercancel", stopPointer);
 }
 
 function onWheel(event: WheelEvent): void {
@@ -318,7 +321,11 @@ onMounted(() => {
   Object.assign(detailPositions, restored);
   if (typeof ResizeObserver !== "undefined") {
     resizeObserver = new ResizeObserver(refreshConnections);
-    if (canvas.value) resizeObserver.observe(canvas.value);
+    if (canvas.value) {
+      resizeObserver.observe(canvas.value);
+      const workspaceNode = canvas.value.querySelector('[data-node-id="workspace"]');
+      if (workspaceNode) resizeObserver.observe(workspaceNode);
+    }
   }
   window.addEventListener("resize", refreshConnections);
   requestAnimationFrame(fitAll);

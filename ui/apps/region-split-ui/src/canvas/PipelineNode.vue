@@ -72,6 +72,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .pipeline-node { position: absolute; overflow: visible; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-node); color: var(--text); box-shadow: 0 14px 36px #0008; }
+.pipeline-node[style*="--node-accent: #"] { border-top: 3px solid var(--node-accent); }
 .pipeline-node.status-active { border-color: var(--node-accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-accent) 28%, transparent), 0 14px 36px #0009; }
 .pipeline-node.is-highlighted { border-color: var(--node-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent) 28%, transparent), 0 14px 36px #0009; }
 .node-header { height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 13px; border-bottom: 1px solid var(--border); border-radius: 9px 9px 0 0; background: var(--bg-node-header); cursor: grab; user-select: none; }

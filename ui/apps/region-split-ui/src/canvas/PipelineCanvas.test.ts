@@ -145,6 +145,16 @@ describe("PipelineCanvas dynamic details", () => {
     window.dispatchEvent(blockedMove);
     await wrapper.vm.$nextTick();
     expect(world.attributes("style")).toBe(afterPan);
+
+    await wrapper.get('[data-test="blank"]').trigger("pointerdown", {
+      button: 0, clientX: 60, clientY: 40,
+    });
+    window.dispatchEvent(new Event("pointercancel"));
+    const cancelledMove = new Event("pointermove") as PointerEvent;
+    Object.assign(cancelledMove, { clientX: 90, clientY: 70 });
+    window.dispatchEvent(cancelledMove);
+    await wrapper.vm.$nextTick();
+    expect(world.attributes("style")).toBe(afterPan);
   });
 
   it("removes details whose regions disappear", async () => {
