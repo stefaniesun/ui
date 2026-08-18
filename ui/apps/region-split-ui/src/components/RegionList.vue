@@ -116,7 +116,7 @@ function onRowClick(id: string, event: MouseEvent) {
     这是按视觉分割线生成的<strong>初始划分</strong>，还没经过 AI 判断。<br />
     点工具栏的「重新分析」获得语义命名的模块。
   </div>
-  <ul ref="listRef" class="list" @scroll="emit('layoutChange')">
+  <ul ref="listRef" class="list" data-no-canvas-pan @scroll="emit('layoutChange')">
     <li
       v-for="(region, index) in props.store.regions.value"
       :key="region.id"

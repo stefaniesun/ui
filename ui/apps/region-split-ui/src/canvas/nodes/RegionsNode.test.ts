@@ -346,7 +346,7 @@ describe("RegionsNode upload and analysis orchestration", () => {
     });
   });
 
-  it("stops pointer and click events but lets wheel reach canvas zoom", async () => {
+  it("lets pointer and wheel reach the canvas while stopping clicks", async () => {
     const onPointerdown = vi.fn();
     const onClick = vi.fn();
     const onWheel = vi.fn();
@@ -367,7 +367,7 @@ describe("RegionsNode upload and analysis orchestration", () => {
     await wrapper.get(".regions-node").trigger("click");
     await wrapper.get(".regions-node").trigger("wheel");
 
-    expect(onPointerdown).not.toHaveBeenCalled();
+    expect(onPointerdown).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
     expect(onWheel).toHaveBeenCalledTimes(1);
     wrapper.unmount();

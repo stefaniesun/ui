@@ -41,7 +41,6 @@ const emit = defineEmits<{
       '--node-accent': props.accentColor ?? 'var(--accent)',
     }"
     :data-node-id="props.nodeId"
-    @pointerdown.stop
   >
     <span
       v-if="props.input"

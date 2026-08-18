@@ -108,6 +108,45 @@ describe("PipelineCanvas dynamic details", () => {
     expect(getRegionAnchor).toHaveBeenCalled();
   });
 
+  it("pans from workspace whitespace but not interactive targets", async () => {
+    const wrapper = mount(PipelineCanvas, {
+      props: {
+        regions: [],
+        projectId: "p1",
+        getRegionAnchor: () => null,
+        createElementStore: () => ({ marker: true }) as never,
+      },
+      slots: {
+        default: '<div data-canvas-pan data-test="blank"><button data-no-canvas-pan data-test="action">操作</button></div>',
+      },
+      global: { stubs: { PipelineNode: false } },
+    });
+    const world = wrapper.get(".world");
+    const initialTransform = world.attributes("style");
+    const workspaceStyle = wrapper.get('[data-node-id="workspace"]').attributes("style");
+
+    await wrapper.get('[data-test="blank"]').trigger("pointerdown", {
+      button: 0, clientX: 0, clientY: 0,
+    });
+    const move = new Event("pointermove") as PointerEvent;
+    Object.assign(move, { clientX: 30, clientY: 20 });
+    window.dispatchEvent(move);
+    await wrapper.vm.$nextTick();
+    expect(world.attributes("style")).not.toBe(initialTransform);
+    expect(wrapper.get('[data-node-id="workspace"]').attributes("style")).toBe(workspaceStyle);
+    window.dispatchEvent(new Event("pointerup"));
+
+    const afterPan = world.attributes("style");
+    await wrapper.get('[data-test="action"]').trigger("pointerdown", {
+      button: 0, clientX: 30, clientY: 20,
+    });
+    const blockedMove = new Event("pointermove") as PointerEvent;
+    Object.assign(blockedMove, { clientX: 60, clientY: 40 });
+    window.dispatchEvent(blockedMove);
+    await wrapper.vm.$nextTick();
+    expect(world.attributes("style")).toBe(afterPan);
+  });
+
   it("removes details whose regions disappear", async () => {
     const wrapper = mounted();
     (wrapper.vm as unknown as { openDetail(id: string): void }).openDetail("a");

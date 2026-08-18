@@ -193,8 +193,16 @@ function startNodeDrag(event: PointerEvent, nodeId: string): void {
   window.addEventListener("pointerup", stopPointer);
 }
 
+function canStartPan(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true;
+  if (target.closest("[data-no-canvas-pan],button,input,select,textarea,a,[data-node-header]")) return false;
+  return target === canvas.value
+    || target.classList.contains("grid")
+    || Boolean(target.closest("[data-canvas-pan]"));
+}
+
 function startPan(event: PointerEvent): void {
-  if (event.target !== canvas.value && !(event.target as HTMLElement).classList.contains("grid")) return;
+  if (event.button !== 0 || !canStartPan(event.target)) return;
   pan = { start: { x: event.clientX, y: event.clientY }, origin: { x: viewport.x, y: viewport.y } };
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", stopPointer);

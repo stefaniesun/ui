@@ -167,7 +167,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
 </script>
 
 <template>
-  <div class="regions-node" @pointerdown.stop @click.stop>
+  <div class="regions-node" data-canvas-pan @click.stop>
     <input ref="input" class="file-input" type="file" accept="image/png,image/jpeg,image/webp" @change="onFile" />
 
     <div v-if="!props.store.doc.value?.image" class="upload-state" @dragover.prevent @drop.prevent="onDrop">
