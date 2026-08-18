@@ -47,6 +47,36 @@ function declaration(name: string, value: string | undefined): string[] {
   return value === undefined ? [] : [`  ${name}: ${value};`];
 }
 
+/**
+ * 按父子关系拓扑排序：父节点排在它的子节点之前再输出。
+ *
+ * `.e-父 > *` 规则与列表项自己的 `.e-子` 规则选择器权重相同，全靠"谁在 CSS 里
+ * 写在后面谁赢"来保证绝对定位的角标最终用回自己的尺寸（见下方 repeat 的 CSS 生成）。
+ * 这就要求父节点的规则必须先于子节点输出——但 `tree.nodes` 的数组顺序不可信：
+ * 校验只查重叠和环，不查顺序；AI 重构把模型给的数组原样 splice 进去；PUT 路由只做
+ * zod 校验也不重排。所以这里不依赖输入数组顺序，显式做一次拓扑排序。
+ *
+ * 同一层内维持 `byParent`已经记录的顺序（即各节点在输入数组里各自出现的先后），
+ * 不打乱现有的阅读顺序。万一数据成环（不变量检查本应挡住，这里只是防御），
+ * 不会死循环——没被拓扑访问到的节点原样追加在末尾。
+ */
+function topoSortByParent(
+  nodes: readonly ElementNode[], byParent: Map<string | null, ElementNode[]>,
+): ElementNode[] {
+  const out: ElementNode[] = [];
+  const visited = new Set<string>();
+  const visit = (node: ElementNode): void => {
+    if (visited.has(node.id)) return;
+    visited.add(node.id);
+    out.push(node);
+    for (const child of byParent.get(node.id) ?? []) visit(child);
+  };
+  for (const root of byParent.get(null) ?? []) visit(root);
+  // 兜底：孤儿节点或环上的节点，按原数组顺序追加在末尾
+  for (const node of nodes) visit(node);
+  return out;
+}
+
 export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
   const { designWidth, region, tree } = input;
   if (!Number.isFinite(designWidth) || designWidth <= 0) throw new Error("designWidth must be positive");
@@ -54,9 +84,11 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
   const byId = new Map(tree.nodes.map((node) => [node.id, node]));
   for (const node of tree.nodes) byParent.set(node.parentId, [...(byParent.get(node.parentId) ?? []), node]);
 
+  const orderedNodes = topoSortByParent(tree.nodes, byParent);
+
   const flexParents = new Set<string>();
   const deviations = new Map<string, number>();
-  for (const parent of tree.nodes) {
+  for (const parent of orderedNodes) {
     if (!parent.layout) continue;
     if (parent.repeat) {
       flexParents.add(parent.id);
@@ -88,7 +120,7 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
   const regionLines = [".region {", "  position: relative;", `  width: ${toVw(region.w, designWidth)};`, `  height: ${toVw(region.h, designWidth)};`, ...declaration("background", tree.background), "}"];
   cssBlocks.push(regionLines.join("\n"));
 
-  for (const node of tree.nodes) {
+  for (const node of orderedNodes) {
     const parent = node.parentId === null ? null : byId.get(node.parentId);
     const parentUsesFlex = parent ? flexParents.has(parent.id) : false;
     const inFlow = parentUsesFlex && node.positioning !== "absolute";

@@ -151,6 +151,18 @@ describe("列表槽位", () => {
     expect(css.indexOf(".e-g > *")).toBeLessThan(css.indexOf(".e-badge {"));
   });
 
+  // 输入数组顺序不可信：AI 重构会原样插入模型给的数组，不保证父先子后。
+  // 而 `> *` 与列表项规则权重相同，靠输出顺序决胜。
+  it("orders parents before children whatever the input order", () => {
+    const badge = node({ id: "badge", parentId: "g", box: { x: 180, y: 192, w: 20, h: 20 }, positioning: "absolute" });
+    const [g, ...items] = grid();
+    const { css } = emit([badge, ...items, g!]);
+    expect(css.indexOf(".e-g > *")).toBeLessThan(css.indexOf(".e-badge {"));
+    const rule = /\.e-badge \{([^}]*)\}/.exec(css)![1]!;
+    expect(rule).toContain("width: 1.7094vw");
+    expect(rule).toContain("height: 1.7094vw");
+  });
+
   it("swaps the axes for a column list", () => {
     const rule = /\.e-g > \* \{([^}]*)\}/.exec(emit([
       node({
