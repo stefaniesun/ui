@@ -8,6 +8,7 @@ import {
   portAnchors,
   saveNodePositions,
   zoomAtPoint,
+  canStartPan,
 } from "./canvas-state.js";
 
 describe("canvas state", () => {
@@ -86,5 +87,59 @@ describe("three node positions", () => {
     const loaded = loadNodePositions(
       { getItem: (k: string) => written[k] ?? null }, "nodes", DEFAULT_NODE_POSITIONS);
     expect(loaded).toEqual(positions);
+  });
+});
+
+describe("canStartPan", () => {
+  const canvas = document.createElement("section");
+  const make = (className: string, parent: Element = canvas) => {
+    const el = document.createElement("div");
+    el.className = className;
+    parent.appendChild(el);
+    return el;
+  };
+
+  it("pans from the canvas itself", () => {
+    expect(canStartPan(canvas, canvas)).toBe(true);
+  });
+
+  // `.world` 铺满 10000x6000 且接收指针事件，点画布空白命中的是它而不是画布本身。
+  // 不认它就等于整块画布都拖不动——实测右侧空白处 canStartPan 直接返回 false。
+  it("pans from the world layer", () => {
+    expect(canStartPan(make("world"), canvas)).toBe(true);
+  });
+
+  it("pans from the grid layer", () => {
+    expect(canStartPan(make("grid"), canvas)).toBe(true);
+  });
+
+  // 只认 world 自己：认 closest 的话节点内部的空白也会拖动整个画布
+  it("does not pan from a node sitting inside the world layer", () => {
+    const world = make("world");
+    expect(canStartPan(make("node-body", world), canvas)).toBe(false);
+  });
+
+  it("pans from an area marked for it", () => {
+    const marked = make("panel");
+    marked.setAttribute("data-canvas-pan", "");
+    expect(canStartPan(make("blank", marked), canvas)).toBe(true);
+  });
+
+  it("never pans from a control or a node header", () => {
+    for (const tag of ["button", "input", "select", "textarea", "a"]) {
+      const el = document.createElement(tag);
+      canvas.appendChild(el);
+      expect(canStartPan(el, canvas)).toBe(false);
+    }
+    const header = make("header");
+    header.setAttribute("data-node-header", "");
+    expect(canStartPan(header, canvas)).toBe(false);
+  });
+
+  // 标了 no-pan 的区域优先级最高，哪怕它就在 world 上
+  it("respects an explicit opt out", () => {
+    const world = make("world");
+    world.setAttribute("data-no-canvas-pan", "");
+    expect(canStartPan(world, canvas)).toBe(false);
   });
 });

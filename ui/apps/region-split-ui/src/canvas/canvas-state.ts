@@ -122,3 +122,25 @@ export function bezierPath(from: Point, to: Point): string {
   const handle = Math.max(MIN_HANDLE, Math.abs(to.x - from.x) * 0.5);
   return `M ${from.x} ${from.y} C ${from.x + handle} ${from.y}, ${to.x - handle} ${to.y}, ${to.x} ${to.y}`;
 }
+
+/** 按下的目标不该触发平移的那些：可交互控件、节点表头、以及显式标注的区域 */
+const PAN_BLOCKERS =
+  "[data-no-canvas-pan],button,input,select,textarea,a,[data-node-header]";
+
+/**
+ * 这一下按下能不能开始平移画布。
+ *
+ * 纯判据，不碰视口——挂着整个画布去测它会跟挂载后的异步重定位打架。
+ *
+ * **`.world` 必须认。** 它铺满 10000×6000 且要接收指针事件（节点靠它承事件），
+ * 所以点在画布空白处命中的是它而不是 `.pipeline-canvas`；不认它就等于整块画布
+ * 都拖不动。只认 `.world` **自己**，不用 `closest`：那样节点内部的空白也会触发平移。
+ */
+export function canStartPan(target: EventTarget | null, canvas: Element | null): boolean {
+  if (!(target instanceof Element)) return true;
+  if (target.closest(PAN_BLOCKERS)) return false;
+  return target === canvas
+    || target.classList.contains("world")
+    || target.classList.contains("grid")
+    || Boolean(target.closest("[data-canvas-pan]"));
+}
