@@ -169,6 +169,8 @@ export async function detectElements(
       if (parent) {
         parent.kind = result.whole.kind;
         parent.displayName = result.whole.displayName;
+        if (result.whole.kind === "text" && result.whole.text?.trim()) parent.text = result.whole.text.trim();
+        else delete parent.text;
         parent.classification = "model";
         delete parent.layout;
         delete parent.repeat;
@@ -183,6 +185,8 @@ export async function detectElements(
       if (isLeaf(child)) {
         child.kind = item.kind;
         child.classification = "model";
+        if (item.kind === "text" && item.text?.trim()) child.text = item.text.trim();
+        else delete child.text;
       }
       child.displayName = item.displayName;
     });

@@ -2,6 +2,12 @@ import type {
   ElementTree, ModelConfigView, Rect, Region, RegionSplitDoc,
 } from "@region-split/core/browser";
 
+export interface PageCodeOutput {
+  html: string;
+  css: string;
+  assets: Array<{ path: string; contentBase64: string }>;
+}
+
 export interface StoreApi {
   upload(file: File): Promise<{ projectId: string; doc: RegionSplitDoc }>;
   getProject(projectId: string): Promise<{ projectId: string; doc: RegionSplitDoc }>;
@@ -11,6 +17,7 @@ export interface StoreApi {
   getModelConfig(): Promise<ModelConfigView>;
   getElements(projectId: string, y: number, h: number): Promise<{ tree: ElementTree | null; treeVersion: string | null }>;
   getCode(projectId: string, y: number, h: number): Promise<{ html: string; css: string }>;
+  getPageCode(projectId: string): Promise<PageCodeOutput>;
   detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
   putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
 }
@@ -53,6 +60,9 @@ export const httpApi: StoreApi = {
   getCode(projectId, y, h) {
     return json(`/api/projects/${projectId}/code?y=${y}&h=${h}`);
   },
+  getPageCode(projectId) {
+    return json(`/api/projects/${projectId}/page-code`);
+  },
   detectElements(projectId, region) {
     return json(`/api/projects/${projectId}/elements/detect`, {
       method: "POST",
@@ -68,6 +78,15 @@ export const httpApi: StoreApi = {
     });
   },
 };
+
+export async function getPageArchive(projectId: string): Promise<Blob> {
+  const response = await fetch(`/api/projects/${projectId}/page-code.zip`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error ?? `request failed: ${response.status}`);
+  }
+  return response.blob();
+}
 
 export function imageUrl(projectId: string): string {
   return `/api/projects/${projectId}/image`;

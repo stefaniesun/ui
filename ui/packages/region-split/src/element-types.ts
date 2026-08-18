@@ -21,6 +21,8 @@ export const elementNodeSchema = z.object({
   box: rectSchema,
   kind: z.enum(elementKinds),
   displayName: z.string().min(1),
+  /** 文字节点的真实字面量；旧数据缺失时 emitter 降级使用 displayName。 */
+  text: z.string().optional(),
   style: z.object({
     background: z.string().optional(),
     borderRadius: z.number().int().nonnegative().optional(),
@@ -45,6 +47,8 @@ export const elementNodeSchema = z.object({
     glyphAspect: z.number().nonnegative(),
     reason: z.enum(["no-ink", "multi-band", "wide-glyph"]).optional(),
   }).optional(),
+  /** 图片/图标裁切资产；ref 为项目 assets 目录内的文件名。 */
+  asset: z.object({ ref: z.string().min(1), cutFrom: rectSchema }).optional(),
 
   // 以下字段阶段一不产出，但现在就定义好，避免阶段二改 schema 破坏已存的文件。
   layout: z.object({

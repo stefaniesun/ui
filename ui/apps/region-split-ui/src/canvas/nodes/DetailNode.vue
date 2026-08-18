@@ -92,8 +92,20 @@ watch(region, async next => {
   if (next && props.projectId) await props.elementStore.load(props.projectId, next);
 }, { immediate: true });
 
-function detect() {
-  if (region.value) void props.elementStore.detect(props.projectId, region.value);
+async function waitForSourceImage(): Promise<boolean> {
+  if (sourceImg.value?.complete) return sourceImg.value.naturalWidth > 0;
+  return new Promise(resolve => {
+    const image = sourceImg.value;
+    if (!image) { resolve(false); return; }
+    const done = (ok: boolean) => { image.onload = null; image.onerror = null; resolve(ok); };
+    image.onload = () => done(true);
+    image.onerror = () => done(false);
+  });
+}
+async function detect() {
+  if (!region.value) return;
+  await props.elementStore.detect(props.projectId, region.value);
+  if (await waitForSourceImage()) await measureAllFonts();
 }
 function onRemove(id: string) {
   if (region.value) void props.elementStore.removeNode(props.projectId, region.value, id);
@@ -254,6 +266,21 @@ function createMetricsSource(): MetricsSource | null {
 
 const fontNote = ref("");
 
+async function measureAllFonts() {
+  if (!region.value || !prepareCanvas()) return;
+  const source = createMetricsSource();
+  if (!source) return;
+  const fonts: Record<string, { fontSize: number; fontWeight: number }> = {};
+  for (const node of props.elementStore.nodes.value) {
+    if (node.kind !== "text" || node.textBox?.ok !== true || node.style.fontSize !== undefined) continue;
+    const text = node.text ?? node.displayName;
+    const stats = inkStats(node.box);
+    const match = stats ? matchFont(source, text, stats.height, stats.coverage) : null;
+    if (match) fonts[node.id] = { fontSize: match.fontSize, fontWeight: match.fontWeight };
+  }
+  await props.elementStore.setFonts(props.projectId, region.value, fonts);
+}
+
 /** 对选中的文字叶子做一次渲染比对，写回字号字重 */
 function measureFont() {
   const node = props.elementStore.selectedNode.value;
@@ -263,7 +290,7 @@ function measureFont() {
   if (!stats) { fontNote.value = "这个框里没有笔画像素"; return; }
   const source = createMetricsSource();
   if (!source) { fontNote.value = "浏览器不支持 canvas 测量"; return; }
-  const match = matchFont(source, node.displayName, stats.height, stats.coverage);
+  const match = matchFont(source, node.text ?? node.displayName, stats.height, stats.coverage);
   if (!match) { fontNote.value = "这段文字量不出来"; return; }
   fontNote.value = match.margin < 0.02
     ? `字重把握不大（与次优仅差 ${match.margin.toFixed(3)}），请人工确认`

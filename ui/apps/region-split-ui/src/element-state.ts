@@ -259,6 +259,19 @@ export function createElementStore(api: StoreApi) {
       await commit(projectId, region, nodes.value);
     },
 
+    /** 批量写入自动测量结果，一次保存避免每个文字节点各发一个请求。 */
+    async setFonts(
+      projectId: string, region: Rect,
+      fonts: Readonly<Record<string, { fontSize: number; fontWeight: number }>>,
+    ) {
+      const ids = Object.keys(fonts);
+      if (ids.length === 0) return;
+      await commit(projectId, region, nodes.value.map(node => {
+        const font = fonts[node.id];
+        return font ? { ...node, style: { ...node.style, fontSize: font.fontSize, fontWeight: font.fontWeight } } : node;
+      }));
+    },
+
     /** 写入字号字重。两者一起改——它们是同一次拟合的产物。 */
     async setFont(
       projectId: string, region: Rect, id: string,

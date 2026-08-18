@@ -10,6 +10,8 @@ export interface EmitHtmlInput {
   tree: ElementTree;
   /** 图片和图标节点对应的可移植资源地址，通常为内嵌 data URL。 */
   assetSources?: Readonly<Record<string, string>>;
+  /** 整页组合时用于保证元素类名全局唯一。 */
+  classPrefix?: string;
 }
 
 export interface EmitHtmlResult {
@@ -80,8 +82,9 @@ function topoSortByParent(
 }
 
 export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
-  const { designWidth, region, tree, assetSources = {} } = input;
+  const { designWidth, region, tree, assetSources = {}, classPrefix = "" } = input;
   if (!Number.isFinite(designWidth) || designWidth <= 0) throw new Error("designWidth must be positive");
+  const elementClass = (id: string) => `e-${classPrefix}${classKey(id)}`;
   const byParent = new Map<string | null, ElementNode[]>();
   const byId = new Map(tree.nodes.map((node) => [node.id, node]));
   for (const node of tree.nodes) byParent.set(node.parentId, [...(byParent.get(node.parentId) ?? []), node]);
@@ -105,8 +108,11 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
   const renderNode = (node: ElementNode, depth: number): string => {
     const children = byParent.get(node.id) ?? [];
     const indent = "  ".repeat(depth);
-    const attributes = `class="e-${classKey(node.id)}" data-element-id="${escapeHtml(node.id)}"`;
-    if (node.kind === "text") return `${indent}<span ${attributes} data-todo="text">${escapeHtml(node.displayName)}</span>`;
+    const attributes = `class="${elementClass(node.id)}" data-element-id="${escapeHtml(node.id)}"`;
+    if (node.kind === "text") {
+      const todo = node.text === undefined ? ' data-todo="text"' : "";
+      return `${indent}<span ${attributes}${todo}>${escapeHtml(node.text ?? node.displayName)}</span>`;
+    }
     if (node.kind === "icon" || node.kind === "image") {
       const source = assetSources[node.id];
       if (source) {
@@ -131,7 +137,7 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     const parentUsesFlex = parent ? flexParents.has(parent.id) : false;
     const inFlow = parentUsesFlex && node.positioning !== "absolute";
     const origin = parent?.box ?? region;
-    const lines = [`.e-${classKey(node.id)} {`, "  box-sizing: border-box;"];
+    const lines = [`.${elementClass(node.id)} {`, "  box-sizing: border-box;"];
     if (!inFlow) {
       lines.push("  position: absolute;");
       lines.push(`  left: ${toVw(node.box.x - origin.x, designWidth)};`);
@@ -198,7 +204,7 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
         "   是它们本来就画得不一样大。",
         "   这条规则必须先于列表项自己的规则输出——两者选择器权重相同，",
         "   靠“后写的赢”让绝对定位的角标用回自己的尺寸。调整输出顺序会静默破坏这一点。 */",
-        `.e-${classKey(node.id)} > * {`,
+        `.${elementClass(node.id)} > * {`,
         `  ${main}`,
         ...cross,
         "  display: flex;",

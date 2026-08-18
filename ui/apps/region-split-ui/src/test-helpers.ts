@@ -43,6 +43,7 @@ export function makeFakeApi(
     // 需要断言元素行为的用例请用 overrides 覆盖。
     getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
     getCode: vi.fn(async () => ({ html: "", css: "" })),
+    getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })),
     detectElements: vi.fn(async () => ({ tree: makeElementTree(), treeVersion: "detected-v1" })),
     putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree, treeVersion: "saved-v1" })),
     ...overrides,

@@ -51,6 +51,7 @@ export class ProjectStore {
   /** 抹掉系统外壳后的图，与原图同分辨率；界面和裁剪都用它 */
   cleanImagePath(projectId: string): string { return join(this.projectDir(projectId), "image.clean.png"); }
   analyzedImagePath(projectId: string): string { return join(this.projectDir(projectId), "image.analyzed.png"); }
+  assetsDir(projectId: string): string { return join(this.projectDir(projectId), "assets"); }
   private docPath(projectId: string): string { return join(this.projectDir(projectId), "regions.json"); }
 
   /**

@@ -135,24 +135,66 @@ describe("region split server", () => {
     expect((await sharp(crop.rawPayload).metadata()).height).toBe(50);
   });
 
-  it("embeds detected image and icon crops in generated code", async () => {
+  it("exports a full page with separated files and globally unique classes", async () => {
+    const { app, store } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    const doc = store.readDoc(projectId);
+    doc.regions = [
+      { id: "a", displayName: "顶部", type: "header", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "b", displayName: "底部", type: "footer", bounds: { x: 0, y: 100, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
+    ];
+    store.writeDoc(projectId, doc);
+    for (const region of doc.regions) store.writeElementTree(projectId, {
+      regionKey: `${region.bounds.y}-${region.bounds.h}`, detectedAt: "2026-08-18T00:00:00.000Z",
+      nodes: [{ id: "same", parentId: null, box: region.bounds, kind: "text", displayName: region.displayName, text: region.displayName, style: {}, uniformity: 1, source: "manual", classification: "human", scrollX: false, scrollY: false, positioning: "flow" }],
+    }, region.bounds);
+
+    const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/page-code` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().html).toContain('<link rel="stylesheet" href="style.css">');
+    expect(response.json().html).toContain('class="e-r0-same"');
+    expect(response.json().html).toContain('class="e-r1-same"');
+  });
+
+  it("rejects full-page export while any region has not been parsed", async () => {
+    const { app, store } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    const doc = store.readDoc(projectId);
+    doc.regions = [{ id: "a", displayName: "未解析区", type: "other", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false }];
+    store.writeDoc(projectId, doc);
+    const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/page-code` });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ error: "regions not parsed", regions: ["未解析区"] });
+  });
+
+  it("materializes saved image crops and keeps generated region code self-contained", async () => {
     const { app, store } = makeApp();
     const { projectId } = (await upload(app)).json();
     const region = { x: 0, y: 0, w: 375, h: 400 };
-    store.writeElementTree(projectId, {
-      regionKey: "0-400",
-      detectedAt: "2026-08-18T00:00:00.000Z",
-      nodes: [
-        { id: "avatar", parentId: null, box: { x: 20, y: 30, w: 40, h: 50 }, kind: "image", displayName: "头像", style: {}, uniformity: 0.5, source: "auto", classification: "model", scrollX: false, scrollY: false, positioning: "flow" },
-        { id: "gear", parentId: null, box: { x: 100, y: 30, w: 24, h: 24 }, kind: "icon", displayName: "设置", style: {}, uniformity: 0.8, source: "auto", classification: "model", scrollX: false, scrollY: false, positioning: "flow" },
-      ],
-    }, region);
+    const saved = await app.inject({
+      method: "PUT", url: `/api/projects/${projectId}/elements`, payload: { region, tree: {
+        regionKey: "0-400",
+        detectedAt: "2026-08-18T00:00:00.000Z",
+        nodes: [
+          { id: "avatar", parentId: null, box: { x: 20, y: 30, w: 40, h: 50 }, kind: "image", displayName: "头像", style: {}, uniformity: 0.5, source: "auto", classification: "model", scrollX: false, scrollY: false, positioning: "flow" },
+          { id: "gear", parentId: null, box: { x: 100, y: 30, w: 24, h: 24 }, kind: "icon", displayName: "设置", style: {}, uniformity: 0.8, source: "auto", classification: "model", scrollX: false, scrollY: false, positioning: "flow" },
+        ],
+      } },
+    });
+    expect(saved.statusCode).toBe(200);
 
     const result = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
     expect(result.statusCode).toBe(200);
     expect(result.json().html).toContain('<img class="e-avatar"');
     expect(result.json().html).toMatch(/src="data:image\/png;base64,[^"]+"/);
     expect(result.json().html).toContain('alt="设置"');
+
+    const persisted = store.readElementTree(projectId, "0-400")!;
+    expect(persisted.nodes[0]!.asset).toMatchObject({ cutFrom: { x: 20, y: 30, w: 40, h: 50 } });
+    const ref = persisted.nodes[0]!.asset!.ref;
+    const asset = await app.inject({ method: "GET", url: `/api/projects/${projectId}/assets/${ref}` });
+    expect(asset.statusCode).toBe(200);
+    expect(await sharp(asset.rawPayload).metadata()).toMatchObject({ width: 40, height: 50 });
   });
 
   it("serves the cleaned image by default and the untouched original on demand", async () => {

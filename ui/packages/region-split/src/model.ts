@@ -23,6 +23,7 @@ export interface SegmentInput {
 export interface ChildClassification {
   kind: "text" | "icon" | "image";
   displayName: string;
+  text?: string;
 }
 
 /**
@@ -72,6 +73,7 @@ const namingSchema = z.object({
 const classificationSchema = z.object({
   kind: z.enum(["text", "icon", "image"]),
   displayName: z.string().min(1),
+  text: z.string().optional(),
 });
 const childrenSchema = z.object({
   whole: classificationSchema.nullish(),
@@ -120,9 +122,9 @@ const NAMING_PROMPT = [
  */
 const CLASSIFY_PROMPT = [
   "这是一张移动端 UI 中某个盒子的裁图，盒子里的子元素已经由图像分析切分好了。",
-  "只输出一个 JSON 对象，格式为 {\"children\":[{\"kind\":string,\"displayName\":string}]}。",
+  "只输出一个 JSON 对象，格式为 {\"children\":[{\"kind\":string,\"displayName\":string,\"text\":string?}]}。",
   "kind 只能取 text（文字）、icon（可矢量化的图形）、image（必须切图的位图）之一。",
-  "displayName 用简短中文，描述这个子元素是什么。",
+  "displayName 用简短中文描述元素语义；kind 为 text 时，text 必须尽量逐字抄录截图中的真实文字，无法辨认时省略 text。",
   "数组长度必须与告知你的子元素个数完全一致，多一个少一个都不行。",
 ].join("\n");
 

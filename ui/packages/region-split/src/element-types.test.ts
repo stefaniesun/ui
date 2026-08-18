@@ -104,6 +104,24 @@ describe("elementNodeSchema", () => {
     expect(parsed.positioning).toBe("flow");
     expect(parsed.layout).toBeUndefined();
     expect(parsed.repeat).toBeUndefined();
+    expect(parsed.asset).toBeUndefined();
+  });
+
+  it("round-trips an image asset while keeping legacy nodes valid", () => {
+    const parsed = elementNodeSchema.parse({
+      id: "image", parentId: null, box: { x: 2, y: 3, w: 10, h: 12 },
+      kind: "image", displayName: "图片", uniformity: 1,
+      asset: { ref: "crop.png", cutFrom: { x: 2, y: 3, w: 10, h: 12 } },
+    });
+    expect(parsed.asset).toEqual({ ref: "crop.png", cutFrom: { x: 2, y: 3, w: 10, h: 12 } });
+  });
+
+  it("rejects an invalid asset crop", () => {
+    expect(() => elementNodeSchema.parse({
+      id: "image", parentId: null, box: { x: 0, y: 0, w: 10, h: 10 },
+      kind: "image", displayName: "图片", uniformity: 1,
+      asset: { ref: "crop.png", cutFrom: { x: 0, y: 0, w: 0, h: 10 } },
+    })).toThrow();
   });
 
   it("accepts a fully populated stage two node", () => {

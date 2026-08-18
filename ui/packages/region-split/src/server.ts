@@ -1,17 +1,22 @@
-import { existsSync } from "node:fs";
+import { Buffer } from "node:buffer";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
 import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
+import { materializeTreeAssets, treeAssetFiles } from "./asset-cache.js";
 import { elementTreeSchema, regionKey } from "./element-types.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { registerElementRefactorRoutes } from "./element-refactor-routes.js";
 import { emitHtml } from "./emit-html.js";
+import { emitPage } from "./emit-page.js";
 import type { AiModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
 import type { ProjectStore } from "./store.js";
 import type { Rect, Region } from "./types.js";
+import { createZip } from "./zip.js";
 
 export interface ServerDeps {
   store: ProjectStore;
@@ -147,22 +152,98 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       }
       const tree = store.readElementTree(projectId, regionKey(region));
       if (!tree) return reply.code(404).send({ error: "region not parsed" });
-      await ensureCleanImage(store, projectId);
-      const source = store.cleanImagePath(projectId);
-      const assetNodes = tree.nodes.filter(node => node.kind === "image" || node.kind === "icon");
-      const assetSources: Record<string, string> = {};
-      for (const node of assetNodes) {
+      for (const node of tree.nodes) {
         const { x, y: nodeY, w, h: nodeH } = node.box;
-        if (x < 0 || nodeY < 0 || w <= 0 || nodeH <= 0
-          || x + w > doc.image.width || nodeY + nodeH > doc.image.height) {
+        if ((node.kind === "image" || node.kind === "icon")
+          && (x < 0 || nodeY < 0 || w <= 0 || nodeH <= 0
+            || x + w > doc.image.width || nodeY + nodeH > doc.image.height)) {
           return reply.code(422).send({ error: `asset bounds out of image: ${node.id}` });
         }
-        const crop = await sharp(source).extract({
-          left: x, top: nodeY, width: w, height: nodeH,
-        }).png().toBuffer();
-        assetSources[node.id] = `data:image/png;base64,${crop.toString("base64")}`;
       }
+      let files = treeAssetFiles(store, projectId, tree);
+      const expectedAssets = tree.nodes.filter(node => node.kind === "image" || node.kind === "icon").length;
+      if (Object.keys(files).length !== expectedAssets) {
+        files = (await materializeTreeAssets(store, projectId, region, tree, false)).files;
+      }
+      const assetSources = Object.fromEntries(
+        Object.entries(files).map(([id, path]) => [id, `data:image/png;base64,${readFileSync(path).toString("base64")}`]),
+      );
       return emitHtml({ designWidth: region.w, region, tree, assetSources });
+    });
+
+  app.get<{ Params: ProjectParams }>(
+    "/api/projects/:projectId/page-code", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const doc = store.readDoc(projectId);
+      const regions = [...doc.regions].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+      const pageRegions: Array<{ region: Rect; tree: NonNullable<ReturnType<ProjectStore["readElementTree"]>> }> = [];
+      const missing: string[] = [];
+      const assetSources = new Map<string, string>();
+      const assets = new Map<string, string>();
+
+      for (const region of regions) {
+        const tree = store.readElementTree(projectId, regionKey(region.bounds));
+        if (!tree) { missing.push(region.displayName); continue; }
+        for (const node of tree.nodes) {
+          const { x, y, w, h } = node.box;
+          if ((node.kind === "image" || node.kind === "icon")
+            && (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > doc.image.width || y + h > doc.image.height)) {
+            return reply.code(422).send({ error: `asset bounds out of image: ${region.id}/${node.id}` });
+          }
+        }
+        const index = pageRegions.length;
+        const materialized = await materializeTreeAssets(store, projectId, region.bounds, tree, false);
+        for (const [nodeId, path] of Object.entries(materialized.files)) {
+          const ref = materialized.tree.nodes.find(node => node.id === nodeId)?.asset?.ref;
+          if (!ref) continue;
+          assetSources.set(`${index}:${nodeId}`, `assets/${ref}`);
+          assets.set(`assets/${ref}`, readFileSync(path).toString("base64"));
+        }
+        pageRegions.push({ region: region.bounds, tree: materialized.tree });
+      }
+      if (missing.length > 0) {
+        return reply.code(409).send({ error: "regions not parsed", regions: missing });
+      }
+      const page = emitPage({
+        designWidth: doc.image.width,
+        regions: pageRegions,
+        assets: key => assetSources.get(key),
+      });
+      return {
+        html: page.html,
+        css: page.css,
+        assets: [...assets].map(([path, contentBase64]) => ({ path, contentBase64 })),
+      };
+    });
+
+  app.get<{ Params: ProjectParams }>(
+    "/api/projects/:projectId/page-code.zip", async (req, reply) => {
+      const generated = await app.inject({ method: "GET", url: `/api/projects/${req.params.projectId}/page-code` });
+      if (generated.statusCode !== 200) {
+        reply.code(generated.statusCode).type(generated.headers["content-type"] ?? "application/json");
+        return reply.send(generated.rawPayload);
+      }
+      const output = generated.json<{ html: string; css: string; assets: Array<{ path: string; contentBase64: string }> }>();
+      const zip = createZip([
+        { name: "index.html", content: output.html },
+        { name: "style.css", content: output.css },
+        ...output.assets.map(asset => ({ name: asset.path, content: Buffer.from(asset.contentBase64, "base64") })),
+      ]);
+      return reply
+        .type("application/zip")
+        .header("content-disposition", `attachment; filename="region-page-${req.params.projectId}.zip"`)
+        .send(zip);
+    });
+
+  app.get<{ Params: ProjectParams & { fileName: string } }>(
+    "/api/projects/:projectId/assets/:fileName", async (req, reply) => {
+      const { projectId, fileName } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      if (!/^[a-f0-9]{40}\.png$/.test(fileName)) return reply.code(400).send({ error: "invalid asset name" });
+      const path = join(store.assetsDir(projectId), fileName);
+      if (!existsSync(path)) return reply.code(404).send({ error: "asset not found" });
+      return reply.type("image/png").send(readFileSync(path));
     });
 
   app.post<{ Params: ProjectParams; Body: { region: Rect } }>(
@@ -177,7 +258,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       // 模型只负责叶子的文字/图标判别与命名，配了就用，失败会在内部降级。
       const model = configStore.isConfigured() ? currentModel() : undefined;
       try {
-        return { tree: await detectElements({ store, model }, projectId, region) };
+        const detected = await detectElements({ store, model }, projectId, region);
+        const assets = await materializeTreeAssets(store, projectId, region, detected);
+        return { tree: assets.tree };
       } catch (err) {
         return reply.code(502).send({ error: (err as Error).message });
       }
@@ -192,8 +275,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         return reply.code(422).send({ error: "invalid element tree" });
       }
       try {
-        const tree = store.writeElementTree(projectId, parsed.data, req.body.region);
-        return { tree, treeVersion: store.readElementTreeVersion(projectId, tree.regionKey) };
+        const stored = store.writeElementTree(projectId, parsed.data, req.body.region);
+        const assets = await materializeTreeAssets(store, projectId, req.body.region, stored);
+        return { tree: assets.tree, treeVersion: store.readElementTreeVersion(projectId, assets.tree.regionKey) };
       } catch (err) {
         return reply.code(422).send({ error: (err as Error).message });
       }

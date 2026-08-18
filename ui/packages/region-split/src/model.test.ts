@@ -181,7 +181,7 @@ describe("createOpenAiModel.classifyChildren", () => {
   const twoChildren = JSON.stringify({
     children: [
       { kind: "icon", displayName: "客服图标" },
-      { kind: "text", displayName: "联系客服" },
+      { kind: "text", displayName: "客服文字", text: "联系客服" },
     ],
   });
 
@@ -192,7 +192,7 @@ describe("createOpenAiModel.classifyChildren", () => {
     });
     expect(result.children).toEqual([
       { kind: "icon", displayName: "客服图标" },
-      { kind: "text", displayName: "联系客服" },
+      { kind: "text", displayName: "客服文字", text: "联系客服" },
     ]);
     expect(result.whole).toBeNull();
   });

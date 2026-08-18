@@ -4,7 +4,7 @@ import {
   type CSSProperties,
 } from "vue";
 import type { Store } from "../../state.js";
-import { imageUrl } from "../../api.js";
+import { getPageArchive, imageUrl } from "../../api.js";
 import ActionBar from "../../components/ActionBar.vue";
 import RegionCanvas from "../../components/RegionCanvas.vue";
 import RegionList from "../../components/RegionList.vue";
@@ -159,6 +159,31 @@ async function onDrop(event: DragEvent) {
   await uploadAndAnalyze(event.dataTransfer?.files[0]);
 }
 
+const exporting = ref(false);
+const exportError = ref("");
+function downloadArchive(name: string, archive: Blob) {
+  const url = URL.createObjectURL(archive);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+async function exportPage() {
+  const projectId = props.store.projectId.value;
+  if (!projectId || exporting.value) return;
+  exporting.value = true;
+  exportError.value = "";
+  try {
+    const archive = await getPageArchive(projectId);
+    downloadArchive(`region-page-${projectId}.zip`, archive);
+  } catch (error) {
+    exportError.value = (error as Error).message;
+  } finally {
+    exporting.value = false;
+  }
+}
+
 function getRegionAnchor(id: string) {
   return regionList.value?.getRegionAnchor(id) ?? null;
 }
@@ -177,7 +202,13 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
     </div>
 
     <template v-else>
-      <ActionBar v-if="resultReady" :store="props.store" />
+      <div v-if="resultReady" class="workspace-actions" data-no-canvas-pan>
+        <ActionBar :store="props.store" />
+        <button data-test="export-page" class="export-button" :disabled="exporting" @click="exportPage">
+          {{ exporting ? "导出中…" : "导出整页代码" }}
+        </button>
+        <span v-if="exportError" class="export-error">{{ exportError }}</span>
+      </div>
       <div data-test="comparison-workspace" class="comparison-workspace">
         <div class="comparison-images" :style="comparisonImagesStyle">
           <section class="image-panel" data-no-canvas-pan>
@@ -247,6 +278,11 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
 </template>
 
 <style scoped>
+.workspace-actions { display: flex; align-items: center; gap: 10px; }
+.workspace-actions :deep(.bar) { flex: 1; }
+.export-button { flex: 0 0 auto; height: 32px; padding: 0 14px; border: 1px solid #3b82f6; border-radius: 7px; color: #eff6ff; background: #2563eb; cursor: pointer; }
+.export-button:disabled { opacity: .55; cursor: wait; }
+.export-error { max-width: 260px; color: #fca5a5; font-size: 12px; }
 .regions-node { margin: -14px; overflow: hidden; border-radius: 0 0 9px 9px; }
 .file-input { display: none; }
 .upload-state { min-height: 540px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118; }

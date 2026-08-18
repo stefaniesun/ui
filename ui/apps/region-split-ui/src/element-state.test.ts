@@ -20,6 +20,8 @@ function fakeApi(over: Partial<StoreApi> = {}): StoreApi {
     upload: vi.fn(), getProject: vi.fn(), putRegions: vi.fn(), analyze: vi.fn(),
     renameAi: vi.fn(), getModelConfig: vi.fn(),
     getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
+    getCode: vi.fn(async () => ({ html: "", css: "" })),
+    getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })),
     detectElements: vi.fn(async () => ({ tree: tree([node({ id: "n1" })]), treeVersion: "detected-v1" })),
     putElements: vi.fn(async (_id: string, _region: Rect, next: ElementTree) => ({ tree: next, treeVersion: "saved-v1" })),
     ...over,
@@ -544,6 +546,18 @@ describe("setRegionBackground", () => {
 
 describe("setFont", () => {
   const leaf = () => node({ id: "n1", kind: "text" });
+
+  it("stores multiple automatic font measurements in one save", async () => {
+    const api = loaded([leaf(), node({ id: "n2", kind: "text" })]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    await store.setFonts("p1", REGION, {
+      n1: { fontSize: 28, fontWeight: 500 },
+      n2: { fontSize: 16, fontWeight: 400 },
+    });
+    expect(store.tree.value!.nodes.map(item => item.style.fontSize)).toEqual([28, 16]);
+    expect(api.putElements).toHaveBeenCalledTimes(1);
+  });
 
   it("stores size and weight together", async () => {
     const store = createElementStore(loaded([leaf()]));
