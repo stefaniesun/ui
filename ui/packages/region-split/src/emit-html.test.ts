@@ -129,6 +129,28 @@ describe("列表槽位", () => {
     expect(emit(grid()).css).not.toContain("!important");
   });
 
+  // 角标压在图标上那种形态。它不参与等距排布，尺寸必须是自己的实测值，
+  // 不能被 `> *` 套上槽位——审查实测过 20×20 被撑成 141×134。
+  it("keeps an absolute badge at its own size inside a list", () => {
+    const { css } = emit([
+      ...grid(),
+      node({ id: "badge", parentId: "g", box: { x: 180, y: 192, w: 20, h: 20 }, positioning: "absolute" }),
+    ]);
+    const badge = /\.e-badge \{([^}]*)\}/.exec(css)![1]!;
+    expect(badge).toContain("width: 1.7094vw");   // 20 / 1170
+    expect(badge).toContain("height: 1.7094vw");
+    expect(badge).toContain("position: absolute");
+  });
+
+  // 靠"后写的赢"来压过 `> *`，所以顺序必须是这样
+  it("emits the shared rule before the item rules", () => {
+    const { css } = emit([
+      ...grid(),
+      node({ id: "badge", parentId: "g", box: { x: 180, y: 192, w: 20, h: 20 }, positioning: "absolute" }),
+    ]);
+    expect(css.indexOf(".e-g > *")).toBeLessThan(css.indexOf(".e-badge {"));
+  });
+
   it("swaps the axes for a column list", () => {
     const rule = /\.e-g > \* \{([^}]*)\}/.exec(emit([
       node({

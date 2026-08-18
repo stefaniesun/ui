@@ -102,7 +102,8 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     // 列表项的尺寸由父节点的 `> *` 一条规则统一给出。项自己再写一遍，
     // 既是重复，也会因为选择器权重相同、后写的赢，逼得 `> *` 去用 !important。
     const inRepeat = node.parentId !== null
-      && byId.get(node.parentId)?.repeat !== undefined;
+      && byId.get(node.parentId)?.repeat !== undefined
+      && node.positioning !== "absolute";
     if (!inRepeat) {
       lines.push(`  width: ${toVw(node.box.w, designWidth)};`);
       lines.push(`  height: ${toVw(node.box.h, designWidth)};`);
@@ -146,7 +147,9 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
         `/* ${node.displayName}：${node.repeat.count} 项重复。`,
         "   主轴用中心距、交叉轴用槽位；子块宽度不同，用 gap 会让位置沿主轴累积偏移。",
         "   墨迹居中放进槽位，不拉伸——三个图标量出 56/52/54 不是误差，",
-        "   是它们本来就画得不一样大。 */",
+        "   是它们本来就画得不一样大。",
+        "   这条规则必须先于列表项自己的规则输出——两者选择器权重相同，",
+        "   靠“后写的赢”让绝对定位的角标用回自己的尺寸。调整输出顺序会静默破坏这一点。 */",
         `.e-${classKey(node.id)} > * {`,
         `  ${main}`,
         ...cross,
