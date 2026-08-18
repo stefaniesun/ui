@@ -18,6 +18,20 @@ describe("PipelineNode", () => {
     expect(wrapper.emitted("dragStart")).toBeUndefined();
   });
 
+  it("applies an accent color to the node and input port", () => {
+    const wrapper = mount(PipelineNode, {
+      props: {
+        nodeId: "detail:r1",
+        title: "区域详情",
+        position: { x: 0, y: 0 },
+        accentColor: "#ff5d7d",
+        input: true,
+      },
+    });
+    expect(wrapper.attributes("style")).toContain("--node-accent: #ff5d7d");
+    expect((wrapper.get(".input-port").element as HTMLElement).style.borderColor).not.toBe("");
+  });
+
   it("renders focus highlight", () => {
     const wrapper = mount(PipelineNode, {
       props: {

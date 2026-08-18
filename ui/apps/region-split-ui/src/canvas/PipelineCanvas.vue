@@ -2,6 +2,7 @@
 import type { Region } from "@region-split/core/browser";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import type { ElementStore } from "../element-state.js";
+import { regionColor } from "../region-visual.js";
 import {
   bezierPath,
   clampZoom,
@@ -75,7 +76,11 @@ const links = computed(() => openedRegions.value.flatMap(region => {
   const from = connectionStarts[region.id];
   const toPosition = detailPositions[region.id];
   if (!from || !toPosition) return [];
-  return [{ id: region.id, path: bezierPath(from, { x: toPosition.x, y: toPosition.y + 21 }) }];
+  return [{
+    id: region.id,
+    color: regionColor(region.id),
+    path: bezierPath(from, { x: toPosition.x, y: toPosition.y + 21 }),
+  }];
 }));
 
 function storageTarget(): Storage | undefined {
@@ -327,7 +332,7 @@ defineExpose({ openDetail, closeDetail, refreshConnections, fitAll });
     <div class="grid" />
     <div class="world" :style="{ transform }">
       <svg class="links" width="10000" height="6000" aria-hidden="true">
-        <path v-for="link in links" :key="link.id" :d="link.path" />
+        <path v-for="link in links" :key="link.id" :d="link.path" :stroke="link.color" />
       </svg>
 
       <PipelineNode
@@ -355,6 +360,7 @@ defineExpose({ openDetail, closeDetail, refreshConnections, fitAll });
         :output="false"
         :closable="true"
         :highlighted="highlightedRegionId === region.id"
+        :accent-color="regionColor(region.id)"
         @drag-start="startNodeDrag"
         @close="closeDetail(region.id)"
       >
@@ -398,7 +404,7 @@ defineExpose({ openDetail, closeDetail, refreshConnections, fitAll });
 .grid { position: absolute; inset: 0; background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px); background-size: 24px 24px; pointer-events: none; }
 .world { position: absolute; top: 0; left: 0; width: 10000px; height: 6000px; transform-origin: 0 0; }
 .links { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
-.links path { fill: none; stroke: var(--line); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.links path { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .controls { position: fixed; right: 18px; bottom: 18px; z-index: 30; display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel); box-shadow: 0 8px 20px #0006; }
 .controls button { min-width: 28px; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
 .controls span { min-width: 44px; color: var(--text-faint); font-size: 11px; text-align: center; }

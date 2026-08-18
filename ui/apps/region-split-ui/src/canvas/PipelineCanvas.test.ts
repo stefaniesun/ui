@@ -2,6 +2,7 @@ import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Region } from "@region-split/core/browser";
 import PipelineCanvas from "./PipelineCanvas.vue";
+import { regionColor } from "../region-visual.js";
 
 const region = (id: string, y: number): Region => ({
   id, displayName: id, type: "other", bounds: { x: 0, y, w: 400, h: 200 },
@@ -60,7 +61,10 @@ describe("PipelineCanvas dynamic details", () => {
     await wrapper.vm.$nextTick();
     (wrapper.vm as unknown as { refreshConnections(): void }).refreshConnections();
     await wrapper.vm.$nextTick();
-    expect(wrapper.findAll(".links path")).toHaveLength(2);
+    const paths = wrapper.findAll(".links path");
+    expect(paths).toHaveLength(2);
+    expect(paths[0]!.attributes("stroke")).toBe(regionColor("a"));
+    expect(paths[1]!.attributes("stroke")).toBe(regionColor("b"));
   });
 
   it("removes details whose regions disappear", async () => {
