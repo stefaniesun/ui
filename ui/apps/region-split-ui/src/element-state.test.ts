@@ -422,6 +422,24 @@ describe("setRadius", () => {
   });
 });
 
+describe("setSlot", () => {
+  it("sets the slot and marks it human", async () => {
+    const store = createElementStore(listTree());
+    await store.load("p1", whole);
+    await store.setSlot("p1", whole, "n1", 60, 60);
+    expect(store.nodes.value[0]!.repeat?.slot).toEqual({ w: 60, h: 60 });
+    expect(store.nodes.value[0]!.repeat?.slotBy).toBe("human");
+  });
+
+  // 没有 repeat 的节点谈不上槽位，静默不动而不是造一个出来
+  it("ignores a slot edit on a node with no repeat", async () => {
+    const store = createElementStore(loaded([node({ id: "n1" })]));
+    await store.load("p1", whole);
+    await store.setSlot("p1", whole, "n1", 60, 60);
+    expect(store.nodes.value[0]!.repeat).toBeUndefined();
+  });
+});
+
 describe("setBox rejection feedback", () => {
   const boxed2 = (id: string, parentId: string | null, x: number, w: number) =>
     node({ id, parentId, box: { x, y: 0, w, h: 50 } });

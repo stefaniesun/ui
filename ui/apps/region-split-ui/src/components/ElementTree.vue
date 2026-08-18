@@ -61,6 +61,9 @@ function suspectTitle(check: TextBoxCheck): string {
     >
       <span data-test="element-number" class="element-number">{{ number }}</span>
       <span class="kind" :class="`kind-${node.kind}`">{{ KIND_LABEL[node.kind] }}</span>
+      <span v-if="node.repeat" data-test="list-badge" class="list-badge">
+        列表 ×{{ node.repeat.count }}
+      </span>
       <span
         data-test="element-name"
         class="name"
@@ -113,6 +116,7 @@ function suspectTitle(check: TextBoxCheck): string {
 .kind { flex: none; padding: 1px 5px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-faint); font-size: 9px; }
 .kind-grid { border-color: var(--ok); color: var(--ok); }
 .kind-image { border-color: var(--warn); color: var(--warn); }
+.list-badge { flex: none; padding: 1px 5px; border: 1px solid var(--ok); border-radius: 4px; color: var(--ok); font-size: 9px; }
 .name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
 .meta { flex: none; color: var(--text-faint); font-size: 9px; }
 .meta.scroll { color: var(--accent); }

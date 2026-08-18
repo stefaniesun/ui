@@ -223,6 +223,22 @@ export function createElementStore(api: StoreApi) {
       }));
     },
 
+    /**
+     * 人工改槽位。**不动任何子元素的 box**——槽位只管布局，
+     * 墨迹框始终是测量结果，拉齐它们会把图标拉变形。
+     */
+    async setSlot(
+      projectId: string, region: Rect, id: string, w: number, h: number,
+    ) {
+      const current = nodes.value.find(node => node.id === id);
+      if (!current?.repeat) return;
+      const slot = { w: Math.max(0, Math.round(w)), h: Math.max(0, Math.round(h)) };
+      if (current.repeat.slot?.w === slot.w && current.repeat.slot?.h === slot.h) return;
+      await commit(projectId, region, nodes.value.map(node => node.id === id
+        ? { ...node, repeat: { ...node.repeat!, slot, slotBy: "human" as const } }
+        : node));
+    },
+
     /** 人工改墨色。空值等于"没测出来"，这时删字段而不是存空串。 */
     async setColor(projectId: string, region: Rect, id: string, color: string) {
       const value = color.trim().toLowerCase();

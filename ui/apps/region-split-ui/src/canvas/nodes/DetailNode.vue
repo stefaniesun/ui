@@ -113,6 +113,9 @@ function onSetBox(id: string, box: Rect) {
 function onSetRadius(id: string, radius: number) {
   if (region.value) void props.elementStore.setRadius(props.projectId, region.value, id, radius);
 }
+function onSetSlot(id: string, w: number, h: number) {
+  if (region.value) void props.elementStore.setSlot(props.projectId, region.value, id, w, h);
+}
 function onSetColor(id: string, color: string) {
   if (region.value) void props.elementStore.setColor(props.projectId, region.value, id, color);
 }
@@ -421,6 +424,7 @@ function onRenamePrompt(id: string) {
           @set-scroll="onSetScroll"
           @set-box="onSetBox"
           @set-radius="onSetRadius"
+          @set-slot="onSetSlot"
           @set-color="onSetColor"
           @set-font="onSetFont"
           @measure-font="measureFont"

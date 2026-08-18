@@ -18,6 +18,7 @@ const emit = defineEmits<{
   "set-scroll": [id: string, axis: "x" | "y", value: boolean];
   "set-box": [id: string, box: Rect];
   "set-radius": [id: string, radius: number];
+  "set-slot": [id: string, w: number, h: number];
   "set-color": [id: string, color: string];
   "toggle-picking": [];
   "set-font": [id: string, font: { fontSize?: number; fontWeight?: number }];
@@ -145,6 +146,18 @@ function onRadiusToggle(event: Event) {
   if (props.disabled || !props.node) return;
   const enabled = (event.target as HTMLInputElement).checked;
   emit("set-radius", props.node.id, enabled ? (radius.value > 0 ? radius.value : 8) : 0);
+}
+
+/** 槽位改一个轴，另一个轴带着当前值一起发出去，避免半个值落盘 */
+function onSlot(event: Event, axis: "w" | "h") {
+  const repeat = props.node?.repeat;
+  if (!props.node || !repeat) return;
+  const value = Number((event.target as HTMLInputElement).value);
+  if (!Number.isFinite(value)) return;
+  const slot = repeat.slot ?? { w: 0, h: 0 };
+  emit("set-slot", props.node.id,
+    axis === "w" ? value : slot.w,
+    axis === "h" ? value : slot.h);
 }
 
 function onColor(event: Event) {
@@ -385,6 +398,25 @@ onBeforeUnmount(stopNudge);
           ×{{ props.node.repeat.count }} · 间距 {{ Math.round(props.node.repeat.pitch) }}
         </code>
       </div>
+      <div v-if="props.node.repeat" class="field">
+        <span class="name">槽位</span>
+        <div class="axes">
+          <label>W<input
+            data-test="slot-w" type="number" :value="props.node.repeat.slot?.w ?? ''"
+            :disabled="props.disabled" @change="onSlot($event, 'w')"
+          ></label>
+          <label>H<input
+            data-test="slot-h" type="number" :value="props.node.repeat.slot?.h ?? ''"
+            :disabled="props.disabled" @change="onSlot($event, 'h')"
+          ></label>
+        </div>
+      </div>
+      <div v-if="props.node.repeat" class="field">
+        <span class="name">间距</span>
+        <span data-test="list-pitch" class="value">
+          {{ props.node.repeat.pitch.toFixed(1) }}
+        </span>
+      </div>
       <div v-if="isContainer" class="field">
         <span class="name">滚动</span>
         <span class="toggles">
@@ -422,6 +454,7 @@ onBeforeUnmount(stopNudge);
 .field > .name { flex: none; width: 56px; color: var(--text-faint); }
 .field input, .field select { flex: 1; min-width: 0; height: 26px; min-height: 26px; font-size: 10px; }
 .field code { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; overflow: hidden; color: var(--text-dim); text-overflow: ellipsis; white-space: nowrap; }
+.field .value { flex: 1; min-width: 0; color: var(--text-dim); }
 .swatch { flex: none; width: 11px; height: 11px; border: 1px solid var(--border-strong); border-radius: 3px; }
 .axes { flex: 1; min-width: 0; display: flex; gap: 6px; }
 .axes label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; color: var(--text-faint); }

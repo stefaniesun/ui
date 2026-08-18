@@ -143,4 +143,19 @@ describe("ElementTree layout badges", () => {
     const wrapper = mountTree({ nodes: [node({ id: "n1", kind: "text" })] });
     expect(wrapper.find('[data-test="element-layout"]').exists()).toBe(false);
   });
+
+  it("calls a repeat container a list with its count", () => {
+    const wrapper = mountTree({
+      nodes: [node({
+        id: "n1", kind: "grid", displayName: "快捷功能菜单",
+        repeat: { count: 5, templateId: "n2", pitch: 219.75, slot: { w: 141, h: 134 }, slotBy: "tool" },
+      })],
+    });
+    expect(wrapper.find('[data-test="list-badge"]').text()).toBe("列表 ×5");
+  });
+
+  it("leaves an ordinary container alone", () => {
+    expect(mountTree({ nodes: [node({ id: "n1", kind: "component" })] })
+      .find('[data-test="list-badge"]').exists()).toBe(false);
+  });
 });

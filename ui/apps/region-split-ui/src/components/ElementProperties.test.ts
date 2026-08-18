@@ -129,6 +129,32 @@ describe("ElementProperties layout fields", () => {
     expect(wrapper.find('[data-test="property-repeat"]').exists()).toBe(false);
   });
 
+  const listNode = (over: Partial<ElementNode> = {}): ElementNode => ({
+    ...node, kind: "grid", displayName: "快捷功能菜单",
+    repeat: { count: 5, templateId: "c1", pitch: 219.75, slot: { w: 141, h: 134 }, slotBy: "tool" },
+    ...over,
+  });
+
+  it("shows the slot and the pitch for a list", () => {
+    const wrapper = mount(ElementProperties, { props: { node: listNode() } });
+    expect((wrapper.find('[data-test="slot-w"]').element as HTMLInputElement).value).toBe("141");
+    expect((wrapper.find('[data-test="slot-h"]').element as HTMLInputElement).value).toBe("134");
+    expect(wrapper.find('[data-test="list-pitch"]').text()).toContain("219.8");
+  });
+
+  it("emits set-slot when the slot changes", async () => {
+    const wrapper = mount(ElementProperties, { props: { node: listNode() } });
+    const input = wrapper.find('[data-test="slot-w"]');
+    await input.setValue("150");
+    await input.trigger("change");
+    expect(wrapper.emitted("set-slot")![0]).toEqual(["n1", 150, 134]);
+  });
+
+  it("hides the slot row for a node that is not a list", () => {
+    expect(mount(ElementProperties, { props: { node } })
+      .find('[data-test="slot-w"]').exists()).toBe(false);
+  });
+
   it("toggles scroll on a container", async () => {
     const wrapper = mount(ElementProperties, { props: { node: container } });
     await wrapper.find('[data-test="property-scroll-x"]').trigger("click");
