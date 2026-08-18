@@ -69,9 +69,6 @@ function suspectTitle(check: TextBoxCheck): string {
         class="name"
         @dblclick.stop="!props.locked && emit('rename', node.id)"
       >{{ node.displayName }}</span>
-      <span v-if="node.repeat" data-test="element-repeat" class="meta">
-        ×{{ node.repeat.count }}
-      </span>
       <span v-if="node.layout" data-test="element-layout" class="meta">
         {{ node.layout.direction === "row" ? "→" : "↓" }}{{ node.layout.gap }}
       </span>

@@ -148,13 +148,17 @@ function onRadiusToggle(event: Event) {
   emit("set-radius", props.node.id, enabled ? (radius.value > 0 ? radius.value : 8) : 0);
 }
 
-/** 槽位改一个轴，另一个轴带着当前值一起发出去，避免半个值落盘 */
+/**
+ * 槽位改一个轴，另一个轴带着当前值一起发出去，避免半个值落盘。
+ * 槽位未知（老数据没有这个字段）时输入框本身就是禁用的，这里再兜底拦一次，
+ * 不给"未知"编个 0 出来。
+ */
 function onSlot(event: Event, axis: "w" | "h") {
   const repeat = props.node?.repeat;
-  if (!props.node || !repeat) return;
+  if (!props.node || !repeat || !repeat.slot) return;
   const value = Number((event.target as HTMLInputElement).value);
   if (!Number.isFinite(value)) return;
-  const slot = repeat.slot ?? { w: 0, h: 0 };
+  const slot = repeat.slot;
   emit("set-slot", props.node.id,
     axis === "w" ? value : slot.w,
     axis === "h" ? value : slot.h);
@@ -403,14 +407,17 @@ onBeforeUnmount(stopNudge);
         <div class="axes">
           <label>W<input
             data-test="slot-w" type="number" :value="props.node.repeat.slot?.w ?? ''"
-            :disabled="props.disabled" @change="onSlot($event, 'w')"
+            :disabled="props.disabled || !props.node.repeat.slot" @change="onSlot($event, 'w')"
           ></label>
           <label>H<input
             data-test="slot-h" type="number" :value="props.node.repeat.slot?.h ?? ''"
-            :disabled="props.disabled" @change="onSlot($event, 'h')"
+            :disabled="props.disabled || !props.node.repeat.slot" @change="onSlot($event, 'h')"
           ></label>
         </div>
       </div>
+      <p v-if="props.node.repeat && !props.node.repeat.slot" data-test="slot-unknown" class="note">
+        槽位未知，重新解析元素后才有槽位
+      </p>
       <div v-if="props.node.repeat" class="field">
         <span class="name">间距</span>
         <span data-test="list-pitch" class="value">

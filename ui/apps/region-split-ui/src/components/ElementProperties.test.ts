@@ -155,6 +155,29 @@ describe("ElementProperties layout fields", () => {
       .find('[data-test="slot-w"]').exists()).toBe(false);
   });
 
+  // 老数据没有槽位。让它可编辑会把另一根轴静默写成 0，把"未知"当成"0"。
+  it("locks the slot inputs when the slot is unknown", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: listNode({
+        repeat: { count: 5, templateId: "c1", pitch: 219.75, slotBy: "tool" },
+      }) },
+    });
+    expect(wrapper.find('[data-test="slot-w"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[data-test="slot-h"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[data-test="slot-unknown"]').text()).toContain("重新解析");
+  });
+
+  it("does not emit a half value when the slot is unknown", async () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: listNode({
+        repeat: { count: 5, templateId: "c1", pitch: 219.75, slotBy: "tool" },
+      }) },
+    });
+    await wrapper.find('[data-test="slot-w"]').setValue("150");
+    await wrapper.find('[data-test="slot-w"]').trigger("change");
+    expect(wrapper.emitted("set-slot")).toBeFalsy();
+  });
+
   it("toggles scroll on a container", async () => {
     const wrapper = mount(ElementProperties, { props: { node: container } });
     await wrapper.find('[data-test="property-scroll-x"]').trigger("click");

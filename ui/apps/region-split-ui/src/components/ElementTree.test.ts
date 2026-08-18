@@ -122,6 +122,7 @@ describe("ElementTree", () => {
 });
 
 describe("ElementTree layout badges", () => {
+  // 重复项数改由「列表 ×N」角标表达，不再重复渲染 element-repeat 的 ×N
   it("shows direction, gap and repeat on a container row", () => {
     const wrapper = mountTree({
       nodes: [node({
@@ -130,7 +131,7 @@ describe("ElementTree layout badges", () => {
         repeat: { count: 5, templateId: "n2", pitch: 220, slotBy: "tool" },
       })],
     });
-    expect(wrapper.find('[data-test="element-repeat"]').text()).toBe("×5");
+    expect(wrapper.find('[data-test="list-badge"]').text()).toBe("列表 ×5");
     expect(wrapper.find('[data-test="element-layout"]').text()).toBe("→98");
   });
 
