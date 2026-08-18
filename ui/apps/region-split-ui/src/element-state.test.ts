@@ -27,6 +27,11 @@ function fakeApi(over: Partial<StoreApi> = {}): StoreApi {
 }
 const loaded = (nodes: ElementNode[], over: Partial<StoreApi> = {}) =>
   fakeApi({ getElements: vi.fn(async () => ({ tree: tree(nodes), treeVersion: "loaded-v1" })), ...over });
+const listTree = () => loaded([node({
+  id: "n1", kind: "grid",
+  repeat: { count: 3, templateId: "n2", pitch: 100, slot: { w: 40, h: 40 }, slotBy: "tool" },
+})]);
+const whole = { x: 0, y: 0, w: 100, h: 100 };
 
 describe("createElementStore", () => {
   it("starts empty", () => {
@@ -100,6 +105,20 @@ describe("createElementStore", () => {
     await store.load("p1", REGION);
     await store.setKind("p1", REGION, "n1", "icon");
     expect(store.tree.value!.nodes[0]!.textBox).toBeUndefined();
+  });
+
+  it("drops the repeat when the kind moves away from grid", async () => {
+    const store = createElementStore(listTree());
+    await store.load("p1", whole);
+    await store.setKind("p1", whole, "n1", "component");
+    expect(store.nodes.value[0]!.repeat).toBeUndefined();
+  });
+
+  it("keeps the repeat when the kind stays grid", async () => {
+    const store = createElementStore(listTree());
+    await store.load("p1", whole);
+    await store.setKind("p1", whole, "n1", "grid");
+    expect(store.nodes.value[0]!.repeat).toBeDefined();
   });
 
   // 删除一层是最常见的修正动作：子节点上提到父节点，不能级联删掉

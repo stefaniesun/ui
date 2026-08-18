@@ -127,7 +127,7 @@ describe("ElementTree layout badges", () => {
       nodes: [node({
         id: "n1", kind: "grid",
         layout: { direction: "row", gap: 98, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
-        repeat: { count: 5, templateId: "n2", pitch: 220 },
+        repeat: { count: 5, templateId: "n2", pitch: 220, slotBy: "tool" },
       })],
     });
     expect(wrapper.find('[data-test="element-repeat"]').text()).toBe("×5");

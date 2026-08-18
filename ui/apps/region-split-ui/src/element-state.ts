@@ -29,6 +29,13 @@ function dropTextBox(node: ElementNode): ElementNode {
   return rest;
 }
 
+/** 不再是网格了，重复信息就成了孤儿——清掉，别留下自相矛盾的数据 */
+function dropRepeat(node: ElementNode): ElementNode {
+  if (node.repeat === undefined) return node;
+  const { repeat: _drop, ...rest } = node;
+  return rest;
+}
+
 function clearTreeBorderRadii(next: ElementTree | null): ElementTree | null {
   return next ? { ...next, nodes: clearBorderRadii(next.nodes) } : null;
 }
@@ -154,7 +161,8 @@ export function createElementStore(api: StoreApi) {
         if (node.id !== id) return node;
         const style = { ...node.style };
         if (!supportsBorderRadius(kind)) delete style.borderRadius;
-        return dropTextBox({ ...node, kind, style, classification: "human" as const });
+        const next = dropTextBox({ ...node, kind, style, classification: "human" as const });
+        return kind === "grid" ? next : dropRepeat(next);
       }));
     },
 

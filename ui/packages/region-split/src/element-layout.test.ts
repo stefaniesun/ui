@@ -236,3 +236,52 @@ describe("applyBox", () => {
     expect(boxOf(next, "b")).toEqual({ x: 150, y: 60, w: 50, h: 50 });
   });
 });
+
+describe("grid 与 repeat 的同步", () => {
+  const container = (over: Partial<ElementNode> = {}): ElementNode => ({
+    id: "g", parentId: null, box: { x: 0, y: 0, w: 300, h: 100 }, kind: "grid",
+    displayName: "列表", style: {}, uniformity: 1, source: "auto",
+    classification: "tool", scrollX: false, scrollY: false, positioning: "flow",
+    repeat: { count: 3, templateId: "a", pitch: 100, slot: { w: 40, h: 40 }, slotBy: "tool" },
+    ...over,
+  });
+  const child = (id: string, x: number): ElementNode => ({
+    id, parentId: "g", box: { x, y: 30, w: 40, h: 40 }, kind: "component",
+    displayName: id, style: {}, uniformity: 1, source: "auto",
+    classification: "tool", scrollX: false, scrollY: false, positioning: "flow",
+  });
+
+  it("keeps the grid kind while the repeat still holds", () => {
+    const out = recomputeLayout([container(), child("a", 10), child("b", 110), child("c", 210)]);
+    expect(out[0]!.kind).toBe("grid");
+    expect(out[0]!.repeat).toBeDefined();
+  });
+
+  // 人工挪乱了间距，repeat 被删——kind 不能还叫"网格"
+  it("demotes the kind when the repeat no longer holds", () => {
+    const out = recomputeLayout([container(), child("a", 10), child("b", 60), child("c", 210)]);
+    expect(out[0]!.repeat).toBeUndefined();
+    expect(out[0]!.kind).toBe("component");
+  });
+
+  // 人工定的类型不许被几何推翻
+  it("leaves a human-set kind alone", () => {
+    const out = recomputeLayout([
+      container({ classification: "human" }),
+      child("a", 10), child("b", 60), child("c", 210),
+    ]);
+    expect(out[0]!.repeat).toBeUndefined();
+    expect(out[0]!.kind).toBe("grid");
+  });
+
+  it("keeps a human slot through a recompute", () => {
+    const out = recomputeLayout([
+      container({
+        repeat: { count: 3, templateId: "a", pitch: 100, slot: { w: 60, h: 60 }, slotBy: "human" },
+      }),
+      child("a", 10), child("b", 110), child("c", 210),
+    ]);
+    expect(out[0]!.repeat?.slot).toEqual({ w: 60, h: 60 });
+    expect(out[0]!.repeat?.slotBy).toBe("human");
+  });
+});

@@ -102,7 +102,7 @@ describe("ElementProperties layout fields", () => {
     ...node,
     kind: "grid",
     layout: { direction: "row", gap: 98, padding: { top: 0, right: 42, bottom: 0, left: 38 } },
-    repeat: { count: 5, templateId: "n2", pitch: 219.3 },
+    repeat: { count: 5, templateId: "n2", pitch: 219.3, slotBy: "tool" },
   };
 
   it("shows the cut direction and gap", () => {

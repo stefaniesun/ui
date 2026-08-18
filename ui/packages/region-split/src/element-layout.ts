@@ -208,6 +208,9 @@ export function recomputeLayout(
       };
     } else {
       delete next.repeat;
+      // 等距不成立了就不该再叫"网格"——kind 与 repeat 是检测时同一个 if 里赋的，
+      // 只删一个会留下一个没有重复信息的 grid。人工定的类型不许被几何推翻。
+      if (next.kind === "grid" && next.classification !== "human") next.kind = "component";
     }
 
     if (!preserveScroll.has(node.id)) {
