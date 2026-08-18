@@ -334,9 +334,10 @@ defineExpose({ openDetail, closeDetail, refreshConnections, fitAll });
       >
         <template #status><span>{{ region.displayName }}</span></template>
         <slot
+          v-if="elementStores.get(region.id)"
           name="detail"
           :region="region"
-          :element-store="elementStores.get(region.id)"
+          :element-store="elementStores.get(region.id)!"
           :hovered-id="detailHoveredIds[region.id] ?? null"
           :set-hovered-id="(id: string | null) => setDetailHovered(region.id, id)"
         />
