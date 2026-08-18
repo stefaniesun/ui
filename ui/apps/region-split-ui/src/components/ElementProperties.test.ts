@@ -143,7 +143,13 @@ describe("ElementProperties layout fields", () => {
   });
 
   it("emits set-slot when the slot changes", async () => {
-    const wrapper = mount(ElementProperties, { props: { node: listNode() } });
+    // 竖排列表 W 是生效的那根轴——没有 layout 时按横排算，W 会被锁定，
+    // 这里显式给列布局，让改 W 落到可编辑、可生效的一侧。
+    const wrapper = mount(ElementProperties, {
+      props: { node: listNode({
+        layout: { direction: "column", gap: 20, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+      }) },
+    });
     const input = wrapper.find('[data-test="slot-w"]');
     await input.setValue("150");
     await input.trigger("change");
@@ -176,6 +182,41 @@ describe("ElementProperties layout fields", () => {
     await wrapper.find('[data-test="slot-w"]').setValue("150");
     await wrapper.find('[data-test="slot-w"]').trigger("change");
     expect(wrapper.emitted("set-slot")).toBeFalsy();
+  });
+
+  // 横排列表的主轴由 pitch 决定，slot.w 用不上。让它可编辑的话，
+  // 改一个不生效的字段会把整个 slot 标成 human，反而冻住生效的 H。
+  it("locks the width for a row list", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: listNode({
+        layout: { direction: "row", gap: 98, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+      }) },
+    });
+    expect(wrapper.find('[data-test="slot-w"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[data-test="slot-h"]').attributes("disabled")).toBeUndefined();
+    expect(wrapper.find('[data-test="slot-axis-note"]').exists()).toBe(true);
+  });
+
+  it("locks the height for a column list", () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: listNode({
+        layout: { direction: "column", gap: 20, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+      }) },
+    });
+    expect(wrapper.find('[data-test="slot-h"]').attributes("disabled")).toBeDefined();
+    expect(wrapper.find('[data-test="slot-w"]').attributes("disabled")).toBeUndefined();
+  });
+
+  it("still sends both axes when the usable one changes", async () => {
+    const wrapper = mount(ElementProperties, {
+      props: { node: listNode({
+        layout: { direction: "row", gap: 98, padding: { top: 0, right: 0, bottom: 0, left: 0 } },
+      }) },
+    });
+    const input = wrapper.find('[data-test="slot-h"]');
+    await input.setValue("150");
+    await input.trigger("change");
+    expect(wrapper.emitted("set-slot")![0]).toEqual(["n1", 141, 150]);
   });
 
   it("toggles scroll on a container", async () => {

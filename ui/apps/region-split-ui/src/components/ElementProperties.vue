@@ -149,13 +149,27 @@ function onRadiusToggle(event: Event) {
 }
 
 /**
+ * 生成 CSS 时主轴用 pitch（中心距），交叉轴才用槽位：
+ * 横排（direction !== "column"，与生成器 emit-html.ts 的 horizontal 判定保持一致）
+ * 只有 H 生效，竖排只有 W 生效。不生效的那根轴禁止编辑——
+ * 否则改它会把整个 slot 标成 human，连带冻住那根真正生效的轴，
+ * 见 element-state.ts 的 setSlot。
+ */
+const slotAxisLocked = computed<"w" | "h" | null>(() => {
+  const layout = props.node?.layout;
+  if (!layout) return "w"; // 没有 layout 时按横排算，W 不生效
+  return layout.direction === "column" ? "h" : "w";
+});
+
+/**
  * 槽位改一个轴，另一个轴带着当前值一起发出去，避免半个值落盘。
  * 槽位未知（老数据没有这个字段）时输入框本身就是禁用的，这里再兜底拦一次，
- * 不给"未知"编个 0 出来。
+ * 不给"未知"编个 0 出来。不生效的那根轴即使被程序触发也不 emit。
  */
 function onSlot(event: Event, axis: "w" | "h") {
   const repeat = props.node?.repeat;
   if (!props.node || !repeat || !repeat.slot) return;
+  if (axis === slotAxisLocked.value) return;
   const value = Number((event.target as HTMLInputElement).value);
   if (!Number.isFinite(value)) return;
   const slot = repeat.slot;
@@ -406,17 +420,22 @@ onBeforeUnmount(stopNudge);
         <span class="name">槽位</span>
         <div class="axes">
           <label>W<input
-            data-test="slot-w" type="number" :value="props.node.repeat.slot?.w ?? ''"
-            :disabled="props.disabled || !props.node.repeat.slot" @change="onSlot($event, 'w')"
+            data-test="slot-w" type="number" min="1" :value="props.node.repeat.slot?.w ?? ''"
+            :disabled="props.disabled || !props.node.repeat.slot || slotAxisLocked === 'w'"
+            @change="onSlot($event, 'w')"
           ></label>
           <label>H<input
-            data-test="slot-h" type="number" :value="props.node.repeat.slot?.h ?? ''"
-            :disabled="props.disabled || !props.node.repeat.slot" @change="onSlot($event, 'h')"
+            data-test="slot-h" type="number" min="1" :value="props.node.repeat.slot?.h ?? ''"
+            :disabled="props.disabled || !props.node.repeat.slot || slotAxisLocked === 'h'"
+            @change="onSlot($event, 'h')"
           ></label>
         </div>
       </div>
       <p v-if="props.node.repeat && !props.node.repeat.slot" data-test="slot-unknown" class="note">
         槽位未知，重新解析元素后才有槽位
+      </p>
+      <p v-if="props.node.repeat && props.node.repeat.slot" data-test="slot-axis-note" class="note">
+        {{ slotAxisLocked === "w" ? "W" : "H" }} 由中心距（间距）决定，这根轴改了不生效，已锁定
       </p>
       <div v-if="props.node.repeat" class="field">
         <span class="name">间距</span>
