@@ -55,7 +55,9 @@ describe("RegionCanvas", () => {
 
     expect(wrapper.findAll(".candidate-line")).toHaveLength(0);
     expect(wrapper.get(".split-line").attributes("style")).toContain("top: 150px");
-    await wrapper.findAll(".overlay")[1]!.trigger("click", { ctrlKey: true });
-    expect(store.selectedIds.value).toEqual(["a"]);
+    expect(stage.classes()).toContain("splitting");
+    await stage.trigger("click", { clientY: 151 });
+    expect(store.regions.value).toHaveLength(3);
+    expect(store.selectedIds.value).toEqual(["a-2"]);
   });
 });
