@@ -14,7 +14,10 @@ const error = ref("");
 const busy = ref(false);
 const opacity = ref(50);
 let requestVersion = 0;
-watch(bounds, () => { requestVersion += 1; code.value = null; error.value = ""; busy.value = false; });
+const generationKey = computed(() => {
+  const rect = props.region.bounds;
+  return `${props.projectId}:${props.region.id}:${rect.x}:${rect.y}:${rect.w}:${rect.h}`;
+});
 const srcdoc = computed(() => code.value
   ? `<!doctype html><meta charset="utf-8"><style>*{margin:0;padding:0}html,body{overflow:hidden}${code.value.css}</style>${code.value.html}`
   : "");
@@ -38,6 +41,14 @@ async function generate() {
     if (version === requestVersion) busy.value = false;
   }
 }
+watch(generationKey, () => {
+  requestVersion += 1;
+  code.value = null;
+  error.value = "";
+  busy.value = false;
+  void generate();
+}, { immediate: true });
+
 function download(name: string, content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
   const link = document.createElement("a");
@@ -62,6 +73,12 @@ function download(name: string, content: string) {
       </template>
       <span v-if="error" data-test="code-error" class="error">{{ error }}</span>
     </div>
+    <div v-if="busy && !code" data-test="code-loading" class="loading" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true" />
+      <strong>正在生成代码</strong>
+      <span class="loading-dots" aria-hidden="true"><i /><i /><i /></span>
+      <small>正在分析区域结构并生成 HTML 与 CSS，请稍候</small>
+    </div>
     <section v-if="code" class="compare">
       <header>生成结果叠在原图上——拖滑块看哪里错位</header>
       <div class="stack" :style="{ aspectRatio: `${bounds.w} / ${bounds.h}` }">
@@ -79,6 +96,16 @@ function download(name: string, content: string) {
 .slider input { width: 110px; }
 .slider .value { width: 30px; }
 .error { margin-left: auto; color: var(--danger); }
+.loading { min-height: 230px; display: grid; grid-template-columns: auto auto auto; align-content: center; justify-content: center; align-items: center; gap: 10px; color: var(--text); background: radial-gradient(circle at center, color-mix(in srgb, var(--accent) 9%, transparent), transparent 55%); }
+.spinner { width: 20px; height: 20px; box-sizing: border-box; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+.loading strong { font-size: 12px; }
+.loading small { grid-column: 1 / -1; color: var(--text-faint); text-align: center; }
+.loading-dots { display: flex; align-items: center; gap: 3px; }
+.loading-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+.loading-dots i:nth-child(2) { animation-delay: .15s; }.loading-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .spinner, .loading-dots i { animation: none; } }
 .compare header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .stack { position: relative; width: 100%; overflow: hidden; background: #0a0d13; }
 .source { display: block; width: 100%; height: auto; }
