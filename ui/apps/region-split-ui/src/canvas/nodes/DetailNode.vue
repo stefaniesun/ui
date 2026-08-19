@@ -394,44 +394,47 @@ function onRenamePrompt(id: string) {
 
       <img ref="sourceImg" class="source-preload" :src="sourceUrl" alt="" aria-hidden="true" />
 
-      <section data-test="detail-image" class="image-section">
-        <header>
-          元素解析图
-          <span v-if="picking" data-test="picking-hint" class="hint-inline">
-            在图上点一个像素取色，Esc 取消
-          </span>
-        </header>
-        <div class="stage-wrap">
-          <ElementOverlay
-            :project-id="props.projectId"
-            :region="region"
-            :nodes="nodes"
-            :selected-id="props.elementStore.selectedId.value"
-            :hovered-id="props.hoveredId ?? null"
-            :picking="picking"
-            @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
-            @hover="emit('hover', $event)"
-            @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
-            @pick-hover="onPickHover"
-            @pick="onPick"
-          />
-          <span
-            v-if="hoverColor"
-            data-test="pick-preview"
-            class="pick-preview"
-            :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
-          >
-            <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
-          </span>
-        </div>
-      </section>
-
       <p v-if="emptyResult" data-test="empty-result" class="empty-result">
         本区域未检出顶层容器——文字和图标这类小元素要等下一步的递归切分。
-        可以在上图直接框选，手动补一个容器。
+        可以在图上直接框选，手动补一个容器。
       </p>
 
-      <section data-test="detail-inspector" class="inspector">
+      <div data-test="detail-workspace" class="detail-workspace">
+        <section data-test="detail-image" class="image-section">
+          <header>
+            元素解析图
+            <span v-if="picking" data-test="picking-hint" class="hint-inline">
+              在图上点一个像素取色，Esc 取消
+            </span>
+          </header>
+          <div class="image-scroll">
+            <div class="stage-wrap">
+              <ElementOverlay
+                :project-id="props.projectId"
+                :region="region"
+                :nodes="nodes"
+                :selected-id="props.elementStore.selectedId.value"
+                :hovered-id="props.hoveredId ?? null"
+                :picking="picking"
+                @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
+                @hover="emit('hover', $event)"
+                @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
+                @pick-hover="onPickHover"
+                @pick="onPick"
+              />
+              <span
+                v-if="hoverColor"
+                data-test="pick-preview"
+                class="pick-preview"
+                :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
+              >
+                <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section data-test="detail-inspector" class="inspector">
         <ElementTree
           :nodes="nodes"
           :selected-id="props.elementStore.selectedId.value"
@@ -460,28 +463,31 @@ function onRenamePrompt(id: string) {
           :picking="picking"
           @toggle-picking="togglePicking"
         />
-        <ElementRefactorPanel
-          v-if="parsed"
-          ref="refactorPanel"
-          :session="refactorStore.session.value"
-          :messages="refactorStore.messages.value"
-          :diffs="refactorStore.diffs.value"
-          :busy="refactorStore.busy.value"
-          :error="refactorStore.error.value"
-          :selected-reference="selectedReference"
-          @send="sendRefactor"
-          @apply="applyRefactor"
-          @reset="refactorStore.reset"
-          @discard="discardRefactor"
-          @set-view="refactorStore.view.value = $event"
-        />
-        <button
-          v-if="!refactorStore.rootId.value && props.elementStore.undoSnapshot.value"
-          class="undo-refactor"
-          data-test="undo-ai-refactor"
-          @click="region && props.elementStore.undoRefactor(props.projectId, region)"
-        >撤销 AI 重构</button>
-      </section>
+        <aside data-test="detail-ai-column" class="ai-column">
+          <ElementRefactorPanel
+            v-if="parsed"
+            ref="refactorPanel"
+            :session="refactorStore.session.value"
+            :messages="refactorStore.messages.value"
+            :diffs="refactorStore.diffs.value"
+            :busy="refactorStore.busy.value"
+            :error="refactorStore.error.value"
+            :selected-reference="selectedReference"
+            @send="sendRefactor"
+            @apply="applyRefactor"
+            @reset="refactorStore.reset"
+            @discard="discardRefactor"
+            @set-view="refactorStore.view.value = $event"
+          />
+          <button
+            v-if="!refactorStore.rootId.value && props.elementStore.undoSnapshot.value"
+            class="undo-refactor"
+            data-test="undo-ai-refactor"
+            @click="region && props.elementStore.undoRefactor(props.projectId, region)"
+          >撤销 AI 重构</button>
+        </aside>
+        </section>
+      </div>
   </div>
 </template>
 
@@ -496,7 +502,9 @@ function onRenamePrompt(id: string) {
 .region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.image-section { background: #0a0d13; }
+.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(340px, 1fr) minmax(0, 640px); overflow: hidden; }
+.image-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
+.image-scroll { min-height: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
 .hint-inline { margin-left: 8px; color: var(--accent); }
 /* 取色提示气泡按舞台内偏移定位，所以外面这层必须是定位上下文 */
 .stage-wrap { position: relative; }
@@ -504,9 +512,9 @@ function onRenamePrompt(id: string) {
 .pick-preview i { width: 11px; height: 11px; border: 1px solid #ffffff55; border-radius: 3px; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
-/* 上下结构：图占满宽度、高度由区域宽高比决定且不设上限（标注才能纯百分比定位）；
-   下段是固定高度的树与属性检查器，不随区域高矮变化。 */
-.inspector { height: 500px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr) auto; border-top: 1px solid var(--border); }
-.inspector > .element-refactor-panel { grid-column: 1 / -1; }
-.undo-refactor { position: absolute; right: 8px; transform: translateY(8px); }
+/* 右半区同时展示元素树、属性与 AI 交互，和左侧原图保持同屏。 */
+.inspector { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 220px 260px; overflow: hidden; border-left: 1px solid var(--border); }
+.ai-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--bg-node); }
+.ai-column > .element-refactor-panel { flex: 1; min-height: 0; max-height: none; border-top: 0; }
+.undo-refactor { align-self: flex-end; margin: 8px; }
 </style>

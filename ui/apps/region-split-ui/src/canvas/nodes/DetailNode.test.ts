@@ -59,11 +59,20 @@ describe("DetailNode", () => {
     expect(wrapper.text()).toContain("400×300");
   });
 
-  // 上下结构：图在上、树与属性在下
-  it("stacks the image above the inspector", () => {
-    const wrapper = mountNode({ region: region("a", 0, 300) });
-    expect(wrapper.find('[data-test="detail-image"]').exists()).toBe(true);
-    expect(wrapper.find('[data-test="detail-inspector"]').exists()).toBe(true);
+  it("places AI structure calibration in the inspector right column", async () => {
+    const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
+    await wrapper.vm.$nextTick();
+
+    const image = wrapper.get('[data-test="detail-image"]');
+    const inspector = wrapper.get('[data-test="detail-inspector"]');
+    expect(image.element.parentElement?.getAttribute("data-test")).toBe("detail-workspace");
+    expect(image.element.parentElement).toBe(inspector.element.parentElement);
+
+    const aiColumn = inspector.get('[data-test="detail-ai-column"]');
+    expect(aiColumn.find('[data-test="ai-refactor-panel"]').exists()).toBe(true);
+    expect(inspector.element.lastElementChild).toBe(aiColumn.element);
+    expect(aiColumn.find('[data-test="ai-conversation-scroll"]').exists()).toBe(true);
+    expect(aiColumn.find('[data-test="ai-composer"]').exists()).toBe(true);
   });
 
   it("always shows the AI panel and asks for an element selection", async () => {

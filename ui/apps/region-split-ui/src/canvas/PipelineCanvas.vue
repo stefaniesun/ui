@@ -68,7 +68,7 @@ let pan: { start: Point; origin: Point } | null = null;
 let resizeObserver: ResizeObserver | undefined;
 
 const WORKSPACE = { width: 1105, height: 700 };
-const DETAIL = { width: 760, height: 600 };
+const DETAIL = { width: 1280, height: 600 };
 const PAGE = { width: 760, height: 760 };
 
 const regionById = computed(() => new Map(props.regions.map(region => [region.id, region])));
