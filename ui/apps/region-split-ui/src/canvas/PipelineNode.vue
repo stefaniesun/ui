@@ -45,6 +45,7 @@ const emit = defineEmits<{
     <span
       v-if="props.input"
       class="port input-port"
+      data-port="input"
       :style="{ borderColor: props.accentColor ?? 'var(--border-strong)' }"
       aria-hidden="true"
     />
@@ -66,7 +67,7 @@ const emit = defineEmits<{
       >×</button>
     </header>
     <div class="node-body"><slot /></div>
-    <span v-if="props.output" class="port output-port" aria-hidden="true" />
+    <span v-if="props.output" class="port output-port" data-port="output" aria-hidden="true" />
   </article>
 </template>
 

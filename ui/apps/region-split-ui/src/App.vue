@@ -15,6 +15,7 @@ const hoveredId = ref<string | null>(null);
 const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
 const pipelineCanvas = ref<{
   openDetail(id: string): void;
+  openPageCompare(): void;
   refreshConnections(): void;
 } | null>(null);
 const dialogError = ref<RegionNodeError | null>(null);
@@ -83,6 +84,8 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :project-id="store.projectId.value"
       :get-region-anchor="getRegionAnchor"
       :create-element-store="() => createElementStore(httpApi)"
+      :page-api="httpApi"
+      :image-size="{ w: store.doc.value?.image.width ?? 1, h: store.doc.value?.image.height ?? 1 }"
     >
       <RegionsNode
         ref="regionsNode"
@@ -91,6 +94,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         :show-panels="showPanels"
         @hover="hoveredId = $event"
         @open="openRegionDetail"
+        @open-page-compare="pipelineCanvas?.openPageCompare()"
         @layout-change="pipelineCanvas?.refreshConnections()"
         @uploaded="store.projectId.value && syncHash(store.projectId.value)"
         @error="dialogError = $event"

@@ -17,7 +17,7 @@ export interface ViewportSize {
   height: number;
 }
 
-export type NodeId = "workspace" | "detail";
+export type NodeId = "workspace" | "detail" | "page";
 export type NodePositions = Record<NodeId, Point>;
 
 export interface StorageReader {
@@ -35,6 +35,7 @@ export const NODE_POSITIONS_STORAGE_KEY = "region-split:canvas-node-positions:v2
 export const DEFAULT_NODE_POSITIONS: NodePositions = {
   workspace: { x: 120, y: 80 },
   detail: { x: 1345, y: 80 },
+  page: { x: 1345, y: 720 },
 };
 
 export function clampZoom(zoom: number): number {
@@ -105,7 +106,7 @@ export function saveNodePositions(
 }
 
 const PORT_Y = 21;
-const PIPELINE: readonly [NodeId, NodeId][] = [["workspace", "detail"]];
+const PIPELINE: readonly [NodeId, NodeId][] = [["workspace", "detail"], ["workspace", "page"]];
 
 export function portAnchors(
   positions: NodePositions, widths: Record<NodeId, number>,

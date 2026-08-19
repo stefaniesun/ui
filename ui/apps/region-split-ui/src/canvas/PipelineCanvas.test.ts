@@ -41,6 +41,25 @@ describe("PipelineCanvas dynamic details", () => {
     });
   });
 
+  it("opens one fixed page comparison node and its workspace link", async () => {
+    const wrapper = mount(PipelineCanvas, {
+      props: {
+        projectId: "p1",
+        pageApi: { getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })) },
+        imageSize: { w: 375, h: 800 },
+      },
+      slots: { default: "workspace" },
+      global: { stubs: { PipelineNode: false } },
+    });
+    const vm = wrapper.vm as unknown as { openPageCompare(): void };
+    vm.openPageCompare();
+    vm.openPageCompare();
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('[data-node-id="page"]')).toHaveLength(1);
+    expect(wrapper.find('[data-node-id="workspace"] [data-port="output"]').exists()).toBe(true);
+    expect(wrapper.findAll(".links path")).toHaveLength(1);
+  });
+
   it("opens each region once and closes independently", async () => {
     const wrapper = mounted();
     expect(wrapper.findAll('[data-node-id^="detail:"]')).toHaveLength(0);

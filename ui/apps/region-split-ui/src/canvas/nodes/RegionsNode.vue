@@ -26,6 +26,7 @@ const emit = defineEmits<{
   open: [id: string];
   layoutChange: [];
   uploaded: [];
+  openPageCompare: [];
   error: [error: RegionNodeError];
 }>();
 const input = ref<HTMLInputElement | null>(null);
@@ -207,6 +208,9 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
         <button data-test="export-page" class="export-button" :disabled="exporting" @click="exportPage">
           {{ exporting ? "导出中…" : "导出整页代码" }}
         </button>
+        <button data-test="open-page-compare" class="compare-button" :disabled="exporting" @click="emit('openPageCompare')">
+          整页比对
+        </button>
         <span v-if="exportError" class="export-error">{{ exportError }}</span>
       </div>
       <div data-test="comparison-workspace" class="comparison-workspace">
@@ -281,7 +285,8 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
 .workspace-actions { display: flex; align-items: center; gap: 10px; }
 .workspace-actions :deep(.bar) { flex: 1; }
 .export-button { flex: 0 0 auto; height: 32px; padding: 0 14px; border: 1px solid #3b82f6; border-radius: 7px; color: #eff6ff; background: #2563eb; cursor: pointer; }
-.export-button:disabled { opacity: .55; cursor: wait; }
+.export-button:disabled, .compare-button:disabled { opacity: .55; cursor: wait; }
+.compare-button { flex: 0 0 auto; height: 32px; padding: 0 14px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--bg-inset); cursor: pointer; }
 .export-error { max-width: 260px; color: #fca5a5; font-size: 12px; }
 .regions-node { margin: -14px; overflow: hidden; border-radius: 0 0 9px 9px; }
 .file-input { display: none; }

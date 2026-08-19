@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NODE_POSITIONS,
   bezierPath,
@@ -44,16 +44,16 @@ describe("canvas state", () => {
 describe("端口与连线", () => {
   it("anchors ports on the node edges at the header line", () => {
     const [first] = portAnchors(
-      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 40 } },
-      { workspace: 400, detail: 300 },
+      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 40 }, page: { x: 500, y: 600 } },
+      { workspace: 400, detail: 300, page: 300 },
     );
     expect(first).toEqual({ from: { x: 400, y: 21 }, to: { x: 500, y: 61 } });
   });
   it("links workspace to detail", () => {
     expect(portAnchors(
-      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 0 } },
-      { workspace: 400, detail: 300 },
-    )).toHaveLength(1);
+      { workspace: { x: 0, y: 0 }, detail: { x: 500, y: 0 }, page: { x: 500, y: 600 } },
+      { workspace: 400, detail: 300, page: 300 },
+    )).toHaveLength(2);
   });
   it("draws cubic curves with horizontal handles", () => {
     expect(bezierPath({ x: 0, y: 0 }, { x: 200, y: 100 })).toBe("M 0 0 C 100 0, 100 100, 200 100");
@@ -61,9 +61,11 @@ describe("端口与连线", () => {
   });
 });
 
-describe("two node positions", () => {
-  it("places the detail node to the right of the workspace", () => {
+describe("fixed node positions", () => {
+  it("places the detail and page nodes to the right of the workspace", () => {
     expect(DEFAULT_NODE_POSITIONS.detail.x)
+      .toBeGreaterThan(DEFAULT_NODE_POSITIONS.workspace.x);
+    expect(DEFAULT_NODE_POSITIONS.page.x)
       .toBeGreaterThan(DEFAULT_NODE_POSITIONS.workspace.x);
   });
 
@@ -74,12 +76,13 @@ describe("two node positions", () => {
     const loaded = loadNodePositions(storage, "nodes", DEFAULT_NODE_POSITIONS);
     expect(loaded.workspace).toEqual({ x: 5, y: 6 });
     expect(loaded.detail).toEqual(DEFAULT_NODE_POSITIONS.detail);
+    expect(loaded.page).toEqual(DEFAULT_NODE_POSITIONS.page);
     expect(loaded).not.toHaveProperty("code");
   });
 
   it("round trips all node positions", () => {
     const written: Record<string, string> = {};
-    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 } };
+    const positions = { workspace: { x: 1, y: 2 }, detail: { x: 3, y: 4 }, page: { x: 5, y: 6 } };
     saveNodePositions({ setItem: (k, v) => { written[k] = v; } }, "nodes", positions);
     const loaded = loadNodePositions(
       { getItem: (k: string) => written[k] ?? null }, "nodes", DEFAULT_NODE_POSITIONS);

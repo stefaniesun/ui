@@ -26,18 +26,24 @@ import {
   screenPointToWorld,
 } from "./dynamic-detail-state.js";
 import PipelineNode from "./PipelineNode.vue";
+import PageCompareNode from "./nodes/PageCompareNode.vue";
+import type { PageCodeOutput } from "../api.js";
 
 const props = withDefaults(defineProps<{
   regions?: Region[];
   projectId?: string;
   getRegionAnchor?: (regionId: string) => Point | null;
   createElementStore?: () => ElementStore;
+  pageApi?: { getPageCode(projectId: string): Promise<PageCodeOutput> };
+  imageSize?: { w: number; h: number };
   storage?: Storage;
 }>(), {
   regions: () => [],
   projectId: "",
   getRegionAnchor: undefined,
   createElementStore: undefined,
+  pageApi: undefined,
+  imageSize: () => ({ w: 1, h: 1 }),
   storage: undefined,
 });
 
@@ -53,6 +59,7 @@ const detailPositions = reactive<Record<string, Point>>({});
 const codePositions = reactive<Record<string, Point>>({});
 const openRegionIds = ref<string[]>([]);
 const openCodeIds = ref<string[]>([]);
+const pageOpen = ref(false);
 const elementStores = new Map<string, ElementStore>();
 const detailHoveredIds = reactive<Record<string, string | null>>({});
 const highlightedRegionId = ref<string | null>(null);
@@ -66,6 +73,7 @@ let resizeObserver: ResizeObserver | undefined;
 const WORKSPACE = { width: 1105, height: 700 };
 const DETAIL = { width: 760, height: 600 };
 const CODE = { width: 760, height: 600 };
+const PAGE = { width: 760, height: 760 };
 
 const regionById = computed(() => new Map(props.regions.map(region => [region.id, region])));
 const openedRegions = computed(() => openRegionIds.value.flatMap(id => {
@@ -103,7 +111,15 @@ const links = computed(() => {
       ),
     }];
   });
-  return [...regionLinks, ...codeLinks];
+  const pageLink = pageOpen.value ? [{
+    id: "page",
+    color: "#94a3b8",
+    path: bezierPath(
+      { x: fixedPositions.workspace.x + WORKSPACE.width, y: fixedPositions.workspace.y + 21 },
+      { x: fixedPositions.page.x, y: fixedPositions.page.y + 21 },
+    ),
+  }] : [];
+  return [...regionLinks, ...codeLinks, ...pageLink];
 });
 
 function storageTarget(): Storage | undefined {
@@ -141,7 +157,8 @@ function occupiedNodeBounds(): Bounds[] {
     const code = codeBounds(id);
     return code ? [code] : [];
   });
-  return [...detailBoundsList, ...codeBoundsList];
+  const pageBounds = pageOpen.value ? [{ ...fixedPositions.page, ...PAGE }] : [];
+  return [...detailBoundsList, ...codeBoundsList, ...pageBounds];
 }
 
 function refreshConnectionsNow(): void {
@@ -230,6 +247,21 @@ function openCode(regionId: string): void {
 
 function closeCode(regionId: string): void {
   openCodeIds.value = openCodeIds.value.filter(id => id !== regionId);
+}
+
+function openPageCompare(): void {
+  if (!props.projectId || !props.pageApi) return;
+  pageOpen.value = true;
+  persist();
+  nextTick(() => {
+    const rect = canvas.value?.getBoundingClientRect();
+    if (rect) Object.assign(viewport, centerNodeViewport({ ...fixedPositions.page, ...PAGE }, { width: rect.width, height: rect.height }, viewport.zoom));
+    refreshConnections();
+  });
+}
+
+function closePageCompare(): void {
+  pageOpen.value = false;
 }
 
 function setDetailHovered(regionId: string, id: string | null): void {
@@ -328,6 +360,7 @@ function fitAll(): void {
     const code = codeBounds(id);
     if (code) bounds.push(code);
   }
+  if (pageOpen.value) bounds.push({ ...fixedPositions.page, ...PAGE });
   const left = Math.min(...bounds.map(bound => bound.x));
   const top = Math.min(...bounds.map(bound => bound.y));
   const right = Math.max(...bounds.map(bound => bound.x + bound.width));
@@ -370,6 +403,7 @@ watch(() => props.regions.map(region => region.id), ids => {
 watch(() => props.projectId, () => {
   openRegionIds.value = [];
   openCodeIds.value = [];
+  pageOpen.value = false;
   elementStores.clear();
   for (const id of Object.keys(detailPositions)) delete detailPositions[id];
   for (const id of Object.keys(codePositions)) delete codePositions[id];
@@ -408,7 +442,7 @@ onBeforeUnmount(() => {
   stopPointer();
 });
 
-defineExpose({ openDetail, closeDetail, openCode, closeCode, refreshConnections, fitAll });
+defineExpose({ openDetail, closeDetail, openCode, closeCode, openPageCompare, closePageCompare, refreshConnections, fitAll });
 </script>
 
 <template>
@@ -426,10 +460,26 @@ defineExpose({ openDetail, closeDetail, openCode, closeCode, refreshConnections,
         :width="WORKSPACE.width"
         :min-height="WORKSPACE.height"
         :input="false"
-        :output="false"
+        :output="pageOpen"
         @drag-start="startNodeDrag"
       >
         <slot />
+      </PipelineNode>
+
+      <PipelineNode
+        v-if="pageOpen"
+        node-id="page"
+        title="整页比对"
+        :position="fixedPositions.page"
+        :width="PAGE.width"
+        :min-height="PAGE.height"
+        :input="true"
+        :output="false"
+        :closable="true"
+        @drag-start="startNodeDrag"
+        @close="closePageCompare"
+      >
+        <PageCompareNode :project-id="props.projectId" :api="props.pageApi!" :image-size="props.imageSize!" />
       </PipelineNode>
 
       <PipelineNode

@@ -68,6 +68,12 @@ async function showAnalyzedResult(
 }
 
 describe("RegionsNode upload and analysis orchestration", () => {
+  it("emits the page comparison action after analysis", async () => {
+    const { store, wrapper } = await mountNode();
+    await showAnalyzedResult(store, wrapper);
+    await wrapper.get('[data-test="open-page-compare"]').trigger("click");
+    expect(wrapper.emitted("openPageCompare")).toHaveLength(1);
+  });
   it("blocks upload when the AI model is not configured and reports its config path", async () => {
     const upload = vi.fn();
     const analyze = vi.fn();
