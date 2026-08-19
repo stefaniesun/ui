@@ -12,15 +12,14 @@ const region = { x: 0, y: 0, w: 100, h: 80 };
 async function fixture() {
   const store = new ProjectStore(mkdtempSync(join(tmpdir(), "rs-assets-")));
   const projectId = "20260818-asset1";
-  const dir = store.projectDir(projectId);
-  const image = await sharp({ create: { width: 100, height: 80, channels: 3, background: "#3578e5" } }).png().toBuffer();
-  await sharp(image).toFile(join(dir, "image.original.png"));
   store.writeDoc(projectId, {
     schemaVersion: "1",
-    image: { fileName: "image.original.png", width: 100, height: 80, analyzedScale: 1, removedChrome: [] },
+    image: { fileName: "image.png", width: 100, height: 80, analyzedScale: 1, removedChrome: [] },
     regions: [{ id: "r", displayName: "区域", type: "other", bounds: region, confidence: 1, scrollX: false, scrollY: false }],
     candidateLines: [], panels: [], updatedAt: new Date().toISOString(),
   });
+  const image = await sharp({ create: { width: 100, height: 80, channels: 3, background: "#3578e5" } }).png().toBuffer();
+  await sharp(image).toFile(store.cleanImagePath(projectId));
   return { store, projectId };
 }
 

@@ -34,7 +34,7 @@ describe("emitHtml", () => {
   });
   it("renders recognized text literally without a todo marker", () => {
     const { html } = emit([node({ id: "label", kind: "text", displayName: "按钮文字", text: "立即购买" })]);
-    expect(html).toContain('<span class="e-label">立即购买</span>');
+    expect(html).toContain('<span class="e-label" data-element-id="label">立即购买</span>');
     expect(html).not.toContain('data-todo="text"');
   });
   it("renders image and icon assets as accessible images", () => {

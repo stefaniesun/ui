@@ -140,12 +140,12 @@ describe("region split server", () => {
     const { projectId } = (await upload(app)).json();
     const doc = store.readDoc(projectId);
     doc.regions = [
-      { id: "a", displayName: "顶部", type: "header", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
-      { id: "b", displayName: "底部", type: "footer", bounds: { x: 0, y: 100, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "a", displayName: "顶部", type: "nav-bar", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "b", displayName: "底部", type: "tab-bar", bounds: { x: 0, y: 200, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
     ];
     store.writeDoc(projectId, doc);
     for (const region of doc.regions) store.writeElementTree(projectId, {
-      regionKey: `${region.bounds.y}-${region.bounds.h}`, detectedAt: "2026-08-18T00:00:00.000Z",
+      regionKey: `${region.bounds.y}-${region.bounds.y + region.bounds.h}`, detectedAt: "2026-08-18T00:00:00.000Z",
       nodes: [{ id: "same", parentId: null, box: region.bounds, kind: "text", displayName: region.displayName, text: region.displayName, style: {}, uniformity: 1, source: "manual", classification: "human", scrollX: false, scrollY: false, positioning: "flow" }],
     }, region.bounds);
 
@@ -160,7 +160,7 @@ describe("region split server", () => {
     const { app, store } = makeApp();
     const { projectId } = (await upload(app)).json();
     const doc = store.readDoc(projectId);
-    doc.regions = [{ id: "a", displayName: "未解析区", type: "other", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false }];
+    doc.regions = [{ id: "a", displayName: "未解析区", type: "other", bounds: { x: 0, y: 0, w: 375, h: 400 }, confidence: 1, scrollX: false, scrollY: false }];
     store.writeDoc(projectId, doc);
     const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/page-code` });
     expect(response.statusCode).toBe(409);
