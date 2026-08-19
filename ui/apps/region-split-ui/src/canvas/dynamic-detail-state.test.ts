@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   centerNodeViewport,
-  codeNodeId,
   detailNodeId,
   loadDetailPositions,
   nextDetailPosition,
@@ -12,10 +11,6 @@ import {
 describe("dynamic detail state", () => {
   it("builds stable detail ids", () => {
     expect(detailNodeId("hero")).toBe("detail:hero");
-  });
-
-  it("builds stable code ids", () => {
-    expect(codeNodeId("hero")).toBe("code:hero");
   });
 
   it("converts a row anchor into world coordinates", () => {

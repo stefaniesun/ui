@@ -14,7 +14,6 @@ export function fullPageRegions(image: { width: number; height: number }): Regio
   return [{
     id: "region-1",
     displayName: "整页",
-    type: "other",
     bounds: { x: 0, y: 0, w: image.width, h: image.height },
     confidence: 0,
     scrollX: false,
@@ -54,7 +53,6 @@ export function initialRegionsFromCandidateLines(
     return {
       id: `region-${index + 1}`,
       displayName: `区域 ${index + 1}`,
-      type: "other",
       bounds: { x: 0, y: start, w: image.width, h: end - start },
       confidence: index === 0 ? boundaries[0]!.strength : boundaries[index - 1]!.strength,
       // 纯图像分析看不出滚动行为，交给模型判断
@@ -120,7 +118,6 @@ export function reconcile(segments: RawSegment[], opts: ReconcileOptions): Regio
     return {
       id,
       displayName: meta.displayName,
-      type: meta.type,
       bounds: { x: 0, y: start, w: image.width, h: end - start },
       confidence: meta.confidence,
       scrollX: meta.scrollX,

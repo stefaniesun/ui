@@ -16,8 +16,8 @@ async function png(width: number, height: number): Promise<Buffer> {
 
 const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
   segment: async () => [
-    { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
-    { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
+    { displayName: "顶部", id: "top", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
+    { displayName: "内容", id: "body", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   // 用抛错而不是返回空：这些用例不该走到分类逻辑，真走到了应该立刻炸出来
@@ -114,8 +114,8 @@ describe("analyzeProject", () => {
     const store = freshStore();
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(750, 5000) });
     const segment = vi.fn(async () => [
-      { displayName: "顶部", id: "top", type: "nav-bar" as const, yStart: 0, yEnd: 40, confidence: 0.9, scrollX: false, scrollY: false },
-      { displayName: "内容", id: "body", type: "card" as const, yStart: 40, yEnd: 2000, confidence: 0.8, scrollX: false, scrollY: false },
+      { displayName: "顶部", id: "top", yStart: 0, yEnd: 40, confidence: 0.9, scrollX: false, scrollY: false },
+      { displayName: "内容", id: "body", yStart: 40, yEnd: 2000, confidence: 0.8, scrollX: false, scrollY: false },
     ]);
     await analyzeProject(
       { store, model: model({ segment }), detectSurface: async () => ({ candidateLines: [{ y: 40, strength: 1 }], panels: [] }) },
@@ -149,9 +149,9 @@ describe("analyzeProject", () => {
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
     const scrolling = model({
       segment: async () => [
-        { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9,
+        { displayName: "顶部", id: "top", yStart: 0, yEnd: 100, confidence: 0.9,
           scrollX: false, scrollY: false },
-        { displayName: "套餐横滑", id: "plans", type: "card", yStart: 100, yEnd: 400, confidence: 0.9,
+        { displayName: "套餐横滑", id: "plans", yStart: 100, yEnd: 400, confidence: 0.9,
           scrollX: true, scrollY: false },
       ],
     });
@@ -190,12 +190,12 @@ describe("analyzeProject", () => {
 });
 
 describe("renameRegionWithModel", () => {
-  it("replaces name, id and type of one region", async () => {
+  it("replaces the name and id of one region", async () => {
     const store = freshStore();
     const { projectId } = await createProject({ store }, { fileName: "s.png", buffer: await png(375, 400) });
     await analyzeProject({ store, model: model() }, projectId);
     const doc = await renameRegionWithModel({ store, model: model() }, projectId, "body");
-    expect(doc.regions[1]!).toMatchObject({ id: "benefits", displayName: "权益表", type: "grid" });
+    expect(doc.regions[1]!).toMatchObject({ id: "benefits", displayName: "权益表" });
   });
 
   it("hides the filesystem path when the source image cannot be read from disk", async () => {

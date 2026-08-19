@@ -6,7 +6,7 @@ import {
 import type { Region } from "./types.js";
 
 const r = (id: string, y: number, h: number): Region => ({
-  id, displayName: `名-${id}`, type: "card", bounds: { x: 0, y, w: 375, h }, confidence: 0.9, scrollX: false, scrollY: false,
+  id, displayName: `名-${id}`, bounds: { x: 0, y, w: 375, h }, confidence: 0.9, scrollX: false, scrollY: false,
 });
 const base = () => [r("a", 0, 100), r("b", 100, 100), r("c", 200, 100)];
 
@@ -34,9 +34,9 @@ describe("splitRegion", () => {
   it("splits into two regions with a placeholder lower block", () => {
     const out = splitRegion(base(), 1, 150);
     expect(out).toHaveLength(4);
-    expect(out[1]!).toMatchObject({ id: "b", displayName: "名-b", type: "card" });
+    expect(out[1]!).toMatchObject({ id: "b", displayName: "名-b" });
     expect(out[1]!.bounds).toEqual({ x: 0, y: 100, w: 375, h: 50 });
-    expect(out[2]!).toMatchObject({ id: "b-2", displayName: "未命名区域", type: "other", confidence: 0 });
+    expect(out[2]!).toMatchObject({ id: "b-2", displayName: "未命名区域", confidence: 0 });
     expect(out[2]!.bounds).toEqual({ x: 0, y: 150, w: 375, h: 50 });
   });
   it("avoids colliding with an existing id", () => {
@@ -56,7 +56,7 @@ describe("mergeRegions", () => {
   it("merges adjacent regions into one placeholder region", () => {
     const out = mergeRegions(base(), ["b", "c"]);
     expect(out).toHaveLength(2);
-    expect(out[1]!).toMatchObject({ id: "b", displayName: "未命名区域", type: "other", confidence: 0 });
+    expect(out[1]!).toMatchObject({ id: "b", displayName: "未命名区域", confidence: 0 });
     expect(out[1]!.bounds).toEqual({ x: 0, y: 100, w: 375, h: 200 });
   });
   it("ignores non-adjacent selections", () => {
@@ -74,8 +74,8 @@ describe("renameRegion and applyNaming", () => {
     expect(out[1]!).toMatchObject({ id: "b", displayName: "会员卡" });
   });
   it("applies model naming and de-duplicates the id", () => {
-    const out = applyNaming(base(), "b", { displayName: "权益表", id: "a", type: "grid" });
-    expect(out[1]!).toMatchObject({ id: "a-2", displayName: "权益表", type: "grid" });
+    const out = applyNaming(base(), "b", { displayName: "权益表", id: "a" });
+    expect(out[1]!).toMatchObject({ id: "a-2", displayName: "权益表" });
   });
   it("returns the same array reference when the rename target is missing", () => {
     const input = base();
@@ -83,6 +83,6 @@ describe("renameRegion and applyNaming", () => {
   });
   it("returns the same array reference when the naming target is missing", () => {
     const input = base();
-    expect(applyNaming(input, "missing", { displayName: "权益表", id: "a", type: "grid" })).toBe(input);
+    expect(applyNaming(input, "missing", { displayName: "权益表", id: "a" })).toBe(input);
   });
 });

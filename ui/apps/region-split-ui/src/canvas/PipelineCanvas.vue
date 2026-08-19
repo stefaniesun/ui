@@ -18,7 +18,6 @@ import {
 } from "./canvas-state.js";
 import {
   centerNodeViewport,
-  codeNodeId,
   detailNodeId,
   loadDetailPositions,
   nextDetailPosition,
@@ -56,9 +55,7 @@ const fixedPositions = reactive(loadNodePositions(
   DEFAULT_NODE_POSITIONS,
 ));
 const detailPositions = reactive<Record<string, Point>>({});
-const codePositions = reactive<Record<string, Point>>({});
 const openRegionIds = ref<string[]>([]);
-const openCodeIds = ref<string[]>([]);
 const pageOpen = ref(false);
 const elementStores = new Map<string, ElementStore>();
 const detailHoveredIds = reactive<Record<string, string | null>>({});
@@ -72,7 +69,6 @@ let resizeObserver: ResizeObserver | undefined;
 
 const WORKSPACE = { width: 1105, height: 700 };
 const DETAIL = { width: 760, height: 600 };
-const CODE = { width: 760, height: 600 };
 const PAGE = { width: 760, height: 760 };
 
 const regionById = computed(() => new Map(props.regions.map(region => [region.id, region])));
@@ -80,13 +76,8 @@ const openedRegions = computed(() => openRegionIds.value.flatMap(id => {
   const region = regionById.value.get(id);
   return region ? [region] : [];
 }));
-const openedCodeRegions = computed(() => openCodeIds.value.flatMap(id => {
-  const region = regionById.value.get(id);
-  return region ? [region] : [];
-}));
 const transform = computed(() => `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`);
 const detailPositionKey = computed(() => `region-split:detail-node-positions:${props.projectId}:v1`);
-const codePositionKey = computed(() => `region-split:code-node-positions:${props.projectId}:v1`);
 const links = computed(() => {
   const regionLinks = openedRegions.value.flatMap(region => {
     const from = connectionStarts[region.id];
@@ -98,19 +89,6 @@ const links = computed(() => {
       path: bezierPath(from, { x: toPosition.x, y: toPosition.y + 21 }),
     }];
   });
-  const codeLinks = openCodeIds.value.flatMap(regionId => {
-    const detailPosition = detailPositions[regionId];
-    const codePosition = codePositions[regionId];
-    if (!detailPosition || !codePosition) return [];
-    return [{
-      id: `code:${regionId}`,
-      color: regionColor(regionId),
-      path: bezierPath(
-        { x: detailPosition.x + DETAIL.width, y: detailPosition.y + 21 },
-        { x: codePosition.x, y: codePosition.y + 21 },
-      ),
-    }];
-  });
   const pageLink = pageOpen.value ? [{
     id: "page",
     color: "#94a3b8",
@@ -119,7 +97,7 @@ const links = computed(() => {
       { x: fixedPositions.page.x, y: fixedPositions.page.y + 21 },
     ),
   }] : [];
-  return [...regionLinks, ...codeLinks, ...pageLink];
+  return [...regionLinks, ...pageLink];
 });
 
 function storageTarget(): Storage | undefined {
@@ -129,7 +107,6 @@ function storageTarget(): Storage | undefined {
 function persist(): void {
   saveNodePositions(storageTarget(), NODE_POSITIONS_STORAGE_KEY, fixedPositions);
   saveDetailPositions(storageTarget(), detailPositionKey.value, detailPositions);
-  saveDetailPositions(storageTarget(), codePositionKey.value, codePositions);
 }
 
 function detailBounds(regionId: string): Bounds | null {
@@ -140,25 +117,13 @@ function detailBounds(regionId: string): Bounds | null {
   return { ...position, width: DETAIL.width, height: Math.max(DETAIL.height, measuredHeight) };
 }
 
-function codeBounds(regionId: string): Bounds | null {
-  const position = codePositions[regionId];
-  if (!position) return null;
-  const element = canvas.value?.querySelector<HTMLElement>(`[data-node-id="${codeNodeId(regionId)}"]`);
-  const measuredHeight = element ? element.getBoundingClientRect().height / viewport.zoom : 0;
-  return { ...position, width: CODE.width, height: Math.max(CODE.height, measuredHeight) };
-}
-
 function occupiedNodeBounds(): Bounds[] {
   const detailBoundsList = openRegionIds.value.flatMap(id => {
     const detail = detailBounds(id);
     return detail ? [detail] : [];
   });
-  const codeBoundsList = openCodeIds.value.flatMap(id => {
-    const code = codeBounds(id);
-    return code ? [code] : [];
-  });
   const pageBounds = pageOpen.value ? [{ ...fixedPositions.page, ...PAGE }] : [];
-  return [...detailBoundsList, ...codeBoundsList, ...pageBounds];
+  return [...detailBoundsList, ...pageBounds];
 }
 
 function refreshConnectionsNow(): void {
@@ -220,33 +185,11 @@ function openDetail(regionId: string): void {
 }
 
 function closeDetail(regionId: string): void {
-  closeCode(regionId);
   openRegionIds.value = openRegionIds.value.filter(id => id !== regionId);
   elementStores.delete(regionId);
   delete detailHoveredIds[regionId];
   delete connectionStarts[regionId];
   if (highlightedRegionId.value === regionId) highlightedRegionId.value = null;
-}
-
-function openCode(regionId: string): void {
-  if (!regionById.value.has(regionId)) return;
-  const detailPosition = detailPositions[regionId];
-  if (!detailPosition) return;
-  if (openCodeIds.value.includes(regionId)) return;
-  if (!codePositions[regionId]) {
-    codePositions[regionId] = nextDetailPosition(
-      { ...detailPosition, ...DETAIL },
-      occupiedNodeBounds(),
-      CODE,
-      1500,
-    );
-  }
-  openCodeIds.value = [...openCodeIds.value, regionId];
-  persist();
-}
-
-function closeCode(regionId: string): void {
-  openCodeIds.value = openCodeIds.value.filter(id => id !== regionId);
 }
 
 function openPageCompare(): void {
@@ -270,7 +213,6 @@ function setDetailHovered(regionId: string, id: string | null): void {
 
 function nodePosition(nodeId: string): Point | undefined {
   if (nodeId.startsWith("detail:")) return detailPositions[nodeId.slice(7)];
-  if (nodeId.startsWith("code:")) return codePositions[nodeId.slice(5)];
   return fixedPositions[nodeId as keyof typeof fixedPositions];
 }
 
@@ -356,10 +298,6 @@ function fitAll(): void {
     const detail = detailBounds(id);
     if (detail) bounds.push(detail);
   }
-  for (const id of openCodeIds.value) {
-    const code = codeBounds(id);
-    if (code) bounds.push(code);
-  }
   if (pageOpen.value) bounds.push({ ...fixedPositions.page, ...PAGE });
   const left = Math.min(...bounds.map(bound => bound.x));
   const top = Math.min(...bounds.map(bound => bound.y));
@@ -380,7 +318,6 @@ watch(() => props.regions.map(region => region.id), ids => {
     if (!validIds.has(id)) {
       closeDetail(id);
       delete detailPositions[id];
-      delete codePositions[id];
       changed = true;
     }
   }
@@ -390,38 +327,26 @@ watch(() => props.regions.map(region => region.id), ids => {
       changed = true;
     }
   }
-  for (const id of Object.keys(codePositions)) {
-    if (!validIds.has(id)) {
-      delete codePositions[id];
-      changed = true;
-    }
-  }
   if (changed) persist();
   refreshConnections();
 }, { deep: true });
 
 watch(() => props.projectId, () => {
   openRegionIds.value = [];
-  openCodeIds.value = [];
   pageOpen.value = false;
   elementStores.clear();
   for (const id of Object.keys(detailPositions)) delete detailPositions[id];
-  for (const id of Object.keys(codePositions)) delete codePositions[id];
   for (const id of Object.keys(connectionStarts)) delete connectionStarts[id];
   for (const id of Object.keys(detailHoveredIds)) delete detailHoveredIds[id];
   const validIds = new Set(props.regions.map(region => region.id));
   const restoredDetail = loadDetailPositions(storageTarget(), detailPositionKey.value, validIds);
   Object.assign(detailPositions, restoredDetail);
-  const restoredCode = loadDetailPositions(storageTarget(), codePositionKey.value, validIds);
-  Object.assign(codePositions, restoredCode);
 });
 
 onMounted(() => {
   const validIds = new Set(props.regions.map(region => region.id));
   const restoredDetail = loadDetailPositions(storageTarget(), detailPositionKey.value, validIds);
   Object.assign(detailPositions, restoredDetail);
-  const restoredCode = loadDetailPositions(storageTarget(), codePositionKey.value, validIds);
-  Object.assign(codePositions, restoredCode);
   if (typeof ResizeObserver !== "undefined") {
     resizeObserver = new ResizeObserver(refreshConnections);
     if (canvas.value) {
@@ -442,7 +367,7 @@ onBeforeUnmount(() => {
   stopPointer();
 });
 
-defineExpose({ openDetail, closeDetail, openCode, closeCode, openPageCompare, closePageCompare, refreshConnections, fitAll });
+defineExpose({ openDetail, closeDetail, openPageCompare, closePageCompare, refreshConnections, fitAll });
 </script>
 
 <template>
@@ -491,7 +416,7 @@ defineExpose({ openDetail, closeDetail, openCode, closeCode, openPageCompare, cl
         :width="DETAIL.width"
         :min-height="DETAIL.height"
         :input="true"
-        :output="openCodeIds.includes(region.id)"
+        :output="false"
         :closable="true"
         :highlighted="highlightedRegionId === region.id"
         :accent-color="regionColor(region.id)"
@@ -506,27 +431,7 @@ defineExpose({ openDetail, closeDetail, openCode, closeCode, openPageCompare, cl
           :element-store="elementStores.get(region.id)!"
           :hovered-id="detailHoveredIds[region.id] ?? null"
           :set-hovered-id="(id: string | null) => setDetailHovered(region.id, id)"
-          :open-code="() => openCode(region.id)"
         />
-      </PipelineNode>
-
-      <PipelineNode
-        v-for="region in openedCodeRegions"
-        :key="`code-${region.id}`"
-        :node-id="codeNodeId(region.id)"
-        title="代码产出"
-        :position="codePositions[region.id]!"
-        :width="CODE.width"
-        :min-height="CODE.height"
-        :input="true"
-        :output="false"
-        :closable="true"
-        :accent-color="regionColor(region.id)"
-        @drag-start="startNodeDrag"
-        @close="closeCode(region.id)"
-      >
-        <template #status><span>{{ region.displayName }}</span></template>
-        <slot name="code" :region="region" />
       </PipelineNode>
     </div>
 

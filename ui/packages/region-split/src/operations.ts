@@ -1,4 +1,4 @@
-import { MIN_REGION_HEIGHT, type Region, type RegionType } from "./types.js";
+import { MIN_REGION_HEIGHT, type Region } from "./types.js";
 
 const PLACEHOLDER_NAME = "未命名区域";
 
@@ -55,10 +55,9 @@ export function splitRegion(regions: Region[], index: number, y: number): Region
   const lower: Region = {
     id: uniqueSuffixedId(region.id, taken),
     displayName: PLACEHOLDER_NAME,
-    type: "other",
     bounds: { x: region.bounds.x, y, w: region.bounds.w, h: region.bounds.y + region.bounds.h - y },
     confidence: 0,
-    // 与 displayName/type 一致：下块是占位，滚动标记也重置，交给随后的自动 AI 重命名重新判断
+    // 与 displayName 一致：下块是占位，滚动标记也重置，交给随后的自动 AI 重命名重新判断
     scrollX: false,
     scrollY: false,
   };
@@ -85,7 +84,6 @@ export function mergeRegions(regions: Region[], ids: string[]): Region[] {
   const merged: Region = {
     id: head.id,
     displayName: PLACEHOLDER_NAME,
-    type: "other",
     bounds: {
       x: head.bounds.x, y: head.bounds.y, w: head.bounds.w,
       h: tail.bounds.y + tail.bounds.h - head.bounds.y,
@@ -107,7 +105,7 @@ export function renameRegion(regions: Region[], id: string, displayName: string)
 export function applyNaming(
   regions: Region[],
   id: string,
-  naming: { displayName: string; id: string; type: RegionType; scrollX?: boolean; scrollY?: boolean },
+  naming: { displayName: string; id: string; scrollX?: boolean; scrollY?: boolean },
 ): Region[] {
   if (!regions.some(region => region.id === id)) return regions;
   const taken = new Set(regions.filter(region => region.id !== id).map(region => region.id));
@@ -118,7 +116,6 @@ export function applyNaming(
           ...region,
           id: nextId,
           displayName: naming.displayName,
-          type: naming.type,
           // 模型重新看了这块裁图，滚动判断一并采纳；没给就保持原值
           scrollX: naming.scrollX ?? region.scrollX,
           scrollY: naming.scrollY ?? region.scrollY,

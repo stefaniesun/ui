@@ -4,14 +4,14 @@ import { checkInvariants, type RawSegment } from "./types.js";
 
 const image = { width: 375, height: 600 };
 const seg = (id: string, yStart: number, yEnd: number): RawSegment => ({
-  id, displayName: `名-${id}`, type: "card", yStart, yEnd, confidence: 0.9, scrollX: false, scrollY: false,
+  id, displayName: `名-${id}`, yStart, yEnd, confidence: 0.9, scrollX: false, scrollY: false,
 });
 
 describe("reconcile", () => {
   it("falls back to a single full-page region when there are no segments", () => {
     const out = reconcile([], { ...image, analyzedScale: 1 });
     expect(out).toHaveLength(1);
-    expect(out[0]!).toMatchObject({ id: "region-1", displayName: "整页", type: "other" });
+    expect(out[0]!).toMatchObject({ id: "region-1", displayName: "整页" });
     expect(out[0]!.bounds).toEqual({ x: 0, y: 0, w: 375, h: 600 });
     expect(checkInvariants(out, image)).toEqual([]);
   });

@@ -25,7 +25,7 @@ const cfg = (fetchImpl: typeof fetch) =>
 const segmentsJson = JSON.stringify({
   regions: [
     { displayName: "状态栏", id: "status-bar", type: "status-bar", yStart: 0, yEnd: 44, confidence: 0.96, scrollX: false, scrollY: false },
-    { displayName: "会员卡", id: "member-card", type: "card", yStart: 44, yEnd: 300, confidence: 0.88, scrollX: false, scrollY: false },
+    { displayName: "会员卡", id: "member-card", yStart: 44, yEnd: 300, confidence: 0.88, scrollX: false, scrollY: false },
   ],
 });
 
@@ -35,7 +35,7 @@ describe("createOpenAiModel.segment", () => {
     const out = await model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [44, 300], panels: [] });
     expect(out).toHaveLength(2);
     expect(out[1]).toEqual({
-      displayName: "会员卡", id: "member-card", type: "card", yStart: 44, yEnd: 300, confidence: 0.88, scrollX: false, scrollY: false,
+      displayName: "会员卡", id: "member-card", yStart: 44, yEnd: 300, confidence: 0.88, scrollX: false, scrollY: false,
     });
   });
 
@@ -64,12 +64,6 @@ describe("createOpenAiModel.segment", () => {
     await expect(model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [], panels: [] }))
       .rejects.toThrow(/model http 500/);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects a response with an unknown region type", async () => {
-    const bad = JSON.stringify({ regions: [{ displayName: "x", id: "x", type: "spaceship", yStart: 0, yEnd: 10, confidence: 1 }] });
-    const model = createOpenAiModel(cfg(fakeFetch(bad, bad)));
-    await expect(model.segment({ imageBase64: "AA", width: 375, height: 600, candidateYs: [], panels: [] })).rejects.toThrow();
   });
 
   it("times out and throws a readable error instead of hanging forever, without retrying", async () => {
@@ -163,14 +157,14 @@ describe("createOpenAiModel.nameRegion", () => {
     const model = createOpenAiModel(cfg(fakeFetch(json)));
     // 模型没给滚动字段时补默认 false，老模型/老提示词的响应仍然可用
     expect(await model.nameRegion({ cropBase64: "BB" })).toEqual({
-      displayName: "权益对比表", id: "benefits-comparison", type: "grid",
+      displayName: "权益对比表", id: "benefits-comparison",
       scrollX: false, scrollY: false,
     });
   });
 
   it("keeps the scroll flags the model reports", async () => {
     const json = JSON.stringify({
-      displayName: "套餐横滑", id: "plan-carousel", type: "card", scrollX: true, scrollY: false,
+      displayName: "套餐横滑", id: "plan-carousel", scrollX: true, scrollY: false,
     });
     const model = createOpenAiModel(cfg(fakeFetch(json)));
     expect(await model.nameRegion({ cropBase64: "BB" })).toMatchObject({ scrollX: true, scrollY: false });

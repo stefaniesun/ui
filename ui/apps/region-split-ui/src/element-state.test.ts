@@ -20,7 +20,7 @@ function fakeApi(over: Partial<StoreApi> = {}): StoreApi {
     upload: vi.fn(), getProject: vi.fn(), putRegions: vi.fn(), analyze: vi.fn(),
     renameAi: vi.fn(), getModelConfig: vi.fn(),
     getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
-    getCode: vi.fn(async () => ({ html: "", css: "" })),
+    getParsedRegions: vi.fn(async () => ({ regionKeys: [] })),
     getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })),
     detectElements: vi.fn(async () => ({ tree: tree([node({ id: "n1" })]), treeVersion: "detected-v1" })),
     putElements: vi.fn(async (_id: string, _region: Rect, next: ElementTree) => ({ tree: next, treeVersion: "saved-v1" })),

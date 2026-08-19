@@ -18,7 +18,7 @@ const props = defineProps<{
   elementStore: ElementStore;
   hoveredId?: string | null;
 }>();
-const emit = defineEmits<{ hover: [id: string | null]; "open-code": [] }>();
+const emit = defineEmits<{ hover: [id: string | null]; parsed: [] }>();
 const refactorPanel = ref<InstanceType<typeof ElementRefactorPanel> | null>(null);
 const refactorStore = createElementRefactorStore({
   api: elementRefactorApi,
@@ -105,6 +105,7 @@ async function waitForSourceImage(): Promise<boolean> {
 async function detect() {
   if (!region.value) return;
   await props.elementStore.detect(props.projectId, region.value);
+  emit("parsed");
   if (await waitForSourceImage()) await measureAllFonts();
 }
 function onRemove(id: string) {
@@ -370,11 +371,6 @@ function onRenamePrompt(id: string) {
           :disabled="props.elementStore.busy.value || refactorStore.rootId.value !== null"
           @click="detect"
         >{{ parsed ? "重新解析" : "解析元素" }}</button>
-        <button
-          data-test="open-code"
-          :disabled="!parsed"
-          @click="emit('open-code')"
-        >生成代码</button>
         <span class="label">{{ props.region.displayName }}</span>
         <span class="label">{{ region.w }}×{{ region.h }}</span>
         <span v-if="parsed" class="region-bg" title="区域背景色">

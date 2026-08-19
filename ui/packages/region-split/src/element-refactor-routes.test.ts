@@ -21,7 +21,7 @@ async function fixture(configured = true) {
   store.writeDoc("p1", {
     schemaVersion: "1",
     image: { fileName: "x.png", width: 100, height: 100, analyzedScale: 1, removedChrome: [] },
-    regions: [{ id: "r", type: "card", displayName: "卡片", bounds: { x: 0, y: 0, w: 100, h: 100 }, confidence: 1, scrollX: false, scrollY: false }],
+    regions: [{ id: "r", displayName: "卡片", bounds: { x: 0, y: 0, w: 100, h: 100 }, confidence: 1, scrollX: false, scrollY: false }],
     candidateLines: [], panels: [], updatedAt: "now",
   });
   const node = { id: "root", parentId: null, box: { x: 0, y: 0, w: 100, h: 100 }, kind: "component" as const, displayName: "root", style: {}, uniformity: 1, source: "auto" as const, classification: "tool" as const, scrollX: false, scrollY: false, positioning: "flow" as const };

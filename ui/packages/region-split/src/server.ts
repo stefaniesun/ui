@@ -6,11 +6,10 @@ import Fastify, { type FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
 import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
-import { materializeTreeAssets, treeAssetFiles } from "./asset-cache.js";
+import { materializeTreeAssets } from "./asset-cache.js";
 import { elementTreeSchema, regionKey } from "./element-types.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { registerElementRefactorRoutes } from "./element-refactor-routes.js";
-import { emitHtml } from "./emit-html.js";
 import { emitPage } from "./emit-page.js";
 import type { AiModel } from "./model.js";
 import type { ModelConfig, ModelConfigStore } from "./model-config.js";
@@ -136,39 +135,11 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       return { tree, treeVersion: tree ? store.readElementTreeVersion(projectId, key) : null };
     });
 
-  app.get<{ Params: ProjectParams; Querystring: { y?: string; h?: string } }>(
-    "/api/projects/:projectId/code", async (req, reply) => {
+  app.get<{ Params: ProjectParams }>(
+    "/api/projects/:projectId/parsed-regions", async (req, reply) => {
       const { projectId } = req.params;
       if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
-      const y = Number(req.query.y);
-      const h = Number(req.query.h);
-      if (!Number.isInteger(y) || !Number.isInteger(h)) {
-        return reply.code(400).send({ error: "invalid region" });
-      }
-      const doc = store.readDoc(projectId);
-      const region = { x: 0, y, w: doc.image.width, h };
-      if (y < 0 || h <= 0 || y + h > doc.image.height) {
-        return reply.code(400).send({ error: "region out of bounds" });
-      }
-      const tree = store.readElementTree(projectId, regionKey(region));
-      if (!tree) return reply.code(404).send({ error: "region not parsed" });
-      for (const node of tree.nodes) {
-        const { x, y: nodeY, w, h: nodeH } = node.box;
-        if ((node.kind === "image" || node.kind === "icon")
-          && (x < 0 || nodeY < 0 || w <= 0 || nodeH <= 0
-            || x + w > doc.image.width || nodeY + nodeH > doc.image.height)) {
-          return reply.code(422).send({ error: `asset bounds out of image: ${node.id}` });
-        }
-      }
-      let files = treeAssetFiles(store, projectId, tree);
-      const expectedAssets = tree.nodes.filter(node => node.kind === "image" || node.kind === "icon").length;
-      if (Object.keys(files).length !== expectedAssets) {
-        files = (await materializeTreeAssets(store, projectId, region, tree, false)).files;
-      }
-      const assetSources = Object.fromEntries(
-        Object.entries(files).map(([id, path]) => [id, `data:image/png;base64,${readFileSync(path).toString("base64")}`]),
-      );
-      return emitHtml({ designWidth: region.w, region, tree, assetSources });
+      return { regionKeys: store.readElements(projectId).trees.map(tree => tree.regionKey) };
     });
 
   app.get<{ Params: ProjectParams }>(

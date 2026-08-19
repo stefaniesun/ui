@@ -11,8 +11,8 @@ import type { AiModel } from "./model.js";
 
 const model = (overrides: Partial<AiModel> = {}): AiModel => ({
   segment: async () => [
-    { displayName: "顶部", id: "top", type: "nav-bar", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
-    { displayName: "内容", id: "body", type: "card", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
+    { displayName: "顶部", id: "top", yStart: 0, yEnd: 100, confidence: 0.9, scrollX: false, scrollY: false },
+    { displayName: "内容", id: "body", yStart: 100, yEnd: 400, confidence: 0.8, scrollX: false, scrollY: false },
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   // 用抛错而不是返回空：这些用例不该走到分类逻辑，真走到了应该立刻炸出来
@@ -98,15 +98,15 @@ describe("region split server", () => {
     const ok = await app.inject({
       method: "PUT", url: `/api/projects/${projectId}/regions`,
       payload: { regions: [
-        { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 150 }, confidence: 1, scrollX: false, scrollY: false },
-        { id: "b", displayName: "下", type: "card", bounds: { x: 0, y: 150, w: 375, h: 250 }, confidence: 1, scrollX: false, scrollY: false },
+        { id: "a", displayName: "上", bounds: { x: 0, y: 0, w: 375, h: 150 }, confidence: 1, scrollX: false, scrollY: false },
+        { id: "b", displayName: "下", bounds: { x: 0, y: 150, w: 375, h: 250 }, confidence: 1, scrollX: false, scrollY: false },
       ] },
     });
     expect(ok.statusCode).toBe(200);
     const bad = await app.inject({
       method: "PUT", url: `/api/projects/${projectId}/regions`,
       payload: { regions: [
-        { id: "a", displayName: "上", type: "card", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
+        { id: "a", displayName: "上", bounds: { x: 0, y: 0, w: 375, h: 100 }, confidence: 1, scrollX: false, scrollY: false },
       ] },
     });
     expect(bad.statusCode).toBe(422);
@@ -119,7 +119,7 @@ describe("region split server", () => {
     await app.inject({ method: "POST", url: `/api/projects/${projectId}/analyze` });
     const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/body/rename-ai` });
     expect(res.statusCode).toBe(200);
-    expect(res.json().doc.regions[1]).toMatchObject({ id: "benefits", displayName: "权益表", type: "grid" });
+    expect(res.json().doc.regions[1]).toMatchObject({ id: "benefits", displayName: "权益表" });
     const missing = await app.inject({ method: "POST", url: `/api/projects/${projectId}/regions/ghost/rename-ai` });
     expect(missing.statusCode).toBe(404);
   });
@@ -140,8 +140,8 @@ describe("region split server", () => {
     const { projectId } = (await upload(app)).json();
     const doc = store.readDoc(projectId);
     doc.regions = [
-      { id: "a", displayName: "顶部", type: "nav-bar", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
-      { id: "b", displayName: "底部", type: "tab-bar", bounds: { x: 0, y: 200, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "a", displayName: "顶部", bounds: { x: 0, y: 0, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
+      { id: "b", displayName: "底部", bounds: { x: 0, y: 200, w: 375, h: 200 }, confidence: 1, scrollX: false, scrollY: false },
     ];
     store.writeDoc(projectId, doc);
     for (const region of doc.regions) store.writeElementTree(projectId, {
@@ -160,7 +160,7 @@ describe("region split server", () => {
     const { app, store } = makeApp();
     const { projectId } = (await upload(app)).json();
     const doc = store.readDoc(projectId);
-    doc.regions = [{ id: "a", displayName: "未解析区", type: "other", bounds: { x: 0, y: 0, w: 375, h: 400 }, confidence: 1, scrollX: false, scrollY: false }];
+    doc.regions = [{ id: "a", displayName: "未解析区", bounds: { x: 0, y: 0, w: 375, h: 400 }, confidence: 1, scrollX: false, scrollY: false }];
     store.writeDoc(projectId, doc);
     const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/page-code` });
     expect(response.statusCode).toBe(409);
@@ -182,12 +182,6 @@ describe("region split server", () => {
       } },
     });
     expect(saved.statusCode).toBe(200);
-
-    const result = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
-    expect(result.statusCode).toBe(200);
-    expect(result.json().html).toContain('<img class="e-avatar"');
-    expect(result.json().html).toMatch(/src="data:image\/png;base64,[^"]+"/);
-    expect(result.json().html).toContain('alt="设置"');
 
     const persisted = store.readElementTree(projectId, "0-400")!;
     expect(persisted.nodes[0]!.asset).toMatchObject({ cutFrom: { x: 20, y: 30, w: 40, h: 50 } });
@@ -336,21 +330,25 @@ describe("element routes", () => {
     scrollX: false, scrollY: false, positioning: "flow", ...over,
   });
 
-  it("emits code for a parsed region and rejects an unparsed one", async () => {
+  it("does not expose per-region code generation", async () => {
     const { app, projectId } = await project();
-    const missing = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
-    expect(missing.statusCode).toBe(404);
-    expect(missing.json()).toEqual({ error: "region not parsed" });
+    const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
+    expect(response.statusCode).toBe(404);
+  });
 
-    const detection = await app.inject({
-      method: "POST", url: `/api/projects/${projectId}/elements/detect`, payload: { region: REGION },
-    });
-    expect(detection.statusCode).toBe(200);
-    const emitted = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
-    expect(emitted.statusCode).toBe(200);
-    expect(emitted.json().html).toContain("<section");
-    expect(emitted.json().css).toContain("width: 100vw");
-    expect(emitted.json().css).toContain("height: 106.6667vw");
+  it("lists which regions already have an element tree", async () => {
+    const { app, projectId } = await project();
+    await app.inject({ method: "POST", url: `/api/projects/${projectId}/elements/detect`, payload: { region: REGION } });
+    const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/parsed-regions` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().regionKeys).toContain("0-400");
+  });
+
+  it("returns an empty parsed-region list for a project with no trees", async () => {
+    const { app, projectId } = await project();
+    const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/parsed-regions` });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().regionKeys).toEqual([]);
   });
 
   it("returns null before detection", async () => {

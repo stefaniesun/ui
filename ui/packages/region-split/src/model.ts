@@ -4,10 +4,10 @@ import {
   ElementRefactorModelOutputError,
   type ElementRefactorModel,
 } from "./element-refactor-model.js";
-import { regionTypes, type RawSegment, type RegionType } from "./types.js";
+import { type RawSegment } from "./types.js";
 
 export interface RegionNaming {
-  displayName: string; id: string; type: RegionType; scrollX: boolean; scrollY: boolean;
+  displayName: string; id: string; scrollX: boolean; scrollY: boolean;
 }
 
 export interface SegmentInput {
@@ -53,7 +53,6 @@ const segmentsSchema = z.object({
   regions: z.array(z.object({
     displayName: z.string().min(1),
     id: z.string().min(1),
-    type: z.enum(regionTypes),
     yStart: z.number(),
     yEnd: z.number(),
     confidence: z.number().min(0).max(1),
@@ -65,7 +64,6 @@ const segmentsSchema = z.object({
 const namingSchema = z.object({
   displayName: z.string().min(1),
   id: z.string().min(1),
-  type: z.enum(regionTypes),
   scrollX: z.boolean().default(false),
   scrollY: z.boolean().default(false),
 });
@@ -91,10 +89,9 @@ const SCROLL_RULES = [
 
 const SEGMENT_PROMPT = [
   "你在分析一张移动端 UI 效果图，需要把整页按视觉/功能单元从上到下切成若干模块。",
-  "只输出一个 JSON 对象，格式为 {\"regions\":[{\"displayName\":string,\"id\":string,\"type\":string,\"yStart\":number,\"yEnd\":number,\"confidence\":number,\"scrollX\":boolean,\"scrollY\":boolean}]}。",
+  "只输出一个 JSON 对象，格式为 {\"regions\":[{\"displayName\":string,\"id\":string,\"yStart\":number,\"yEnd\":number,\"confidence\":number,\"scrollX\":boolean,\"scrollY\":boolean}]}。",
   "要求：模块数量 5 到 10 个；必须从 y=0 开始、到图片底部结束；每段 yEnd 等于下一段 yStart；",
   "displayName 用简短中文，id 用 kebab-case 英文，confidence 取 0 到 1。",
-  `type 只能取以下之一：${regionTypes.join("、")}。`,
   "参考给出的候选切分线：它们是图像分析得到的真实分割位置，优先在这些位置附近切分。",
   "同时给出了图像分析检测到的卡片/面板区间。**切分位置不得落在任何一个面板内部**——",
   "一张卡片是一个整体，从中间切开会把它拆成两半。可以在面板的上下边缘处切，",
@@ -106,10 +103,9 @@ const SEGMENT_PROMPT = [
 ].join("\n");
 
 const NAMING_PROMPT = [
-  "这是一张移动端 UI 页面中某一个模块的裁图。给它命名并判断类型。",
-  "只输出一个 JSON 对象，格式为 {\"displayName\":string,\"id\":string,\"type\":string,\"scrollX\":boolean,\"scrollY\":boolean}。",
+  "这是一张移动端 UI 页面中某一个模块的裁图。给它命名。",
+  "只输出一个 JSON 对象，格式为 {\"displayName\":string,\"id\":string,\"scrollX\":boolean,\"scrollY\":boolean}。",
   "displayName 用简短中文，id 用 kebab-case 英文。",
-  `type 只能取以下之一：${regionTypes.join("、")}。`,
   SCROLL_RULES,
 ].join("\n");
 

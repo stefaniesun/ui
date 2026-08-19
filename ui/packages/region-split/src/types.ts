@@ -2,12 +2,6 @@ import { z } from "zod";
 
 export const MIN_REGION_HEIGHT = 8;
 
-export const regionTypes = [
-  "status-bar", "nav-bar", "banner", "card", "grid", "list",
-  "form", "tabs", "text-block", "action-bar", "tab-bar", "other",
-] as const;
-export type RegionType = (typeof regionTypes)[number];
-
 export interface Rect { x: number; y: number; w: number; h: number }
 
 export const rectSchema = z.object({
@@ -17,7 +11,6 @@ export const rectSchema = z.object({
 export const regionSchema = z.object({
   id: z.string().min(1),
   displayName: z.string().min(1),
-  type: z.enum(regionTypes),
   bounds: rectSchema,
   confidence: z.number().min(0).max(1),
   // 区域整体是否可滚动。直接对应 CSS 的 overflow-x / overflow-y，
@@ -69,7 +62,6 @@ export type RegionSplitDoc = z.infer<typeof regionSplitDocSchema>;
 export interface RawSegment {
   displayName: string;
   id: string;
-  type: RegionType;
   yStart: number;   // 分析图坐标
   yEnd: number;     // 分析图坐标
   confidence: number;

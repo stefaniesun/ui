@@ -15,7 +15,7 @@ async function fixture() {
   store.writeDoc(projectId, {
     schemaVersion: "1",
     image: { fileName: "image.png", width: 100, height: 80, analyzedScale: 1, removedChrome: [] },
-    regions: [{ id: "r", displayName: "区域", type: "other", bounds: region, confidence: 1, scrollX: false, scrollY: false }],
+    regions: [{ id: "r", displayName: "区域", bounds: region, confidence: 1, scrollX: false, scrollY: false }],
     candidateLines: [], panels: [], updatedAt: new Date().toISOString(),
   });
   const image = await sharp({ create: { width: 100, height: 80, channels: 3, background: "#3578e5" } }).png().toBuffer();

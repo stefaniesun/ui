@@ -15,15 +15,6 @@ async function mounted() {
 }
 
 describe("RegionList", () => {
-  it("lists every region with type but without confidence percentage", async () => {
-    const { wrapper } = await mounted();
-    const rows = wrapper.findAll("[data-test=row]");
-    expect(rows).toHaveLength(2);
-    expect(rows[0]!.text()).toContain("名-a");
-    expect(rows[0]!.text()).toContain("card");
-    expect(rows[0]!.text()).not.toContain("87%");
-    expect(rows[0]!.find(".confidence").exists()).toBe(false);
-  });
 
   it("colors each row and connection port by region id", async () => {
     const { wrapper } = await mounted();
@@ -34,8 +25,21 @@ describe("RegionList", () => {
     const expected = document.createElement("span");
     expected.style.borderColor = regionColor("a");
     expect(portColor).toBe(expected.style.borderColor);
-    expect(rows[0]!.get(".type").attributes("style")).toContain("color: var(--text-faint)");
     expect(rows[1]!.attributes("style")).toContain(`--region-color: ${regionColor("b")}`);
+  });
+
+  it("fills only the port of a parsed region", async () => {
+    const { store } = await mounted();
+    const wrapper = mount(RegionList, { props: { store, parsedRegionKeys: ["0-300"] } });
+    const ports = wrapper.findAll('[data-test="region-port"]');
+    expect(ports[0]!.classes()).toContain("parsed");
+    expect(ports[1]!.classes()).not.toContain("parsed");
+  });
+
+  it("leaves all region ports hollow before parsing", async () => {
+    const { store } = await mounted();
+    const wrapper = mount(RegionList, { props: { store, parsedRegionKeys: [] } });
+    expect(wrapper.get('[data-test="region-port"]').classes()).not.toContain("parsed");
   });
 
   it("badges regions that scroll, and leaves static ones unmarked", async () => {

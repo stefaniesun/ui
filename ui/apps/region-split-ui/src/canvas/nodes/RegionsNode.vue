@@ -16,11 +16,12 @@ export interface RegionNodeError {
   retryable: boolean;
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   store: Store;
   hoveredId: string | null;
   showPanels: boolean;
-}>();
+  parsedRegionKeys?: string[];
+}>(), { parsedRegionKeys: () => [] });
 const emit = defineEmits<{
   hover: [id: string | null];
   open: [id: string];
@@ -270,6 +271,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
             ref="regionList"
             :store="props.store"
             :hovered-id="props.hoveredId"
+            :parsed-region-keys="props.parsedRegionKeys"
             @hover="emit('hover', $event)"
             @open="emit('open', $event)"
             @layout-change="emit('layoutChange')"

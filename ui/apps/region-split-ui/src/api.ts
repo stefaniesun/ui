@@ -16,7 +16,7 @@ export interface StoreApi {
   renameAi(projectId: string, regionId: string): Promise<{ doc: RegionSplitDoc }>;
   getModelConfig(): Promise<ModelConfigView>;
   getElements(projectId: string, y: number, h: number): Promise<{ tree: ElementTree | null; treeVersion: string | null }>;
-  getCode(projectId: string, y: number, h: number): Promise<{ html: string; css: string }>;
+  getParsedRegions(projectId: string): Promise<{ regionKeys: string[] }>;
   getPageCode(projectId: string): Promise<PageCodeOutput>;
   detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
   putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
@@ -57,8 +57,8 @@ export const httpApi: StoreApi = {
   getElements(projectId, y, h) {
     return json(`/api/projects/${projectId}/elements?y=${y}&h=${h}`);
   },
-  getCode(projectId, y, h) {
-    return json(`/api/projects/${projectId}/code?y=${y}&h=${h}`);
+  getParsedRegions(projectId) {
+    return json(`/api/projects/${projectId}/parsed-regions`);
   },
   getPageCode(projectId) {
     return json(`/api/projects/${projectId}/page-code`);

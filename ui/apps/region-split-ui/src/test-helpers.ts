@@ -8,7 +8,7 @@ export function makeRegion(
   id: string, y: number, h: number, scroll: { x?: boolean; y?: boolean } = {},
 ): Region {
   return {
-    id, displayName: `名-${id}`, type: "card", bounds: { x: 0, y, w: 375, h }, confidence: 0.87,
+    id, displayName: `名-${id}`, bounds: { x: 0, y, w: 375, h }, confidence: 0.87,
     scrollX: scroll.x ?? false, scrollY: scroll.y ?? false,
   };
 }
@@ -42,7 +42,7 @@ export function makeFakeApi(
     // 区域相关的用例不碰元素接口；给出惰性桩只是为了满足 StoreApi，
     // 需要断言元素行为的用例请用 overrides 覆盖。
     getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
-    getCode: vi.fn(async () => ({ html: "", css: "" })),
+    getParsedRegions: vi.fn(async () => ({ regionKeys: [] })),
     getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })),
     detectElements: vi.fn(async () => ({ tree: makeElementTree(), treeVersion: "detected-v1" })),
     putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree, treeVersion: "saved-v1" })),

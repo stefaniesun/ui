@@ -8,17 +8,12 @@ import type {
 } from "./canvas-state.js";
 
 export type DetailNodeId = `detail:${string}`;
-export type CodeNodeId = `code:${string}`;
 export type DetailPositions = Record<string, Point>;
 
 const DETAIL_GAP = 80;
 
 export function detailNodeId(regionId: string): DetailNodeId {
   return `detail:${regionId}`;
-}
-
-export function codeNodeId(regionId: string): CodeNodeId {
-  return `code:${regionId}`;
 }
 
 export function screenPointToWorld(

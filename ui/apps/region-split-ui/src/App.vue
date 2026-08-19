@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import PipelineCanvas from "./canvas/PipelineCanvas.vue";
 import DetailNode from "./canvas/nodes/DetailNode.vue";
-import CodeNode from "./canvas/nodes/CodeNode.vue";
 import RegionsNode, { type RegionNodeError } from "./canvas/nodes/RegionsNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
 import ErrorDialog from "./components/ErrorDialog.vue";
@@ -19,17 +18,26 @@ const pipelineCanvas = ref<{
   refreshConnections(): void;
 } | null>(null);
 const dialogError = ref<RegionNodeError | null>(null);
+const parsedRegionKeys = ref<string[]>([]);
 const showPanels = ref(true);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
 const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
 const analyzing = computed(() => store.busy.value && store.busyLabel.value === "AI 分析中…");
 
+watch(() => [store.projectId.value, store.doc.value?.updatedAt] as const, () => {
+  void refreshParsedRegions();
+});
+
 function openRegionDetail(id: string) {
   pipelineCanvas.value?.openDetail(id);
 }
 function getRegionAnchor(id: string) {
   return regionsNode.value?.getRegionAnchor(id) ?? null;
+}
+async function refreshParsedRegions() {
+  const projectId = store.projectId.value;
+  parsedRegionKeys.value = projectId ? (await httpApi.getParsedRegions(projectId)).regionKeys : [];
 }
 
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
@@ -92,28 +100,22 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         :store="store"
         :hovered-id="hoveredId"
         :show-panels="showPanels"
+        :parsed-region-keys="parsedRegionKeys"
         @hover="hoveredId = $event"
         @open="openRegionDetail"
         @open-page-compare="pipelineCanvas?.openPageCompare()"
         @layout-change="pipelineCanvas?.refreshConnections()"
-        @uploaded="store.projectId.value && syncHash(store.projectId.value)"
+        @uploaded="store.projectId.value && (syncHash(store.projectId.value), refreshParsedRegions())"
         @error="dialogError = $event"
       />
-      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, setHoveredId, openCode }">
+      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, setHoveredId }">
         <DetailNode
           :project-id="store.projectId.value"
           :region="region"
           :element-store="elementStore"
           :hovered-id="detailHoveredId"
           @hover="setHoveredId"
-          @open-code="openCode"
-        />
-      </template>
-      <template #code="{ region }">
-        <CodeNode
-          :project-id="store.projectId.value"
-          :region="region"
-          :api="httpApi"
+          @parsed="refreshParsedRegions"
         />
       </template>
     </PipelineCanvas>

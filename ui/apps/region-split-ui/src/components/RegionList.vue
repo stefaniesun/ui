@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, type ComponentPublicInstance } from "vue";
+import { regionKey } from "@region-split/core/browser";
 import { regionColor, regionSoftColor } from "../region-visual.js";
 import type { Store } from "../state.js";
 
-const props = defineProps<{ store: Store; hoveredId?: string | null }>();
+const props = withDefaults(defineProps<{
+  store: Store;
+  hoveredId?: string | null;
+  parsedRegionKeys?: string[];
+}>(), { parsedRegionKeys: () => [] });
 const emit = defineEmits<{
   hover: [id: string | null];
   open: [id: string];
@@ -156,14 +161,19 @@ function onRowClick(id: string, event: MouseEvent) {
       <span v-else data-test="name" class="name" @dblclick.stop="beginEdit(region.id)">
         {{ props.store.pendingRenameIds.value.includes(region.id) ? "命名中…" : region.displayName }}
       </span>
-      <span class="type" style="color: var(--text-faint)">{{ region.type }}</span>
       <span
         v-if="region.scrollX || region.scrollY"
         data-test="scroll"
         class="scroll"
         :title="[region.scrollX ? '可横向滑动' : '', region.scrollY ? '可纵向滑动' : ''].filter(Boolean).join(' · ')"
       >{{ region.scrollX ? "↔" : "" }}{{ region.scrollY ? "↕" : "" }}</span>
-      <span class="region-port" :style="{ borderColor: regionColor(region.id) }" aria-hidden="true" />
+      <span
+        data-test="region-port"
+        class="region-port"
+        :class="{ parsed: props.parsedRegionKeys.includes(regionKey(region.bounds)) }"
+        :style="{ borderColor: regionColor(region.id) }"
+        aria-hidden="true"
+      />
     </li>
   </ul>
 </template>
@@ -173,7 +183,8 @@ function onRowClick(id: string, event: MouseEvent) {
 .list { min-width: 0; height: 100%; margin: 0; padding: 7px; overflow-x: hidden; overflow-y: auto; list-style: none; background: var(--bg-node); }
 .row { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding: 7px 18px 7px 7px; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim); background: var(--bg-inset); cursor: pointer; }
 .row.hovered { border-color: var(--region-color); background: var(--region-soft-color); background: color-mix(in srgb, var(--region-soft-color) 75%, var(--bg-inset)); }.row.selected { border-color: var(--region-color); background: var(--region-soft-color); }.row.disabled { cursor: default; opacity: .6; }
-.index { flex: 0 0 18px; color: var(--region-color); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.type { flex: 0 1 auto; min-width: 0; max-width: 58px; overflow: hidden; color: var(--text-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }.scroll { flex: 0 0 auto; color: var(--accent); font-size: 10px; cursor: help; }
+.index { flex: 0 0 18px; color: var(--region-color); font-size: 10px; }.name { flex: 1; min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.scroll { flex: 0 0 auto; color: var(--accent); font-size: 10px; cursor: help; }
 .region-port { position: absolute; top: 50%; right: -6px; z-index: 2; box-sizing: border-box; width: 10px; height: 10px; border: 2px solid var(--region-color); border-radius: 50%; background: var(--bg-canvas); transform: translateY(-50%); }
+.region-port.parsed { background: var(--region-color); }
 input { flex: 1; min-width: 0; height: 25px; min-height: 25px; font-size: 10px; }
 </style>

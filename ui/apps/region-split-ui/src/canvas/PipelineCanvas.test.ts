@@ -5,7 +5,7 @@ import PipelineCanvas from "./PipelineCanvas.vue";
 import { regionColor } from "../region-visual.js";
 
 const region = (id: string, y: number): Region => ({
-  id, displayName: id, type: "other", bounds: { x: 0, y, w: 400, h: 200 },
+  id, displayName: id, bounds: { x: 0, y, w: 400, h: 200 },
   confidence: 1, scrollX: false, scrollY: false,
 });
 
@@ -19,8 +19,7 @@ function mounted(regions = [region("a", 0), region("b", 200)]) {
     },
     slots: {
       default: "workspace",
-      detail: '<template #detail="slotProps"><div class="detail-slot">{{ slotProps.region.id }}</div>'
-        + '<button data-test="open-code" @click="slotProps.openCode()">生成代码</button></template>',
+      detail: '<template #detail="slotProps"><div class="detail-slot">{{ slotProps.region.id }}</div></template>',
     },
     global: { stubs: { PipelineNode: false } },
   });
@@ -184,71 +183,5 @@ describe("PipelineCanvas dynamic details", () => {
     await wrapper.setProps({ regions: [region("b", 200)] });
     await wrapper.vm.$nextTick();
     expect(wrapper.find('[data-node-id="detail:a"]').exists()).toBe(false);
-  });
-});
-
-describe("PipelineCanvas dynamic code nodes", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    vi.useFakeTimers();
-    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
-    vi.stubGlobal("cancelAnimationFrame", vi.fn());
-    Object.defineProperty(HTMLElement.prototype, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({ left: 0, top: 0, width: 1200, height: 800, right: 1200, bottom: 800 }),
-    });
-  });
-
-  it("opens a code node from the detail node's generate-code button", async () => {
-    const wrapper = mounted();
-    (wrapper.vm as unknown as { openDetail(id: string): void }).openDetail("a");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.findAll('[data-node-id^="code:"]')).toHaveLength(0);
-    await wrapper.find('[data-node-id="detail:a"] [data-test="open-code"]').trigger("click");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.findAll('[data-node-id^="code:"]')).toHaveLength(1);
-    expect(wrapper.find('[data-node-id="code:a"]').exists()).toBe(true);
-  });
-
-  it("opens only one code node per region no matter how many times it is triggered", async () => {
-    const wrapper = mounted();
-    (wrapper.vm as unknown as { openDetail(id: string): void }).openDetail("a");
-    await wrapper.vm.$nextTick();
-    const button = wrapper.find('[data-node-id="detail:a"] [data-test="open-code"]');
-    await button.trigger("click");
-    await button.trigger("click");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.findAll('[data-node-id^="code:"]')).toHaveLength(1);
-  });
-
-  it("closes the code node when its region detail closes", async () => {
-    const wrapper = mounted();
-    (wrapper.vm as unknown as { openDetail(id: string): void }).openDetail("a");
-    await wrapper.vm.$nextTick();
-    await wrapper.find('[data-node-id="detail:a"] [data-test="open-code"]').trigger("click");
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-node-id="code:a"]').exists()).toBe(true);
-
-    await wrapper.find('[data-node-id="detail:a"] [data-test="close-node"]').trigger("click");
-    expect(wrapper.find('[data-node-id="code:a"]').exists()).toBe(false);
-  });
-
-  it("draws a connection between the detail node and its code node", async () => {
-    const wrapper = mounted();
-    const vm = wrapper.vm as unknown as { openDetail(id: string): void; refreshConnections(): void };
-    vm.openDetail("a");
-    await wrapper.vm.$nextTick();
-    vm.refreshConnections();
-    await wrapper.vm.$nextTick();
-    const linksBeforeCode = wrapper.findAll(".links path").length;
-
-    await wrapper.find('[data-node-id="detail:a"] [data-test="open-code"]').trigger("click");
-    await wrapper.vm.$nextTick();
-    vm.refreshConnections();
-    await wrapper.vm.$nextTick();
-    expect(wrapper.findAll(".links path")).toHaveLength(linksBeforeCode + 1);
   });
 });

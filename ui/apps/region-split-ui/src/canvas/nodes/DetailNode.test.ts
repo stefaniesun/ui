@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import DetailNode from "./DetailNode.vue";
 import { createElementStore } from "../../element-state.js";
@@ -27,7 +27,7 @@ const parsedTree = (): ElementTree => ({
 });
 
 const region = (id: string, y: number, h: number): Region => ({
-  id, displayName: `名-${id}`, type: "other", bounds: { x: 0, y, w: 400, h },
+  id, displayName: `名-${id}`, bounds: { x: 0, y, w: 400, h },
   confidence: 1, scrollX: false, scrollY: false,
 });
 
@@ -45,17 +45,12 @@ describe("DetailNode", () => {
     expect(mountNode().find('[data-test="detect-elements"]').text()).toBe("解析元素");
   });
 
-  it("disables generating code before the region has been parsed", () => {
-    expect(mountNode().find('[data-test="open-code"]').attributes("disabled")).toBeDefined();
-  });
-
-  it("enables generating code and emits open-code once parsed", async () => {
-    const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
-    await wrapper.vm.$nextTick();
-    const button = wrapper.find('[data-test="open-code"]');
-    expect(button.attributes("disabled")).toBeUndefined();
-    await button.trigger("click");
-    expect(wrapper.emitted("open-code")).toHaveLength(1);
+  it("emits parsed after detecting the region", async () => {
+    const wrapper = mountNode();
+    await flushPromises();
+    await wrapper.get('[data-test="detect-elements"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.emitted("parsed")).toHaveLength(1);
   });
 
   it("shows the region name and size", () => {
