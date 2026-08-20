@@ -11,6 +11,11 @@ import { createElementRefactorStore } from "../../element-refactor-state.js";
 import { elementNumberMap } from "../../element-tree-numbering.js";
 import type { ElementStore } from "../../element-state.js";
 import { REFERENCE_SIZE, matchFont, type MetricsSource } from "../../font-metrics.js";
+import {
+  regionDetailLayout,
+  resetRegionDetailLayout,
+  setRegionDetailLayout,
+} from "../../region-detail-layout.js";
 
 const props = defineProps<{
   projectId: string;
@@ -367,6 +372,51 @@ function onRenamePrompt(id: string) {
   const next = window.prompt("元素名称", current?.displayName ?? "");
   if (next !== null) onRenameValue(id, next);
 }
+
+const detailWorkspace = ref<HTMLElement | null>(null);
+const draggingLayout = ref<"row" | "tree" | "ai" | null>(null);
+const propertyPercent = computed(() => Math.round((100 - regionDetailLayout.value.tree - regionDetailLayout.value.ai) * 10) / 10);
+const elementPercent = computed(() => Math.round((100 - regionDetailLayout.value.image) * 10) / 10);
+const layoutStyle = computed(() => ({
+  "--detail-image": `${regionDetailLayout.value.image}fr`,
+  "--detail-elements": `${100 - regionDetailLayout.value.image}fr`,
+  "--detail-tree": `${regionDetailLayout.value.tree}fr`,
+  "--detail-property": `${propertyPercent.value}fr`,
+  "--detail-ai": `${regionDetailLayout.value.ai}fr`,
+  "--detail-image-position": `${regionDetailLayout.value.image}%`,
+  "--detail-tree-position": `${regionDetailLayout.value.tree}%`,
+  "--detail-ai-position": `${100 - regionDetailLayout.value.ai}%`,
+}));
+
+function updateLayoutFromPointer(event: PointerEvent) {
+  const rect = detailWorkspace.value?.getBoundingClientRect();
+  if (!rect || !draggingLayout.value) return;
+  if (draggingLayout.value === "row") {
+    setRegionDetailLayout({ image: ((event.clientY - rect.top) / rect.height) * 100 });
+    return;
+  }
+  const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
+  if (draggingLayout.value === "ai") {
+    setRegionDetailLayout({ ai: 100 - xPercent });
+  } else {
+    setRegionDetailLayout({ tree: xPercent });
+  }
+}
+function startLayoutDrag(kind: "row" | "tree" | "ai", event: PointerEvent) {
+  draggingLayout.value = kind;
+  (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+  updateLayoutFromPointer(event);
+}
+function stopLayoutDrag() { draggingLayout.value = null; }
+function adjustLayout(kind: "row" | "tree" | "ai", event: KeyboardEvent) {
+  const direction = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1
+    : event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : 0;
+  if (!direction) return;
+  event.preventDefault();
+  if (kind === "row") setRegionDetailLayout({ image: regionDetailLayout.value.image + direction });
+  if (kind === "tree") setRegionDetailLayout({ tree: regionDetailLayout.value.tree + direction });
+  if (kind === "ai") setRegionDetailLayout({ ai: regionDetailLayout.value.ai - direction });
+}
 </script>
 
 <template>
@@ -393,6 +443,10 @@ function onRenamePrompt(id: string) {
         <span v-if="props.elementStore.busy.value" class="label">
           {{ props.elementStore.busyLabel.value }}
         </span>
+        <span data-test="detail-layout-values" class="layout-values">
+          图片 {{ regionDetailLayout.image }}% / 元素 {{ elementPercent }}%｜树 {{ regionDetailLayout.tree }}% / 属性 {{ propertyPercent }}% / AI {{ regionDetailLayout.ai }}%
+        </span>
+        <button data-test="detail-layout-reset" class="layout-reset" type="button" @click="resetRegionDetailLayout">重置布局</button>
         <span v-if="props.elementStore.error.value" data-test="detail-error" class="error">
           {{ props.elementStore.error.value }}
         </span>
@@ -405,7 +459,16 @@ function onRenamePrompt(id: string) {
         可以在图上直接框选，手动补一个容器。
       </p>
 
-      <div data-test="detail-workspace" class="detail-workspace">
+      <div
+        ref="detailWorkspace"
+        data-test="detail-workspace"
+        class="detail-workspace"
+        :class="{ 'layout-dragging': draggingLayout }"
+        :style="layoutStyle"
+        @pointermove="updateLayoutFromPointer"
+        @pointerup="stopLayoutDrag"
+        @pointercancel="stopLayoutDrag"
+      >
         <section data-test="detail-image" class="image-section">
             <header>
               元素解析图
@@ -473,6 +536,24 @@ function onRenamePrompt(id: string) {
           @toggle-picking="togglePicking"
           />
         </section>
+        <div
+          data-test="detail-row-resizer" class="layout-resizer row-resizer" role="separator"
+          aria-label="调整图片和元素区域高度" aria-orientation="horizontal" tabindex="0"
+          :aria-valuenow="regionDetailLayout.image"
+          @pointerdown="startLayoutDrag('row', $event)" @keydown="adjustLayout('row', $event)"
+        />
+        <div
+          data-test="detail-tree-resizer" class="layout-resizer tree-resizer" role="separator"
+          aria-label="调整元素树和属性宽度" aria-orientation="vertical" tabindex="0"
+          :aria-valuenow="regionDetailLayout.tree"
+          @pointerdown="startLayoutDrag('tree', $event)" @keydown="adjustLayout('tree', $event)"
+        />
+        <div
+          data-test="detail-ai-resizer" class="layout-resizer ai-resizer" role="separator"
+          aria-label="调整属性和 AI 宽度" aria-orientation="vertical" tabindex="0"
+          :aria-valuenow="regionDetailLayout.ai"
+          @pointerdown="startLayoutDrag('ai', $event)" @keydown="adjustLayout('ai', $event)"
+        />
         <aside data-test="detail-ai-column" class="ai-column">
           <ElementRefactorPanel
             v-if="parsed"
@@ -510,8 +591,11 @@ function onRenamePrompt(id: string) {
 .region-bg .picker { width: 28px; height: 24px; min-height: 24px; padding: 0 2px; }
 .region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
+.layout-values { margin-left: auto; color: var(--text-dim); font-size: 10px; white-space: nowrap; }
+.bar .layout-reset { height: 24px; min-height: 24px; padding: 0 8px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 28fr); grid-template-rows: minmax(0, 13fr) minmax(0, 7fr); overflow: hidden; }
+.detail-workspace { position: relative; height: 500px; display: grid; grid-template-columns: minmax(0, var(--detail-tree)) minmax(0, var(--detail-property)) minmax(0, var(--detail-ai)); grid-template-rows: minmax(0, var(--detail-image)) minmax(0, var(--detail-elements)); overflow: hidden; }
+.detail-workspace.layout-dragging { user-select: none; }
 .image-section { grid-column: 1 / 3; grid-row: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
 .image-fit { min-height: 0; flex: 1; overflow: hidden; }
 .hint-inline { margin-left: 8px; color: var(--accent); }
@@ -524,6 +608,14 @@ function onRenamePrompt(id: string) {
 /* 元素树与属性区固定在区域图下方，AI 校准独立保持在最右侧。 */
 .inspector { grid-column: 1 / 3; grid-row: 2; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: hidden; border-top: 1px solid var(--border); }
 .ai-column { grid-column: 3; grid-row: 1 / 3; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--bg-node); }
+.layout-resizer { position: absolute; z-index: 20; outline: none; touch-action: none; }
+.layout-resizer::after { content: ""; position: absolute; background: transparent; transition: background .15s; }
+.layout-resizer:hover::after, .layout-resizer:focus-visible::after { background: var(--accent); }
+.row-resizer { top: var(--detail-image-position); left: 0; width: var(--detail-ai-position); height: 10px; cursor: row-resize; transform: translateY(-5px); }
+.row-resizer::after { left: 0; right: 0; top: 4px; height: 2px; }
+.tree-resizer { top: var(--detail-image-position); bottom: 0; left: var(--detail-tree-position); width: 10px; cursor: col-resize; transform: translateX(-5px); }
+.ai-resizer { top: 0; bottom: 0; left: var(--detail-ai-position); width: 10px; cursor: col-resize; transform: translateX(-5px); }
+.tree-resizer::after, .ai-resizer::after { top: 0; bottom: 0; left: 4px; width: 2px; }
 .ai-column > .element-refactor-panel { flex: 1; min-height: 0; max-height: none; border-top: 0; }
 .undo-refactor { align-self: flex-end; margin: 8px; }
 </style>

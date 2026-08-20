@@ -81,6 +81,22 @@ describe("DetailNode", () => {
     expect(aiColumn.find('[data-test="ai-composer"]').exists()).toBe(true);
   });
 
+  it("shows shared resizable layout controls and live proportions", async () => {
+    const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("图片 65% / 元素 35%");
+    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("树 36% / 属性 36% / AI 28%");
+    expect(wrapper.get('[data-test="detail-row-resizer"]').attributes("aria-orientation")).toBe("horizontal");
+    expect(wrapper.get('[data-test="detail-tree-resizer"]').attributes("aria-orientation")).toBe("vertical");
+    expect(wrapper.get('[data-test="detail-ai-resizer"]').attributes("aria-orientation")).toBe("vertical");
+
+    await wrapper.get('[data-test="detail-row-resizer"]').trigger("keydown", { key: "ArrowUp" });
+    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("图片 64% / 元素 36%");
+    await wrapper.get('[data-test="detail-layout-reset"]').trigger("click");
+    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("图片 65% / 元素 35%");
+  });
+
   it("always shows the AI panel and asks for an element selection", async () => {
     const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
     await wrapper.vm.$nextTick();
