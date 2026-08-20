@@ -59,18 +59,21 @@ describe("DetailNode", () => {
     expect(wrapper.text()).toContain("400×300");
   });
 
-  it("places AI structure calibration in the inspector right column", async () => {
+  it("places elements below the image and AI calibration in the right column", async () => {
     const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
     await wrapper.vm.$nextTick();
 
-    const image = wrapper.get('[data-test="detail-image"]');
-    const inspector = wrapper.get('[data-test="detail-inspector"]');
-    expect(image.element.parentElement?.getAttribute("data-test")).toBe("detail-workspace");
-    expect(image.element.parentElement).toBe(inspector.element.parentElement);
+    const workspace = wrapper.get('[data-test="detail-workspace"]');
+    const main = workspace.get('[data-test="detail-main"]');
+    const image = main.get('[data-test="detail-image"]');
+    const inspector = main.get('[data-test="detail-inspector"]');
+    expect(main.element.firstElementChild).toBe(image.element);
+    expect(main.element.lastElementChild).toBe(inspector.element);
+    expect(inspector.find('[data-test="detail-ai-column"]').exists()).toBe(false);
 
-    const aiColumn = inspector.get('[data-test="detail-ai-column"]');
+    const aiColumn = workspace.get('[data-test="detail-ai-column"]');
+    expect(workspace.element.lastElementChild).toBe(aiColumn.element);
     expect(aiColumn.find('[data-test="ai-refactor-panel"]').exists()).toBe(true);
-    expect(inspector.element.lastElementChild).toBe(aiColumn.element);
     expect(aiColumn.find('[data-test="ai-conversation-scroll"]').exists()).toBe(true);
     expect(aiColumn.find('[data-test="ai-composer"]').exists()).toBe(true);
   });

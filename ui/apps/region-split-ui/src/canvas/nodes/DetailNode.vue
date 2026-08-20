@@ -406,42 +406,43 @@ function onRenamePrompt(id: string) {
       </p>
 
       <div data-test="detail-workspace" class="detail-workspace">
-        <section data-test="detail-image" class="image-section">
-          <header>
-            元素解析图
-            <span v-if="picking" data-test="picking-hint" class="hint-inline">
-              在图上点一个像素取色，Esc 取消
-            </span>
-          </header>
-          <div class="image-scroll">
-            <div class="stage-wrap">
-              <ElementOverlay
-                :project-id="props.projectId"
-                :region="region"
-                :nodes="nodes"
-                :selected-id="props.elementStore.selectedId.value"
-                :hovered-id="props.hoveredId ?? null"
-                :picking="picking"
-                @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
-                @hover="emit('hover', $event)"
-                @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
-                @pick-hover="onPickHover"
-                @pick="onPick"
-              />
-              <span
-                v-if="hoverColor"
-                data-test="pick-preview"
-                class="pick-preview"
-                :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
-              >
-                <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
+        <main data-test="detail-main" class="detail-main">
+          <section data-test="detail-image" class="image-section">
+            <header>
+              元素解析图
+              <span v-if="picking" data-test="picking-hint" class="hint-inline">
+                在图上点一个像素取色，Esc 取消
               </span>
+            </header>
+            <div class="image-scroll">
+              <div class="stage-wrap">
+                <ElementOverlay
+                  :project-id="props.projectId"
+                  :region="region"
+                  :nodes="nodes"
+                  :selected-id="props.elementStore.selectedId.value"
+                  :hovered-id="props.hoveredId ?? null"
+                  :picking="picking"
+                  @select="refactorStore.rootId.value ? undefined : props.elementStore.select($event)"
+                  @hover="emit('hover', $event)"
+                  @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
+                  @pick-hover="onPickHover"
+                  @pick="onPick"
+                />
+                <span
+                  v-if="hoverColor"
+                  data-test="pick-preview"
+                  class="pick-preview"
+                  :style="{ left: `${hoverColor.x}px`, top: `${hoverColor.y}px` }"
+                >
+                  <i :style="{ background: hoverColor.color }" />{{ hoverColor.color }}
+                </span>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section data-test="detail-inspector" class="inspector">
-        <ElementTree
+          <section data-test="detail-inspector" class="inspector">
+          <ElementTree
           :nodes="nodes"
           :selected-id="props.elementStore.selectedId.value"
           :hovered-id="props.hoveredId ?? null"
@@ -471,7 +472,9 @@ function onRenamePrompt(id: string) {
           :font-note="fontNote"
           :picking="picking"
           @toggle-picking="togglePicking"
-        />
+          />
+          </section>
+        </main>
         <aside data-test="detail-ai-column" class="ai-column">
           <ElementRefactorPanel
             v-if="parsed"
@@ -495,7 +498,6 @@ function onRenamePrompt(id: string) {
             @click="region && props.elementStore.undoRefactor(props.projectId, region)"
           >撤销 AI 重构</button>
         </aside>
-        </section>
       </div>
   </div>
 </template>
@@ -511,7 +513,8 @@ function onRenamePrompt(id: string) {
 .region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(340px, 1fr) minmax(0, 640px); overflow: hidden; }
+.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(0, 1fr) 260px; overflow: hidden; }
+.detail-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); overflow: hidden; }
 .image-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
 .image-scroll { min-height: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
 .hint-inline { margin-left: 8px; color: var(--accent); }
@@ -521,8 +524,8 @@ function onRenamePrompt(id: string) {
 .pick-preview i { width: 11px; height: 11px; border: 1px solid #ffffff55; border-radius: 3px; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
-/* 右半区同时展示元素树、属性与 AI 交互，和左侧原图保持同屏。 */
-.inspector { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 220px 260px; overflow: hidden; border-left: 1px solid var(--border); }
+/* 元素树与属性区固定在区域图下方，AI 校准独立保持在最右侧。 */
+.inspector { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 240px; overflow: hidden; border-top: 1px solid var(--border); }
 .ai-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--bg-node); }
 .ai-column > .element-refactor-panel { flex: 1; min-height: 0; max-height: none; border-top: 0; }
 .undo-refactor { align-self: flex-end; margin: 8px; }
