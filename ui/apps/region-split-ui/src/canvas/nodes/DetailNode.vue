@@ -414,7 +414,7 @@ function onRenamePrompt(id: string) {
                 在图上点一个像素取色，Esc 取消
               </span>
             </header>
-            <div class="image-scroll">
+            <div data-test="detail-image-fit" class="image-fit">
               <div class="stage-wrap">
                 <ElementOverlay
                   :project-id="props.projectId"
@@ -513,13 +513,13 @@ function onRenamePrompt(id: string) {
 .region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(0, 1fr) 260px; overflow: hidden; }
-.detail-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); overflow: hidden; }
+.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; overflow: hidden; }
+.detail-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 13fr) minmax(0, 7fr); overflow: hidden; }
 .image-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
-.image-scroll { min-height: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
+.image-fit { min-height: 0; flex: 1; overflow: hidden; }
 .hint-inline { margin-left: 8px; color: var(--accent); }
-/* 取色提示气泡按舞台内偏移定位，所以外面这层必须是定位上下文 */
-.stage-wrap { position: relative; }
+/* 取色提示气泡按完整适配视口偏移定位，所以外面这层铺满图片区。 */
+.stage-wrap { position: relative; width: 100%; height: 100%; }
 .pick-preview { position: absolute; z-index: 5; display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; background: #16181dee; color: white; font-size: 10px; pointer-events: none; transform: translate(12px, 12px); }
 .pick-preview i { width: 11px; height: 11px; border: 1px solid #ffffff55; border-radius: 3px; }
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }

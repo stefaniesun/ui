@@ -19,9 +19,13 @@ const mountOverlay = (props: Record<string, unknown> = {}) =>
   mount(ElementOverlay, { props: { ...base, ...props } });
 
 describe("ElementOverlay", () => {
-  it("keeps the frame at the region aspect ratio", () => {
-    const style = mountOverlay().find('[data-test="element-stage"]').attributes("style")!;
-    expect(style).toContain("400 / 300");
+  it("contains the aspect-ratio stage inside a full-size fit viewport", () => {
+    const wrapper = mountOverlay();
+    const fit = wrapper.get('[data-test="element-fit"]');
+    const stage = fit.get('[data-test="element-stage"]');
+    expect(fit.element.firstElementChild).toBe(stage.element);
+    expect(stage.attributes("style")).toContain("400 / 300");
+    expect(stage.attributes("style")).toContain("--region-ratio: 1.3333333333333333");
   });
 
   it("draws one box per node", () => {

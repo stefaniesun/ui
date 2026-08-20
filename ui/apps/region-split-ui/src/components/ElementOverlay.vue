@@ -25,6 +25,7 @@ const emit = defineEmits<{
 /** 小于这个像素的拖拽当作误触 */
 const MIN_DRAG = 8;
 
+const fitEl = ref<HTMLElement | null>(null);
 const stageEl = ref<HTMLElement | null>(null);
 const dragBox = ref<Rect | null>(null);
 let dragStart: { x: number; y: number } | null = null;
@@ -67,7 +68,7 @@ function toImage(event: { clientX: number; clientY: number }): { x: number; y: n
  */
 function onPickMove(event: MouseEvent) {
   if (!props.picking) return;
-  const rect = stageEl.value!.getBoundingClientRect();
+  const rect = fitEl.value!.getBoundingClientRect();
   emit("pick-hover", {
     ...toImage(event),
     offsetX: event.clientX - rect.left,
@@ -116,45 +117,51 @@ defineExpose({ cancel: onCancel });
 </script>
 
 <template>
-  <div
-    ref="stageEl"
-    data-test="element-stage"
-    class="stage"
-    :class="{ picking: props.picking }"
-    :style="{ aspectRatio: `${props.region.w} / ${props.region.h}` }"
-    @pointerdown.stop="onDown"
-    @pointermove="onMove"
-    @pointerup="onUp"
-    @pointercancel="onCancel"
-    @mousemove="onPickMove"
-    @mouseleave="onPickLeave"
-    @click="onPickClick"
-  >
-    <img class="crop" :src="src" alt="区域原图" />
+  <div ref="fitEl" data-test="element-fit" class="fit">
     <div
-      v-for="node in props.nodes"
-      :key="node.id"
-      data-test="element-box"
-      class="box"
-      :class="[`kind-${node.kind}`, {
-        selected: node.id === props.selectedId,
-        hovered: node.id === props.hoveredId,
-      }]"
-      :style="boxStyle(
-        node.box,
-        supportsBorderRadius(node.kind) ? (node.style.borderRadius ?? 0) : 0,
-      )"
-      @click.stop="emit('select', node.id)"
-      @mouseenter="emit('hover', node.id)"
-      @mouseleave="emit('hover', null)"
-    />
-    <div v-if="dragBox" class="draft" :style="boxStyle(dragBox)" />
+      ref="stageEl"
+      data-test="element-stage"
+      class="stage"
+      :class="{ picking: props.picking }"
+      :style="{
+        aspectRatio: `${props.region.w} / ${props.region.h}`,
+        '--region-ratio': props.region.w / props.region.h,
+      }"
+      @pointerdown.stop="onDown"
+      @pointermove="onMove"
+      @pointerup="onUp"
+      @pointercancel="onCancel"
+      @mousemove="onPickMove"
+      @mouseleave="onPickLeave"
+      @click="onPickClick"
+    >
+      <img class="crop" :src="src" alt="区域原图" />
+      <div
+        v-for="node in props.nodes"
+        :key="node.id"
+        data-test="element-box"
+        class="box"
+        :class="[`kind-${node.kind}`, {
+          selected: node.id === props.selectedId,
+          hovered: node.id === props.hoveredId,
+        }]"
+        :style="boxStyle(
+          node.box,
+          supportsBorderRadius(node.kind) ? (node.style.borderRadius ?? 0) : 0,
+        )"
+        @click.stop="emit('select', node.id)"
+        @mouseenter="emit('hover', node.id)"
+        @mouseleave="emit('hover', null)"
+      />
+      <div v-if="dragBox" class="draft" :style="boxStyle(dragBox)" />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.stage { container-type: inline-size; position: relative; width: 100%; overflow: hidden; background: #0a0d13; cursor: crosshair; touch-action: none; }
-.crop { display: block; width: 100%; height: auto; }
+.fit { container-type: size; width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; }
+.stage { container-type: inline-size; position: relative; width: min(100cqw, calc(100cqh * var(--region-ratio))); max-width: 100%; max-height: 100%; overflow: hidden; background: #0a0d13; cursor: crosshair; touch-action: none; }
+.crop { display: block; width: 100%; height: 100%; }
 /* 取色时标注框必须让开，否则点在框上就被它 @click.stop 吃掉，取不到色 */
 .stage.picking .box { pointer-events: none; }
 .box { position: absolute; border: 1px solid #4c8dff88; }
