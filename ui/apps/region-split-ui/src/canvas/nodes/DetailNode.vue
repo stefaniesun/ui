@@ -374,27 +374,20 @@ function onRenamePrompt(id: string) {
 }
 
 const detailWorkspace = ref<HTMLElement | null>(null);
-const draggingLayout = ref<"row" | "tree" | "ai" | null>(null);
+const draggingLayout = ref<"tree" | "ai" | null>(null);
 const propertyPercent = computed(() => Math.round((100 - regionDetailLayout.value.tree - regionDetailLayout.value.ai) * 10) / 10);
-const elementPercent = computed(() => Math.round((100 - regionDetailLayout.value.image) * 10) / 10);
 const layoutStyle = computed(() => ({
-  "--detail-image": `${regionDetailLayout.value.image}fr`,
-  "--detail-elements": `${100 - regionDetailLayout.value.image}fr`,
   "--detail-tree": `${regionDetailLayout.value.tree}fr`,
   "--detail-property": `${propertyPercent.value}fr`,
   "--detail-ai": `${regionDetailLayout.value.ai}fr`,
-  "--detail-image-position": `${regionDetailLayout.value.image}%`,
   "--detail-tree-position": `${regionDetailLayout.value.tree}%`,
   "--detail-ai-position": `${100 - regionDetailLayout.value.ai}%`,
+  "--detail-image-aspect": `${(region.value?.w ?? 1) / (region.value?.h ?? 1)}`,
 }));
 
 function updateLayoutFromPointer(event: PointerEvent) {
   const rect = detailWorkspace.value?.getBoundingClientRect();
   if (!rect || !draggingLayout.value) return;
-  if (draggingLayout.value === "row") {
-    setRegionDetailLayout({ image: ((event.clientY - rect.top) / rect.height) * 100 });
-    return;
-  }
   const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
   if (draggingLayout.value === "ai") {
     setRegionDetailLayout({ ai: 100 - xPercent });
@@ -402,18 +395,16 @@ function updateLayoutFromPointer(event: PointerEvent) {
     setRegionDetailLayout({ tree: xPercent });
   }
 }
-function startLayoutDrag(kind: "row" | "tree" | "ai", event: PointerEvent) {
+function startLayoutDrag(kind: "tree" | "ai", event: PointerEvent) {
   draggingLayout.value = kind;
   (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   updateLayoutFromPointer(event);
 }
 function stopLayoutDrag() { draggingLayout.value = null; }
-function adjustLayout(kind: "row" | "tree" | "ai", event: KeyboardEvent) {
-  const direction = event.key === "ArrowUp" || event.key === "ArrowLeft" ? -1
-    : event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : 0;
+function adjustLayout(kind: "tree" | "ai", event: KeyboardEvent) {
+  const direction = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
   if (!direction) return;
   event.preventDefault();
-  if (kind === "row") setRegionDetailLayout({ image: regionDetailLayout.value.image + direction });
   if (kind === "tree") setRegionDetailLayout({ tree: regionDetailLayout.value.tree + direction });
   if (kind === "ai") setRegionDetailLayout({ ai: regionDetailLayout.value.ai - direction });
 }
@@ -444,7 +435,7 @@ function adjustLayout(kind: "row" | "tree" | "ai", event: KeyboardEvent) {
           {{ props.elementStore.busyLabel.value }}
         </span>
         <span data-test="detail-layout-values" class="layout-values">
-          图片 {{ regionDetailLayout.image }}% / 元素 {{ elementPercent }}%｜树 {{ regionDetailLayout.tree }}% / 属性 {{ propertyPercent }}% / AI {{ regionDetailLayout.ai }}%
+          树 {{ regionDetailLayout.tree }}% / 属性 {{ propertyPercent }}% / AI {{ regionDetailLayout.ai }}%
         </span>
         <button data-test="detail-layout-reset" class="layout-reset" type="button" @click="resetRegionDetailLayout">重置布局</button>
         <span v-if="props.elementStore.error.value" data-test="detail-error" class="error">
@@ -537,12 +528,6 @@ function adjustLayout(kind: "row" | "tree" | "ai", event: KeyboardEvent) {
           />
         </section>
         <div
-          data-test="detail-row-resizer" class="layout-resizer row-resizer" role="separator"
-          aria-label="调整图片和元素区域高度" aria-orientation="horizontal" tabindex="0"
-          :aria-valuenow="regionDetailLayout.image"
-          @pointerdown="startLayoutDrag('row', $event)" @keydown="adjustLayout('row', $event)"
-        />
-        <div
           data-test="detail-tree-resizer" class="layout-resizer tree-resizer" role="separator"
           aria-label="调整元素树和属性宽度" aria-orientation="vertical" tabindex="0"
           :aria-valuenow="regionDetailLayout.tree"
@@ -594,10 +579,10 @@ function adjustLayout(kind: "row" | "tree" | "ai", event: KeyboardEvent) {
 .layout-values { margin-left: auto; color: var(--text-dim); font-size: 10px; white-space: nowrap; }
 .bar .layout-reset { height: 24px; min-height: 24px; padding: 0 8px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.detail-workspace { position: relative; height: 500px; display: grid; grid-template-columns: minmax(0, var(--detail-tree)) minmax(0, var(--detail-property)) minmax(0, var(--detail-ai)); grid-template-rows: minmax(0, var(--detail-image)) minmax(0, var(--detail-elements)); overflow: hidden; }
+.detail-workspace { position: relative; container-type: inline-size; display: grid; grid-template-columns: minmax(0, var(--detail-tree)) minmax(0, var(--detail-property)) minmax(0, var(--detail-ai)); grid-template-rows: auto 240px; overflow: hidden; }
 .detail-workspace.layout-dragging { user-select: none; }
 .image-section { grid-column: 1 / 3; grid-row: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
-.image-fit { min-height: 0; flex: 1; overflow: hidden; }
+.image-fit { width: 100%; aspect-ratio: var(--detail-image-aspect); flex: none; overflow: hidden; }
 .hint-inline { margin-left: 8px; color: var(--accent); }
 /* 取色提示气泡按完整适配视口偏移定位，所以外面这层铺满图片区。 */
 .stage-wrap { position: relative; width: 100%; height: 100%; }
@@ -606,14 +591,12 @@ function adjustLayout(kind: "row" | "tree" | "ai", event: KeyboardEvent) {
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 元素树与属性区固定在区域图下方，AI 校准独立保持在最右侧。 */
-.inspector { grid-column: 1 / 3; grid-row: 2; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: hidden; border-top: 1px solid var(--border); }
+.inspector { grid-column: 1 / 3; grid-row: 2; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, var(--detail-tree)) minmax(0, var(--detail-property)); overflow: hidden; border-top: 1px solid var(--border); }
 .ai-column { grid-column: 3; grid-row: 1 / 3; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--bg-node); }
 .layout-resizer { position: absolute; z-index: 20; outline: none; touch-action: none; }
 .layout-resizer::after { content: ""; position: absolute; background: transparent; transition: background .15s; }
 .layout-resizer:hover::after, .layout-resizer:focus-visible::after { background: var(--accent); }
-.row-resizer { top: var(--detail-image-position); left: 0; width: var(--detail-ai-position); height: 10px; cursor: row-resize; transform: translateY(-5px); }
-.row-resizer::after { left: 0; right: 0; top: 4px; height: 2px; }
-.tree-resizer { top: var(--detail-image-position); bottom: 0; left: var(--detail-tree-position); width: 10px; cursor: col-resize; transform: translateX(-5px); }
+.tree-resizer { bottom: 0; left: var(--detail-tree-position); width: 10px; height: 240px; cursor: col-resize; transform: translateX(-5px); }
 .ai-resizer { top: 0; bottom: 0; left: var(--detail-ai-position); width: 10px; cursor: col-resize; transform: translateX(-5px); }
 .tree-resizer::after, .ai-resizer::after { top: 0; bottom: 0; left: 4px; width: 2px; }
 .ai-column > .element-refactor-panel { flex: 1; min-height: 0; max-height: none; border-top: 0; }

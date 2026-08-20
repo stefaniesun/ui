@@ -53,9 +53,9 @@ header { display: flex; align-items: flex-start; justify-content: space-between;
 header strong { flex: 0 0 auto; color: var(--text); font-size: 11px; }
 .conversation-scroll { min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
 .refactor-messages p, .refactor-diffs p { margin: 3px 0; color: var(--text-dim); font-size: 10px; line-height: 1.5; }
-.composer { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
-textarea { min-width: 0; min-height: 72px; resize: none; }
-.composer button { align-self: stretch; }
+.composer { min-width: 0; flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+textarea { min-width: 0; min-height: 72px; flex: 1 1 140px; resize: none; }
+.composer button { flex: 0 1 auto; align-self: stretch; white-space: nowrap; }
 footer { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px; }
 .error { margin: 0; color: var(--danger); font-size: 10px; }
 </style>

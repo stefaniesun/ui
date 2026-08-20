@@ -81,20 +81,18 @@ describe("DetailNode", () => {
     expect(aiColumn.find('[data-test="ai-composer"]').exists()).toBe(true);
   });
 
-  it("shows shared resizable layout controls and live proportions", async () => {
+  it("shows width-driven image layout and only column resize controls", async () => {
     const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("图片 65% / 元素 35%");
-    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("树 36% / 属性 36% / AI 28%");
-    expect(wrapper.get('[data-test="detail-row-resizer"]').attributes("aria-orientation")).toBe("horizontal");
+    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("树 40% / 属性 40% / AI 20%");
+    expect(wrapper.find('[data-test="detail-row-resizer"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="detail-tree-resizer"]').attributes("aria-orientation")).toBe("vertical");
     expect(wrapper.get('[data-test="detail-ai-resizer"]').attributes("aria-orientation")).toBe("vertical");
+    expect(wrapper.get('[data-test="detail-workspace"]').attributes("style")).toContain("--detail-image-aspect: 1.3333333333333333");
 
-    await wrapper.get('[data-test="detail-row-resizer"]').trigger("keydown", { key: "ArrowUp" });
-    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("图片 64% / 元素 36%");
     await wrapper.get('[data-test="detail-layout-reset"]').trigger("click");
-    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("图片 65% / 元素 35%");
+    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("树 40% / 属性 40% / AI 20%");
   });
 
   it("always shows the AI panel and asks for an element selection", async () => {
