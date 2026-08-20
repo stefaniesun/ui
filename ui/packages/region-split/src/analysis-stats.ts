@@ -21,8 +21,12 @@ export function analysisStats(regions: readonly Region[], trees: readonly Elemen
   const libraryIcons = icons.filter(node => node.iconDecision?.kind === "library").length;
   const cropIcons = icons.filter(node => node.iconDecision?.kind === "crop").length;
   const unresolved = icons.filter(node => !node.iconDecision || node.iconDecision.kind === "ambiguous");
+  // 与 DetailNode.measureAllFonts 使用同一判据：只有框校验通过的文字才可测字号。
+  // 框不合格或未校验属于框质量问题，计入字号待办只会产生永远无法清除的数字。
   const textWithoutSize = trees.flatMap(tree => tree.nodes)
-    .filter(node => node.kind === "text" && node.style.fontSize === undefined).length;
+    .filter(node => node.kind === "text"
+      && node.textBox?.ok === true
+      && node.style.fontSize === undefined).length;
   const fontStackChosen = Boolean(fontStack?.trim());
   const todos = [
     ...regions.filter(region => !treeByRegion.has(regionKey(region.bounds))).map(region => `解析区域 ${region.displayName}`),

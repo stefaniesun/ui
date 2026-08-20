@@ -1,6 +1,8 @@
 node_modules/
 node_modules-hoisted/
 dist/
+dist-*/
+*.timestamp-*.mjs
 .cache/
 .pnpm-store/
 .npm-cache/
