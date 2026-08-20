@@ -14,6 +14,20 @@ export type ElementKind = (typeof elementKinds)[number];
 
 export const leafKinds: readonly ElementKind[] = ["text", "icon", "image", "decoration"];
 
+export const iconDecisionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("library"),
+    iconId: z.string().min(1),
+    query: z.string().min(1),
+    candidates: z.array(z.string().min(1)).min(1),
+    keywords: z.array(z.string().min(1)).optional(),
+    by: z.enum(["model", "human"]).optional(),
+  }),
+  z.object({ kind: z.literal("crop"), assetRef: z.string(), reason: z.string().min(1), keywords: z.array(z.string()).optional(), by: z.enum(["model", "human"]).optional() }),
+  z.object({ kind: z.literal("ambiguous"), query: z.string().min(1), candidates: z.array(z.string().min(1)).min(1), keywords: z.array(z.string()).optional(), by: z.enum(["model", "human"]).optional() }),
+]);
+export type IconDecision = z.infer<typeof iconDecisionSchema>;
+
 export const elementNodeSchema = z.object({
   id: z.string().min(1),
   parentId: z.string().nullable(),
@@ -23,6 +37,8 @@ export const elementNodeSchema = z.object({
   displayName: z.string().min(1),
   /** 文字节点的真实字面量；旧数据缺失时 emitter 降级使用 displayName。 */
   text: z.string().optional(),
+  /** 模型为图标生成的 2–4 个英文语义关键词。 */
+  iconKeywords: z.array(z.string().min(1)).max(4).optional(),
   style: z.object({
     background: z.string().optional(),
     borderRadius: z.number().int().nonnegative().optional(),
@@ -49,6 +65,8 @@ export const elementNodeSchema = z.object({
   }).optional(),
   /** 图片/图标裁切资产；ref 为项目 assets 目录内的文件名。 */
   asset: z.object({ ref: z.string().min(1), cutFrom: rectSchema }).optional(),
+  /** 图标解析后的结构化结论；旧数据缺失时仍保持兼容。 */
+  iconDecision: iconDecisionSchema.optional(),
 
   // 以下字段阶段一不产出，但现在就定义好，避免阶段二改 schema 破坏已存的文件。
   layout: z.object({

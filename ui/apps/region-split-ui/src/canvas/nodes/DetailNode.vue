@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { ElementKind, Rect, Region } from "@region-split/core/browser";
-import { regionImageUrl } from "../../api.js";
+import { httpApi, regionImageUrl } from "../../api.js";
 import ElementOverlay from "../../components/ElementOverlay.vue";
 import ElementProperties from "../../components/ElementProperties.vue";
 import ElementRefactorPanel from "../../components/ElementRefactorPanel.vue";
@@ -301,6 +301,12 @@ function measureFont() {
   });
 }
 
+async function onChooseIcon(iconId: string, candidates: string[], query: string) {
+  if (!region.value) return;
+  await props.elementStore.chooseIcon(props.projectId, region.value, iconId, candidates, query);
+  emit("parsed");
+}
+
 function onSetFont(id: string, font: { fontSize?: number; fontWeight?: number }) {
   if (region.value) void props.elementStore.setFont(props.projectId, region.value, id, font);
 }
@@ -449,6 +455,8 @@ function onRenamePrompt(id: string) {
         />
         <ElementProperties
           :node="propertyNode"
+          :api="httpApi"
+          :project-id="props.projectId"
           :disabled="refactorStore.rootId.value !== null"
           @rename="onRenameValue"
           @set-kind="onSetKind"
@@ -457,6 +465,7 @@ function onRenamePrompt(id: string) {
           @set-radius="onSetRadius"
           @set-slot="onSetSlot"
           @set-color="onSetColor"
+          @choose-icon="onChooseIcon"
           @set-font="onSetFont"
           @measure-font="measureFont"
           :font-note="fontNote"

@@ -104,6 +104,16 @@ export function createElementStore(api: StoreApi) {
 
     select(id: string | null) { selectedId.value = id; },
 
+    async chooseIcon(projectId: string, region: Rect, iconId: string, candidates: string[], query: string) {
+      const selected = selectedNode.value;
+      if (!selected || selected.kind !== "icon") return;
+      await commit(projectId, region, nodes.value.map(node => node.id === selected.id ? {
+        ...node,
+        iconDecision: { kind: "library" as const, iconId, candidates, query, keywords: [query], by: "human" as const },
+        asset: undefined,
+      } : node));
+    },
+
     replaceFromRefactor(next: ElementTree, version: string, candidateRootId: string) {
       if (tree.value) undoSnapshot.value = { tree: structuredClone(tree.value), treeVersion: treeVersion.value };
       tree.value = next;

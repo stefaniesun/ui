@@ -28,7 +28,7 @@ async function fixture(configured = true) {
   const tree: ElementTree = { regionKey: "0-100", detectedAt: "now", nodes: [node] };
   store.writeElementTree("p1", tree, node.box);
   const model: AiModel = {
-    segment: vi.fn(), nameRegion: vi.fn(), classifyChildren: vi.fn(),
+    segment: vi.fn(), nameRegion: vi.fn(), decideIcon: vi.fn(), classifyChildren: vi.fn(),
     refactorElements: vi.fn().mockResolvedValue({ subtree: { rootId: "new", nodes: [{ ...node, id: "new" }] }, explanation: "changed" }),
   };
   return { app: buildServer({ store, configStore, createModel: () => model }), tree, model };

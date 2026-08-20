@@ -1,8 +1,10 @@
 import sharp from "sharp";
 import { ensureCleanImage } from "./analyze.js";
+import { materializeTreeAssets } from "./asset-cache.js";
 import { detectElementTree } from "./element-detect.js";
 import { checkTextBox } from "./element-text-box.js";
 import { leafKinds, type ElementNode, type ElementTree } from "./element-types.js";
+import { iconById, iconToSvg, searchIcons } from "./icon-library.js";
 import type { SegmentModel } from "./model.js";
 import type { ProjectStore } from "./store.js";
 import type { Rect } from "./types.js";
@@ -98,6 +100,48 @@ export function markTextBoxes(raw: RawImage, nodes: ElementNode[]): ElementNode[
     : node);
 }
 
+async function decideIcons(
+  model: SegmentModel,
+  source: string,
+  nodes: ElementNode[],
+): Promise<ElementNode[]> {
+  return Promise.all(nodes.map(async node => {
+    if (node.kind !== "icon") return node;
+    const keywords = node.iconKeywords?.length ? node.iconKeywords : [node.text?.trim() || node.displayName.trim()];
+    const query = keywords.join(" ");
+    const seen = new Set<string>();
+    const candidates = keywords.flatMap(keyword => searchIcons(keyword, 8)).filter(candidate => {
+      if (seen.has(candidate.id)) return false;
+      seen.add(candidate.id);
+      return true;
+    }).slice(0, 12);
+    try {
+      const cropBase64 = (await sharp(source).extract({
+        left: node.box.x, top: node.box.y, width: node.box.w, height: node.box.h,
+      }).png().toBuffer()).toString("base64");
+      const decision = await model.decideIcon({
+        cropBase64,
+        candidates: candidates.flatMap(candidate => {
+          const icon = iconById(candidate.id);
+          return icon ? [{ ...candidate, svg: iconToSvg(icon) }] : [];
+        }),
+      });
+      return { ...node, iconDecision: { ...decision, keywords, by: "model" as const } };
+    } catch (error) {
+      return {
+        ...node,
+        iconDecision: {
+          kind: "crop" as const,
+          assetRef: "",
+          reason: error instanceof Error ? `图标判断失败：${error.message}` : "图标判断失败",
+          keywords,
+          by: "model" as const,
+        },
+      };
+    }
+  }));
+}
+
 export async function detectElements(
   deps: { store: ProjectStore; model?: SegmentModel },
   projectId: string,
@@ -187,6 +231,8 @@ export async function detectElements(
         child.classification = "model";
         if (item.kind === "text" && item.text?.trim()) child.text = item.text.trim();
         else delete child.text;
+        if (item.kind === "icon" && item.iconKeywords?.length) child.iconKeywords = item.iconKeywords;
+        else delete child.iconKeywords;
       }
       child.displayName = item.displayName;
     });
@@ -199,6 +245,7 @@ export async function detectElements(
   const raw: RawImage = {
     data, width: info.width, height: info.height, channels: info.channels,
   };
-  return store.writeElementTree(
-    projectId, { ...tree, nodes: markTextBoxes(raw, kept) }, region);
+  const nodes = await decideIcons(model, path, markTextBoxes(raw, kept));
+  const written = store.writeElementTree(projectId, { ...tree, nodes }, region);
+  return (await materializeTreeAssets(store, projectId, region, written)).tree;
 }

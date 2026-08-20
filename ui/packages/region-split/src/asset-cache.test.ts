@@ -39,6 +39,49 @@ describe("materializeTreeAssets", () => {
     expect(first.tree.nodes[0]!.asset?.ref).toBe(assetFileName(projectId, tree().nodes[0]!.box));
   });
 
+  it("materializes a library icon as a reusable SVG", async () => {
+    const { store, projectId } = await fixture();
+    const iconTree = tree();
+    iconTree.nodes[0] = {
+      ...iconTree.nodes[0]!, kind: "icon", style: { color: "#3578e5" },
+      iconDecision: {
+        kind: "library", iconId: "mdi:home", query: "home", candidates: ["mdi:home"],
+      },
+    };
+    const first = await materializeTreeAssets(store, projectId, region, iconTree);
+    const second = await materializeTreeAssets(store, projectId, region, first.tree);
+    const ref = first.tree.nodes[0]!.asset?.ref;
+    expect(ref).toMatch(/\.svg$/);
+    expect(second.tree.nodes[0]!.asset?.ref).toBe(ref);
+    expect(readFileSync(first.files.picture!, "utf8")).toContain("<svg");
+    expect(readFileSync(first.files.picture!, "utf8")).toContain("currentColor");
+    expect(readFileSync(first.files.picture!, "utf8")).not.toContain("#3578e5");
+  });
+
+  it("falls back to PNG when a persisted library icon no longer exists", async () => {
+    const { store, projectId } = await fixture();
+    const iconTree = tree();
+    iconTree.nodes[0] = {
+      ...iconTree.nodes[0]!, kind: "icon",
+      iconDecision: { kind: "library", iconId: "mdi:not-a-real-icon", query: "missing", candidates: ["mdi:not-a-real-icon"] },
+    };
+    const result = await materializeTreeAssets(store, projectId, region, iconTree);
+    expect(result.tree.nodes[0]!.asset?.ref).toMatch(/\.png$/);
+  });
+
+  it("keeps crop and ambiguous icons as PNG fallbacks", async () => {
+    const { store, projectId } = await fixture();
+    for (const iconDecision of [
+      { kind: "crop" as const, assetRef: "", reason: "品牌图标" },
+      { kind: "ambiguous" as const, query: "home", candidates: ["mdi:home"] },
+    ]) {
+      const iconTree = tree();
+      iconTree.nodes[0] = { ...iconTree.nodes[0]!, kind: "icon", iconDecision };
+      const result = await materializeTreeAssets(store, projectId, region, iconTree);
+      expect(result.tree.nodes[0]!.asset?.ref).toMatch(/\.png$/);
+    }
+  });
+
   it("changes the reference after geometry changes", async () => {
     const { store, projectId } = await fixture();
     const first = await materializeTreeAssets(store, projectId, region, tree());

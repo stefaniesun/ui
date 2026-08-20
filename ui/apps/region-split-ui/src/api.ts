@@ -2,6 +2,14 @@ import type {
   ElementTree, ModelConfigView, Rect, Region, RegionSplitDoc,
 } from "@region-split/core/browser";
 
+export type IconCandidate = { id: string; name: string; svg: string };
+export interface AnalysisStats {
+  totalRegions: number; parsedRegions: number; totalIcons: number;
+  libraryIcons: number; cropIcons: number; unresolvedIcons: number;
+  textWithoutSize: number; fontStackChosen: boolean;
+  allPassed: boolean; todos: string[];
+}
+
 export interface PageCodeOutput {
   html: string;
   css: string;
@@ -17,6 +25,9 @@ export interface StoreApi {
   getModelConfig(): Promise<ModelConfigView>;
   getElements(projectId: string, y: number, h: number): Promise<{ tree: ElementTree | null; treeVersion: string | null }>;
   getParsedRegions(projectId: string): Promise<{ regionKeys: string[] }>;
+  putFontStack(projectId: string, fontStack: string): Promise<{ doc: RegionSplitDoc }>;
+  searchIcons(query: string, limit?: number): Promise<{ candidates: IconCandidate[] }>;
+  getAnalysisStats(projectId: string): Promise<AnalysisStats>;
   getPageCode(projectId: string): Promise<PageCodeOutput>;
   detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
   putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
@@ -59,6 +70,18 @@ export const httpApi: StoreApi = {
   },
   getParsedRegions(projectId) {
     return json(`/api/projects/${projectId}/parsed-regions`);
+  },
+  putFontStack(projectId, fontStack) {
+    return json(`/api/projects/${projectId}/font-stack`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fontStack }),
+    });
+  },
+  searchIcons(query, limit = 8) {
+    return json(`/api/icons/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+  },
+  getAnalysisStats(projectId) {
+    return json(`/api/projects/${projectId}/analysis-stats`);
   },
   getPageCode(projectId) {
     return json(`/api/projects/${projectId}/page-code`);

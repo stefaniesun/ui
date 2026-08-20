@@ -16,6 +16,7 @@ const model = (overrides: Partial<AiModel> = {}): AiModel => ({
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   // 用抛错而不是返回空：这些用例不该走到分类逻辑，真走到了应该立刻炸出来
+  decideIcon: async () => { throw new Error("unused"); },
   classifyChildren: async () => { throw new Error("unused"); },
   refactorElements: async () => { throw new Error("unused"); },
   ...overrides,
@@ -42,6 +43,21 @@ async function upload(app: ReturnType<typeof buildServer>) {
 }
 
 describe("region split server", () => {
+  it("searches local icons with inline SVG previews", async () => {
+    const { app } = makeApp();
+    const response = await app.inject({ method: "GET", url: "/api/icons/search?q=home&limit=3" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().candidates[0]).toMatchObject({ id: "mdi:home", name: "home" });
+    expect(response.json().candidates[0].svg).toContain("<svg");
+  });
+
+  it("returns no candidates for an empty icon query", async () => {
+    const { app } = makeApp();
+    const response = await app.inject({ method: "GET", url: "/api/icons/search?q=" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ candidates: [] });
+  });
+
   it("creates a project from an uploaded image", async () => {
     const { app } = makeApp();
     const res = await upload(app);
@@ -156,15 +172,16 @@ describe("region split server", () => {
     expect(response.json().html).toContain('class="e-r1-same"');
   });
 
-  it("rejects full-page export while any region has not been parsed", async () => {
+  it("exports completed work and reports unresolved regions instead of blocking", async () => {
     const { app, store } = makeApp();
     const { projectId } = (await upload(app)).json();
     const doc = store.readDoc(projectId);
     doc.regions = [{ id: "a", displayName: "未解析区", bounds: { x: 0, y: 0, w: 375, h: 400 }, confidence: 1, scrollX: false, scrollY: false }];
     store.writeDoc(projectId, doc);
     const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/page-code` });
-    expect(response.statusCode).toBe(409);
-    expect(response.json()).toMatchObject({ error: "regions not parsed", regions: ["未解析区"] });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().todos).toContain("解析区域 未解析区");
+    expect(response.json().todos).toContain("选择目标平台字体");
   });
 
   it("materializes saved image crops and keeps generated region code self-contained", async () => {
@@ -334,6 +351,16 @@ describe("element routes", () => {
     const { app, projectId } = await project();
     const response = await app.inject({ method: "GET", url: `/api/projects/${projectId}/code?y=0&h=400` });
     expect(response.statusCode).toBe(404);
+  });
+
+  it("persists a selected project font stack", async () => {
+    const { app, projectId } = await project();
+    const response = await app.inject({
+      method: "PUT", url: `/api/projects/${projectId}/font-stack`,
+      payload: { fontStack: "Arial, sans-serif" },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().doc.fontStack).toBe("Arial, sans-serif");
   });
 
   it("lists which regions already have an element tree", async () => {

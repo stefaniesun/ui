@@ -44,6 +44,25 @@ describe("emitPage", () => {
     expect(output.css).toContain("height: 85vw");
   });
 
+  it("inlines a materialized library SVG instead of emitting an image asset", () => {
+    const iconTree = tree("图标");
+    iconTree.nodes[0] = { ...iconTree.nodes[0]!, kind: "icon", style: { color: "#123456" } };
+    const output = emitPage({
+      designWidth: 375,
+      regions: [{ region: { x: 0, y: 0, w: 375, h: 100 }, tree: iconTree }],
+      inlineSvg: () => '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 0"/></svg>',
+    });
+    expect(output.html).toContain('<svg viewBox="0 0 24 24"');
+    expect(output.html).not.toContain("<img");
+    expect(output.css).toContain("color: #123456");
+  });
+
+  it("emits the selected page font stack only when configured", () => {
+    const configured = emitPage({ designWidth: 375, regions: [], fontStack: "Arial, sans-serif" });
+    expect(configured.css).toContain("font-family: Arial, sans-serif");
+    expect(emitPage({ designWidth: 375, regions: [] }).css).not.toContain("font-family");
+  });
+
   it("emits a browser-openable document with separated stylesheet", () => {
     const output = emitPage({ designWidth: 375, regions: [] });
     expect(output.html).toContain("<!doctype html>");

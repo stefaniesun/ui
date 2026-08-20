@@ -1,8 +1,9 @@
 import { nextTick } from "vue";
-import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { flushPromises, mount } from "@vue/test-utils";
+import { describe, expect, it, vi } from "vitest";
 import ElementProperties from "./ElementProperties.vue";
 import type { ElementNode, Rect } from "@region-split/core/browser";
+import { makeFakeApi } from "../test-helpers.js";
 
 const node: ElementNode = {
   id: "n1", parentId: null, box: { x: 36, y: 396, w: 1098, h: 222 },
@@ -12,6 +13,22 @@ const node: ElementNode = {
 };
 
 describe("ElementProperties", () => {
+  it("searches and emits a selected local icon candidate", async () => {
+    const icon: ElementNode = {
+      ...node, kind: "icon", displayName: "搜索",
+      iconDecision: { kind: "ambiguous", query: "search", candidates: ["mdi:magnify"] },
+    };
+    const api = makeFakeApi(() => []);
+    vi.mocked(api.searchIcons).mockResolvedValue({ candidates: [{ id: "mdi:magnify", name: "magnify", svg: "<svg></svg>" }] });
+    const wrapper = mount(ElementProperties, { props: { node: icon, api, projectId: "p1" } });
+    await wrapper.get('[data-test="icon-search-query"]').setValue("search");
+    await wrapper.get('[data-test="icon-search-query"]').trigger("keydown.enter");
+    await flushPromises();
+    await wrapper.get('[data-test="icon-candidates"] button').trigger("click");
+    expect(api.searchIcons).toHaveBeenCalledWith("search", 12);
+    expect(wrapper.emitted("choose-icon")?.[0]).toEqual(["mdi:magnify", ["mdi:magnify"], "search"]);
+  });
+
   it("prompts when nothing is selected", () => {
     expect(mount(ElementProperties, { props: { node: null } }).text())
       .toContain("选择一个元素查看属性");

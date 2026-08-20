@@ -43,6 +43,16 @@ export function makeFakeApi(
     // 需要断言元素行为的用例请用 overrides 覆盖。
     getElements: vi.fn(async () => ({ tree: null, treeVersion: null })),
     getParsedRegions: vi.fn(async () => ({ regionKeys: [] })),
+    putFontStack: vi.fn(async (_id: string, fontStack: string) => ({
+      doc: { ...makeDoc(initial(), candidateLines), fontStack },
+    })),
+    searchIcons: vi.fn(async () => ({ candidates: [] })),
+    getAnalysisStats: vi.fn(async () => ({
+      totalRegions: initial().length, parsedRegions: 0, totalIcons: 0,
+      libraryIcons: 0, cropIcons: 0, unresolvedIcons: 0,
+      textWithoutSize: 0, fontStackChosen: false,
+      allPassed: false, todos: ["选择目标平台字体"],
+    })),
     getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })),
     detectElements: vi.fn(async () => ({ tree: makeElementTree(), treeVersion: "detected-v1" })),
     putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree, treeVersion: "saved-v1" })),

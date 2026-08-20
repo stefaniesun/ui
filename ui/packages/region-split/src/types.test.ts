@@ -6,6 +6,19 @@ const r = (id: string, y: number, h: number): Region => ({
   id, displayName: id, bounds: { x: 0, y, w: 375, h }, confidence: 0.9, scrollX: false, scrollY: false,
 });
 
+describe("RegionSplitDoc fontStack", () => {
+  it("keeps an optional selected font stack", async () => {
+    const { regionSplitDocSchema } = await import("./types.js");
+    const parsed = regionSplitDocSchema.parse({
+      schemaVersion: "1",
+      image: { fileName: "screen.png", width: 375, height: 300, analyzedScale: 1 },
+      regions: [r("a", 0, 300)], candidateLines: [], panels: [],
+      fontStack: "Arial, sans-serif", updatedAt: "2026-08-20T00:00:00.000Z",
+    });
+    expect(parsed.fontStack).toBe("Arial, sans-serif");
+  });
+});
+
 describe("checkInvariants", () => {
   it("accepts a contiguous full-cover set", () => {
     expect(checkInvariants([r("a", 0, 100), r("b", 100, 200)], image)).toEqual([]);

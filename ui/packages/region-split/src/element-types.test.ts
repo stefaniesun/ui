@@ -107,6 +107,29 @@ describe("elementNodeSchema", () => {
     expect(parsed.asset).toBeUndefined();
   });
 
+  it("round-trips a structured library icon decision", () => {
+    const parsed = elementNodeSchema.parse({
+      id: "icon", parentId: null, box: { x: 0, y: 0, w: 24, h: 24 },
+      kind: "icon", displayName: "搜索", uniformity: 1,
+      iconDecision: {
+        kind: "library", iconId: "mdi:magnify", query: "search",
+        candidates: ["mdi:magnify", "mdi:search-web"],
+      },
+    });
+    expect(parsed.iconDecision).toEqual({
+      kind: "library", iconId: "mdi:magnify", query: "search",
+      candidates: ["mdi:magnify", "mdi:search-web"],
+    });
+  });
+
+  it("rejects a library icon decision without candidates", () => {
+    expect(() => elementNodeSchema.parse({
+      id: "icon", parentId: null, box: { x: 0, y: 0, w: 24, h: 24 },
+      kind: "icon", displayName: "搜索", uniformity: 1,
+      iconDecision: { kind: "library", iconId: "mdi:magnify", query: "search" },
+    })).toThrow();
+  });
+
   it("round-trips an image asset while keeping legacy nodes valid", () => {
     const parsed = elementNodeSchema.parse({
       id: "image", parentId: null, box: { x: 2, y: 3, w: 10, h: 12 },

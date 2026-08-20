@@ -11,6 +11,8 @@ export interface EmitPageInput {
   designWidth: number;
   regions: readonly PageRegionInput[];
   assets?: (nodeKey: string) => string | undefined;
+  inlineSvg?: (nodeKey: string) => string | undefined;
+  fontStack?: string;
 }
 
 export interface EmitPageOutput {
@@ -28,10 +30,15 @@ export function emitPage(input: EmitPageInput): EmitPageOutput {
   const regions = [...input.regions].sort((a, b) => a.region.y - b.region.y || a.region.x - b.region.x);
   const pageHeight = regions.reduce((height, item) => Math.max(height, item.region.y + item.region.h), 0);
   const html: string[] = [];
+  const pageDeclarations = [
+    "position: relative", "width: 100vw",
+    `height: ${(pageHeight / input.designWidth) * 100}vw`, "overflow: hidden",
+    ...(input.fontStack ? [`font-family: ${input.fontStack}`] : []),
+  ];
   const css: string[] = [
     "* { box-sizing: border-box; }",
     "html, body { margin: 0; min-height: 100%; }",
-    `.page { position: relative; width: 100vw; height: ${(pageHeight / input.designWidth) * 100}vw; overflow: hidden; }`,
+    `.page { ${pageDeclarations.join("; ")}; }`,
   ];
 
   regions.forEach((item, index) => {
@@ -39,11 +46,16 @@ export function emitPage(input: EmitPageInput): EmitPageOutput {
       const source = input.assets?.(`${index}:${node.id}`);
       return source === undefined ? [] : [[node.id, source]];
     }));
+    const inlineSvgSources = Object.fromEntries(item.tree.nodes.flatMap(node => {
+      const source = input.inlineSvg?.(`${index}:${node.id}`);
+      return source === undefined ? [] : [[node.id, source]];
+    }));
     const emitted = emitHtml({
       designWidth: input.designWidth,
       region: item.region,
       tree: item.tree,
       assetSources,
+      inlineSvgSources,
       classPrefix: `r${index}-`,
     });
     const regionClass = `page-region-r${index}`;

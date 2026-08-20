@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import sharp from "sharp";
 import { ensureCleanImage } from "./analyze.js";
 import type { ElementNode, ElementTree } from "./element-types.js";
+import { iconById, iconToSvg } from "./icon-library.js";
 import type { ProjectStore } from "./store.js";
 import type { Rect } from "./types.js";
 
@@ -16,6 +17,17 @@ export function assetFileName(projectId: string, box: Rect): string {
   return `${createHash("sha1").update(key).digest("hex")}.png`;
 }
 
+export function iconAssetFileName(projectId: string, nodeId: string, iconId: string): string {
+  const hash = createHash("sha1").update(iconId).digest("hex").slice(0, 12);
+  return `${projectId}-${nodeId}-${hash}.svg`;
+}
+
+function expectedAssetName(projectId: string, node: ElementNode): string {
+  return node.kind === "icon" && node.iconDecision?.kind === "library" && iconById(node.iconDecision.iconId)
+    ? iconAssetFileName(projectId, node.id, node.iconDecision.iconId)
+    : assetFileName(projectId, node.box);
+}
+
 export interface MaterializedAssets {
   tree: ElementTree;
   files: Readonly<Record<string, string>>;
@@ -24,7 +36,7 @@ export interface MaterializedAssets {
 export function treeAssetFiles(store: ProjectStore, projectId: string, tree: ElementTree): Readonly<Record<string, string>> {
   return Object.fromEntries(tree.nodes.flatMap(node => {
     if ((node.kind !== "image" && node.kind !== "icon") || !node.asset) return [];
-    const expected = assetFileName(projectId, node.box);
+    const expected = expectedAssetName(projectId, node);
     if (node.asset.ref !== expected || !sameRect(node.asset.cutFrom, node.box)) return [];
     const path = join(store.assetsDir(projectId), node.asset.ref);
     return existsSync(path) ? [[node.id, path]] : [];
@@ -54,30 +66,39 @@ export async function materializeTreeAssets(
       nodes.push(node);
       continue;
     }
-    const fileName = assetFileName(projectId, node.box);
+    const fileName = expectedAssetName(projectId, node);
     const path = join(assetsDir, fileName);
     if (!existsSync(path)) {
-      const temporary = join(assetsDir, `.${fileName}.${randomUUID()}.tmp`);
-      try {
-        await sharp(source).extract({
-          left: node.box.x,
-          top: node.box.y,
-          width: node.box.w,
-          height: node.box.h,
-        }).png().toFile(temporary);
+      if (fileName.endsWith(".svg") && node.iconDecision?.kind === "library") {
+        const icon = iconById(node.iconDecision.iconId)!;
+        writeFileSync(path, iconToSvg(icon), "utf8");
+      } else {
+        const temporary = join(assetsDir, `.${fileName}.${randomUUID()}.tmp`);
         try {
-          renameSync(temporary, path);
-        } catch (error) {
-          if (!existsSync(path)) throw error;
+          await sharp(source).extract({
+            left: node.box.x,
+            top: node.box.y,
+            width: node.box.w,
+            height: node.box.h,
+          }).png().toFile(temporary);
+          try {
+            renameSync(temporary, path);
+          } catch (error) {
+            if (!existsSync(path)) throw error;
+          }
+        } finally {
+          rmSync(temporary, { force: true });
         }
-      } finally {
-        rmSync(temporary, { force: true });
       }
     }
     files[node.id] = path;
     const asset = { ref: fileName, cutFrom: { ...node.box } };
-    if (node.asset?.ref !== fileName || !sameRect(node.asset?.cutFrom, node.box)) changed = true;
-    nodes.push({ ...node, asset });
+    const iconDecision = node.iconDecision?.kind === "crop"
+      ? { ...node.iconDecision, assetRef: fileName }
+      : node.iconDecision;
+    if (node.asset?.ref !== fileName || !sameRect(node.asset?.cutFrom, node.box)
+      || (node.iconDecision?.kind === "crop" && node.iconDecision.assetRef !== fileName)) changed = true;
+    nodes.push({ ...node, asset, iconDecision });
   }
 
   const nextTree = changed ? { ...tree, nodes } : tree;

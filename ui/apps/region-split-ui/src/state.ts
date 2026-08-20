@@ -155,6 +155,7 @@ export function createStore(api: StoreApi) {
   }
 
   return {
+    api,
     projectId, doc, regions, selectedIds, mode, busy, busyLabel, error, pendingRenameIds, renamingId,
     modelConfig,
     selectedIndex, selectedRegion, canNudge, canMerge, canUndo, canRedo,
@@ -162,6 +163,14 @@ export function createStore(api: StoreApi) {
 
     startRename(id: string) { renamingId.value = id; },
     stopRename() { renamingId.value = null; },
+
+    async setFontStack(fontStack: string) {
+      if (!projectId.value || doc.value?.fontStack === fontStack) return;
+      error.value = "";
+      try {
+        setDoc((await api.putFontStack(projectId.value, fontStack)).doc);
+      } catch (err) { error.value = (err as Error).message; }
+    },
 
     async loadModelConfig() {
       try { modelConfig.value = await api.getModelConfig(); }

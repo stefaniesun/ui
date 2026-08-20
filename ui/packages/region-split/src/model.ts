@@ -4,6 +4,7 @@ import {
   ElementRefactorModelOutputError,
   type ElementRefactorModel,
 } from "./element-refactor-model.js";
+import { type IconDecision } from "./element-types.js";
 import { type RawSegment } from "./types.js";
 
 export interface RegionNaming {
@@ -24,6 +25,7 @@ export interface ChildClassification {
   kind: "text" | "icon" | "image";
   displayName: string;
   text?: string;
+  iconKeywords?: string[];
 }
 
 /**
@@ -38,6 +40,10 @@ export interface ClassifyResult {
 export interface SegmentModel {
   segment(input: SegmentInput): Promise<RawSegment[]>;
   nameRegion(input: { cropBase64: string }): Promise<RegionNaming>;
+  decideIcon(input: {
+    cropBase64: string;
+    candidates: { id: string; name: string; svg: string }[];
+  }): Promise<IconDecision>;
   classifyChildren(input: {
     cropBase64: string;
     count: number;
@@ -72,11 +78,24 @@ const classificationSchema = z.object({
   kind: z.enum(["text", "icon", "image"]),
   displayName: z.string().min(1),
   text: z.string().optional(),
+  iconKeywords: z.array(z.string().min(1)).min(2).max(4).optional(),
 });
 const childrenSchema = z.object({
   whole: classificationSchema.nullish(),
   children: z.array(classificationSchema),
 });
+const iconModelDecisionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("library"), iconId: z.string().min(1), query: z.string().min(1) }),
+  z.object({ kind: z.literal("crop"), reason: z.string().min(1) }),
+  z.object({ kind: z.literal("ambiguous"), query: z.string().min(1) }),
+]);
+
+const ICON_PROMPT = [
+  "你在比对一个 UI 图标裁片与若干本地 SVG 候选。",
+  "只有形状明确一致时才选择 library；没有可靠匹配时选择 crop；多个候选难以区分时选择 ambiguous。",
+  "只输出 JSON：library 为 {kind,iconId,query}，crop 为 {kind,reason}，ambiguous 为 {kind,query}。",
+  "library 的 iconId 必须严格来自候选列表。",
+].join("\n");
 
 const SCROLL_RULES = [
   "另外判断每个模块整体是否可滚动，输出 scrollX 和 scrollY 两个布尔值：",
@@ -118,9 +137,9 @@ const NAMING_PROMPT = [
  */
 const CLASSIFY_PROMPT = [
   "这是一张移动端 UI 中某个盒子的裁图，盒子里的子元素已经由图像分析切分好了。",
-  "只输出一个 JSON 对象，格式为 {\"children\":[{\"kind\":string,\"displayName\":string,\"text\":string?}]}。",
+  "只输出一个 JSON 对象，格式为 {\"children\":[{\"kind\":string,\"displayName\":string,\"text\":string?,\"iconKeywords\":string[]?}]}。",
   "kind 只能取 text（文字）、icon（可矢量化的图形）、image（必须切图的位图）之一。",
-  "displayName 用简短中文描述元素语义；kind 为 text 时，text 必须尽量逐字抄录截图中的真实文字，无法辨认时省略 text。",
+  "displayName 用简短中文描述元素语义；kind 为 text 时，text 必须尽量逐字抄录截图中的真实文字，无法辨认时省略 text。kind 为 icon 时必须给 iconKeywords，包含 2–4 个描述图标语义的英文关键词。",
   "数组长度必须与告知你的子元素个数完全一致，多一个少一个都不行。",
 ].join("\n");
 
@@ -277,6 +296,24 @@ export function createOpenAiModel(cfg: {
       const parsed = await askParsed(SEGMENT_PROMPT, userText, input.imageBase64, segmentsSchema);
       return parsed.regions as RawSegment[];
     },
+    async decideIcon(input) {
+      const candidateIds = input.candidates.map(candidate => candidate.id);
+      const userText = JSON.stringify({ candidates: input.candidates });
+      const parsed = await askParsed(
+        ICON_PROMPT, userText, input.cropBase64, iconModelDecisionSchema,
+      );
+      if (parsed.kind === "library") {
+        if (!candidateIds.includes(parsed.iconId)) {
+          throw new Error(`model selected icon outside candidate list: ${parsed.iconId}`);
+        }
+        return { ...parsed, candidates: candidateIds };
+      }
+      if (parsed.kind === "ambiguous") {
+        return { ...parsed, candidates: candidateIds };
+      }
+      return { ...parsed, assetRef: "" };
+    },
+
     async classifyChildren(input) {
       const order = input.direction === "row" ? "从左到右" : "从上到下";
       const userText = [

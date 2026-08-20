@@ -68,6 +68,37 @@ async function showAnalyzedResult(
 }
 
 describe("RegionsNode upload and analysis orchestration", () => {
+  it("shows analysis completion and non-blocking todos", async () => {
+    const api = makeFakeApi(() => []);
+    vi.mocked(api.getAnalysisStats).mockResolvedValue({
+      totalRegions: 2, parsedRegions: 1, totalIcons: 3,
+      libraryIcons: 1, cropIcons: 1, unresolvedIcons: 1,
+      textWithoutSize: 0, fontStackChosen: false,
+      allPassed: false, todos: ["解析区域 底部", "确认图标 搜索"],
+    });
+    const store = createStore(api);
+    store.doc.value = makeDoc([], [], true);
+    store.projectId.value = "p1";
+    const wrapper = mount(RegionsNode, { props: { store, hoveredId: null, showPanels: false } });
+    await flushPromises();
+    expect(wrapper.get('[data-test="analysis-stats"]').text()).toContain("区域 1/2");
+    expect(wrapper.get('[data-test="analysis-stats"]').text()).toContain("SVG 1");
+    expect(wrapper.get('[data-test="analysis-todos"]').text()).toContain("确认图标 搜索");
+  });
+
+  it("shows Windows by default without persisting until the user selects", async () => {
+    const api = makeFakeApi(() => []);
+    const store = createStore(api);
+    store.doc.value = makeDoc([], [], true);
+    store.projectId.value = "p1";
+    const wrapper = mount(RegionsNode, { props: { store, hoveredId: null, showPanels: false } });
+    const select = wrapper.get('[data-test="font-stack"]');
+    expect((select.element as HTMLSelectElement).value).toBe('Arial, "Microsoft YaHei", sans-serif');
+    expect(vi.mocked(api.putFontStack)).not.toHaveBeenCalled();
+    await select.setValue('Roboto, "Noto Sans CJK SC", "Source Han Sans SC", sans-serif');
+    expect(vi.mocked(api.putFontStack)).toHaveBeenCalledWith("p1", 'Roboto, "Noto Sans CJK SC", "Source Han Sans SC", sans-serif');
+  });
+
   it("emits the page comparison action after analysis", async () => {
     const { store, wrapper } = await mountNode();
     await showAnalyzedResult(store, wrapper);

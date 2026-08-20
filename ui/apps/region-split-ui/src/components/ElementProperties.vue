@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import {
   MIN_BOX_SIZE, elementKinds,
   type ElementKind, type ElementNode, type Rect,
 } from "@region-split/core/browser";
+import { type IconCandidate, type StoreApi } from "../api.js";
 import { supportsBorderRadius } from "../element-state.js";
 
 const props = defineProps<{
@@ -11,6 +12,8 @@ const props = defineProps<{
   disabled?: boolean;
   picking?: boolean;
   fontNote?: string;
+  api?: StoreApi;
+  projectId?: string;
 }>();
 const emit = defineEmits<{
   rename: [id: string, displayName: string];
@@ -23,6 +26,7 @@ const emit = defineEmits<{
   "toggle-picking": [];
   "set-font": [id: string, font: { fontSize?: number; fontWeight?: number }];
   "measure-font": [];
+  "choose-icon": [iconId: string, candidates: string[], query: string];
 }>();
 
 // 滚动是容器的属性，叶子上没有意义
@@ -44,6 +48,22 @@ const isText = computed(() => props.node?.kind === "text");
 const fontSize = computed(() => props.node?.style.fontSize ?? 0);
 const fontWeight = computed(() => props.node?.style.fontWeight ?? 400);
 const WEIGHTS = [300, 400, 500, 600, 700, 800];
+const iconQuery = ref("");
+const iconCandidates = ref<IconCandidate[]>([]);
+const iconError = ref("");
+
+async function searchIconCandidates() {
+  const query = iconQuery.value.trim();
+  if (!props.api || !query) return;
+  iconError.value = "";
+  try { iconCandidates.value = (await props.api.searchIcons(query, 12)).candidates; }
+  catch (error) { iconError.value = (error as Error).message; }
+}
+
+function chooseIcon(iconId: string) {
+  const ids = iconCandidates.value.map(candidate => candidate.id);
+  emit("choose-icon", iconId, ids, iconQuery.value.trim());
+}
 
 /**
  * 框没通过校验就不给测字号——在一个圈错的框上量出来的字号是错的，
@@ -233,6 +253,30 @@ onBeforeUnmount(stopNudge);
           </option>
         </select>
       </label>
+
+      <section v-if="props.node.kind === 'icon'" data-test="icon-decision" class="icon-decision">
+        <strong>图标素材</strong>
+        <p v-if="props.node.iconDecision?.kind === 'library'">已匹配 {{ props.node.iconDecision.iconId }}</p>
+        <p v-else-if="props.node.iconDecision?.kind === 'ambiguous'">需要人工确认候选</p>
+        <p v-else>保留原图裁片</p>
+        <img
+          v-if="props.node.iconDecision?.kind !== 'library' && props.projectId && props.node.asset?.ref"
+          class="icon-crop-preview"
+          :src="`/api/projects/${props.projectId}/assets/${encodeURIComponent(props.node.asset.ref)}`"
+          alt="原图裁片"
+        />
+        <div class="icon-search">
+          <input v-model="iconQuery" data-test="icon-search-query" placeholder="搜索 home、search…" @keydown.enter.prevent="searchIconCandidates" />
+          <button type="button" :disabled="props.disabled || !iconQuery.trim()" @click="searchIconCandidates">搜索</button>
+        </div>
+        <p v-if="iconError" class="icon-error">{{ iconError }}</p>
+        <div v-if="iconCandidates.length" data-test="icon-candidates" class="icon-candidates">
+          <button v-for="candidate in iconCandidates" :key="candidate.id" type="button" :title="candidate.id" :disabled="props.disabled" @click="chooseIcon(candidate.id)">
+            <span v-html="candidate.svg" />
+            <small>{{ candidate.name }}</small>
+          </button>
+        </div>
+      </section>
 
       <!-- 位置尺寸是测量结果，但测量会出错，所以必须能人工微调。
            越界或压到兄弟时由 clampBox 收拢或拒绝，这里不做校验。 -->
@@ -473,6 +517,16 @@ onBeforeUnmount(stopNudge);
 .properties.disabled { opacity: .7; }
 .properties.disabled input, .properties.disabled select, .properties.disabled button { pointer-events: none; }
 .properties { height: 100%; padding: 8px; overflow: auto; border-left: 1px solid var(--border); background: var(--bg-node); }
+.icon-decision { margin: 8px 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 10px; }
+.icon-decision p { margin: 5px 0; }
+.icon-crop-preview { width: 40px; height: 40px; object-fit: contain; background: #fff; }
+.icon-search { display: flex; gap: 5px; }
+.icon-search input { min-width: 0; flex: 1; }
+.icon-candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
+.icon-candidates button { min-width: 0; padding: 5px; overflow: hidden; }
+.icon-candidates :deep(svg) { width: 24px; height: 24px; fill: currentColor; }
+.icon-candidates small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.icon-error { color: var(--danger); }
 .empty { padding: 24px 8px; color: var(--text-faint); font-size: 10px; text-align: center; }
 .field { display: flex; align-items: center; gap: 8px; min-height: 30px; margin-bottom: 4px; font-size: 10px; }
 /* 只有左侧那一列标签定宽。早先写成 .field > span 会连 .axes / .pad 一起命中，

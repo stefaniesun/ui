@@ -55,6 +55,8 @@ export const regionSplitDocSchema = z.object({
   // 直接切出来的初始划分，没有任何语义判断参与。界面靠它区分两种状态，
   // 不然"区域 1..N"看起来和分析结果一模一样，很容易被当成 AI 的输出。
   analyzedAt: z.string().optional(),
+  /** 用户为生成页面显式选择的目标平台字体栈。 */
+  fontStack: z.string().min(1).optional(),
   updatedAt: z.string(),
 });
 export type RegionSplitDoc = z.infer<typeof regionSplitDocSchema>;

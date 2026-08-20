@@ -21,6 +21,7 @@ const model = (overrides: Partial<SegmentModel> = {}): SegmentModel => ({
   ],
   nameRegion: async () => ({ displayName: "权益表", id: "benefits", type: "grid", scrollX: false, scrollY: false }),
   // 用抛错而不是返回空：这些用例不该走到分类逻辑，真走到了应该立刻炸出来
+  decideIcon: async () => { throw new Error("unused"); },
   classifyChildren: async () => { throw new Error("unused"); },
   ...overrides,
 });

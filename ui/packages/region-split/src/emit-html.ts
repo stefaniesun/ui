@@ -8,8 +8,10 @@ export interface EmitHtmlInput {
   designWidth: number;
   region: Rect;
   tree: ElementTree;
-  /** 图片和图标节点对应的可移植资源地址，通常为内嵌 data URL。 */
+  /** 图片和 PNG 图标节点对应的可移植资源地址。 */
   assetSources?: Readonly<Record<string, string>>;
+  /** 库图标的 SVG 文本；生成时直接内联。 */
+  inlineSvgSources?: Readonly<Record<string, string>>;
   /** 整页组合时用于保证元素类名全局唯一。 */
   classPrefix?: string;
 }
@@ -82,7 +84,7 @@ function topoSortByParent(
 }
 
 export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
-  const { designWidth, region, tree, assetSources = {}, classPrefix = "" } = input;
+  const { designWidth, region, tree, assetSources = {}, inlineSvgSources = {}, classPrefix = "" } = input;
   if (!Number.isFinite(designWidth) || designWidth <= 0) throw new Error("designWidth must be positive");
   const elementClass = (id: string) => `e-${classPrefix}${classKey(id)}`;
   const byParent = new Map<string | null, ElementNode[]>();
@@ -114,6 +116,8 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
       return `${indent}<span ${attributes}${todo}>${escapeHtml(node.text ?? node.displayName)}</span>`;
     }
     if (node.kind === "icon" || node.kind === "image") {
+      const inlineSvg = inlineSvgSources[node.id];
+      if (inlineSvg) return `${indent}<span ${attributes}>${inlineSvg}</span>`;
       const source = assetSources[node.id];
       if (source) {
         return `${indent}<img ${attributes} src="${escapeHtml(source)}" alt="${escapeHtml(node.displayName)}">`;
@@ -160,9 +164,13 @@ export function emitHtml(input: EmitHtmlInput): EmitHtmlResult {
     }
     lines.push(...declaration("background", node.style.background));
     lines.push(...declaration("color", node.style.color));
-    if ((node.kind === "image" || node.kind === "icon") && assetSources[node.id]) {
+    if ((node.kind === "image" || node.kind === "icon") && (assetSources[node.id] || inlineSvgSources[node.id])) {
       lines.push("  display: block;");
-      lines.push("  object-fit: contain;");
+      if (assetSources[node.id]) lines.push("  object-fit: contain;");
+    }
+    if (inlineSvgSources[node.id]) {
+      lines.push("  line-height: 0;");
+      cssBlocks.push(`.${elementClass(node.id)} > svg { width: 100%; height: 100%; display: block; }`);
     }
     if (node.style.borderRadius !== undefined) lines.push(`  border-radius: ${toVw(node.style.borderRadius, designWidth)};`);
     if (node.style.fontSize !== undefined) lines.push(`  font-size: ${toVw(node.style.fontSize, designWidth)};`);

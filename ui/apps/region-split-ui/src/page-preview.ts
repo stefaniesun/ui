@@ -14,6 +14,7 @@ const imageMime = (path: string): string => {
   if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
   if (extension === "webp") return "image/webp";
   if (extension === "gif") return "image/gif";
+  if (extension === "svg") return "image/svg+xml";
   return "image/png";
 };
 

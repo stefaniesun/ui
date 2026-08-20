@@ -6,8 +6,10 @@ import Fastify, { type FastifyInstance } from "fastify";
 import sharp from "sharp";
 import { InvalidImageError, analyzeProject, createProject, ensureCleanImage, renameRegionWithModel, type DetectSurface } from "./analyze.js";
 import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
+import { analysisStats } from "./analysis-stats.js";
 import { materializeTreeAssets } from "./asset-cache.js";
 import { elementTreeSchema, regionKey } from "./element-types.js";
+import { iconById, iconToSvg, searchIcons } from "./icon-library.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { registerElementRefactorRoutes } from "./element-refactor-routes.js";
 import { emitPage } from "./emit-page.js";
@@ -38,6 +40,17 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   const currentModel = () => deps.createModel(configStore.read());
   const refactorSessions = deps.refactorSessions ?? new RefactorSessionStore();
   registerElementRefactorRoutes(app, { ...deps, sessions: refactorSessions });
+
+  app.get<{ Querystring: { q?: string; limit?: string } }>("/api/icons/search", async req => {
+    const query = req.query.q?.trim() ?? "";
+    const parsedLimit = Number.parseInt(req.query.limit ?? "8", 10);
+    const limit = Number.isFinite(parsedLimit) ? Math.min(30, Math.max(1, parsedLimit)) : 8;
+    const candidates = searchIcons(query, limit).flatMap(candidate => {
+      const icon = iconById(candidate.id);
+      return icon ? [{ ...candidate, svg: iconToSvg(icon) }] : [];
+    });
+    return { candidates };
+  });
   const pruneTimer = setInterval(() => refactorSessions.pruneExpired(), 5 * 60 * 1000);
   pruneTimer.unref();
   app.addHook("onClose", async () => clearInterval(pruneTimer));
@@ -135,6 +148,25 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       return { tree, treeVersion: tree ? store.readElementTreeVersion(projectId, key) : null };
     });
 
+  app.put<{ Params: ProjectParams; Body: { fontStack?: unknown } }>(
+    "/api/projects/:projectId/font-stack", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const fontStack = typeof req.body?.fontStack === "string" ? req.body.fontStack.trim() : "";
+      if (!fontStack) return reply.code(400).send({ error: "fontStack is required" });
+      const doc = { ...store.readDoc(projectId), fontStack, updatedAt: new Date().toISOString() };
+      store.writeDoc(projectId, doc);
+      return { doc };
+    });
+
+  app.get<{ Params: ProjectParams }>(
+    "/api/projects/:projectId/analysis-stats", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const doc = store.readDoc(projectId);
+      return analysisStats(doc.regions, store.readElements(projectId).trees, doc.fontStack);
+    });
+
   app.get<{ Params: ProjectParams }>(
     "/api/projects/:projectId/parsed-regions", async (req, reply) => {
       const { projectId } = req.params;
@@ -151,6 +183,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       const pageRegions: Array<{ region: Rect; tree: NonNullable<ReturnType<ProjectStore["readElementTree"]>> }> = [];
       const missing: string[] = [];
       const assetSources = new Map<string, string>();
+      const inlineSvgSources = new Map<string, string>();
       const assets = new Map<string, string>();
 
       for (const region of regions) {
@@ -168,23 +201,27 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         for (const [nodeId, path] of Object.entries(materialized.files)) {
           const ref = materialized.tree.nodes.find(node => node.id === nodeId)?.asset?.ref;
           if (!ref) continue;
-          assetSources.set(`${index}:${nodeId}`, `assets/${ref}`);
-          assets.set(`assets/${ref}`, readFileSync(path).toString("base64"));
+          if (ref.endsWith(".svg")) {
+            inlineSvgSources.set(`${index}:${nodeId}`, readFileSync(path, "utf8"));
+          } else {
+            assetSources.set(`${index}:${nodeId}`, `assets/${ref}`);
+            assets.set(`assets/${ref}`, readFileSync(path).toString("base64"));
+          }
         }
         pageRegions.push({ region: region.bounds, tree: materialized.tree });
-      }
-      if (missing.length > 0) {
-        return reply.code(409).send({ error: "regions not parsed", regions: missing });
       }
       const page = emitPage({
         designWidth: doc.image.width,
         regions: pageRegions,
         assets: key => assetSources.get(key),
+        inlineSvg: key => inlineSvgSources.get(key),
+        fontStack: doc.fontStack,
       });
       return {
         html: page.html,
         css: page.css,
         assets: [...assets].map(([path, contentBase64]) => ({ path, contentBase64 })),
+        todos: analysisStats(doc.regions, store.readElements(projectId).trees, doc.fontStack).todos,
       };
     });
 
@@ -211,10 +248,12 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     "/api/projects/:projectId/assets/:fileName", async (req, reply) => {
       const { projectId, fileName } = req.params;
       if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
-      if (!/^[a-f0-9]{40}\.png$/.test(fileName)) return reply.code(400).send({ error: "invalid asset name" });
+      const isPng = /^[a-f0-9]{40}\.png$/.test(fileName);
+      const isSvg = /^[a-zA-Z0-9_-]+-[a-zA-Z0-9_-]+-[a-f0-9]{12}\.svg$/.test(fileName);
+      if (!isPng && !isSvg) return reply.code(400).send({ error: "invalid asset name" });
       const path = join(store.assetsDir(projectId), fileName);
       if (!existsSync(path)) return reply.code(404).send({ error: "asset not found" });
-      return reply.type("image/png").send(readFileSync(path));
+      return reply.type(isSvg ? "image/svg+xml" : "image/png").send(readFileSync(path));
     });
 
   app.post<{ Params: ProjectParams; Body: { region: Rect } }>(

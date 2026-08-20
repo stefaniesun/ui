@@ -12,6 +12,13 @@ describe("pagePreviewDocument", () => {
     expect(doc).toContain('src="data:image/png;base64,AAAA"');
     expect(doc).not.toContain('src="assets/abc.png"');
   });
+  it("uses SVG MIME for materialized library icons", () => {
+    const doc = pagePreviewDocument({
+      html: '<img src="assets/home.svg">', css: "",
+      assets: [{ path: "assets/home.svg", contentBase64: "PHN2Zz4=" }],
+    });
+    expect(doc).toContain("data:image/svg+xml;base64,PHN2Zz4=");
+  });
   it("swaps every occurrence of the same asset", () => {
     const doc = pagePreviewDocument({ ...base, html: '<img src="assets/abc.png"><img src="assets/abc.png">' });
     expect(doc.match(/data:image\/png;base64,AAAA/g)).toHaveLength(2);

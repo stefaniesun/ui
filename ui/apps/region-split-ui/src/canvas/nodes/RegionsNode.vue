@@ -4,7 +4,8 @@ import {
   type CSSProperties,
 } from "vue";
 import type { Store } from "../../state.js";
-import { getPageArchive, imageUrl } from "../../api.js";
+import { getPageArchive, imageUrl, type AnalysisStats } from "../../api.js";
+import { DEFAULT_FONT_STACK, FONT_STACKS } from "../../font-stacks.js";
 import ActionBar from "../../components/ActionBar.vue";
 import RegionCanvas from "../../components/RegionCanvas.vue";
 import RegionList from "../../components/RegionList.vue";
@@ -163,6 +164,19 @@ async function onDrop(event: DragEvent) {
 
 const exporting = ref(false);
 const exportError = ref("");
+const stats = ref<AnalysisStats | null>(null);
+
+async function refreshStats() {
+  if (!props.store.projectId.value || !props.store.doc.value?.analyzedAt) { stats.value = null; return; }
+  try { stats.value = await props.store.api.getAnalysisStats(props.store.projectId.value); }
+  catch { stats.value = null; }
+}
+
+watch(
+  () => [props.store.projectId.value, props.store.doc.value?.updatedAt, props.parsedRegionKeys],
+  refreshStats,
+  { immediate: true },
+);
 function downloadArchive(name: string, archive: Blob) {
   const url = URL.createObjectURL(archive);
   const anchor = document.createElement("a");
@@ -171,6 +185,10 @@ function downloadArchive(name: string, archive: Blob) {
   anchor.click();
   URL.revokeObjectURL(url);
 }
+function chooseFontStack(event: Event) {
+  void props.store.setFontStack((event.target as HTMLSelectElement).value);
+}
+
 async function exportPage() {
   const projectId = props.store.projectId.value;
   if (!projectId || exporting.value) return;
@@ -206,6 +224,12 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
     <template v-else>
       <div v-if="resultReady" class="workspace-actions" data-no-canvas-pan>
         <ActionBar :store="props.store" />
+        <label class="font-stack-field">
+          <span>目标字体</span>
+          <select data-test="font-stack" :value="store.doc.value?.fontStack ?? DEFAULT_FONT_STACK.value" @change="chooseFontStack">
+            <option v-for="option in FONT_STACKS" :key="option.id" :value="option.value">{{ option.label }}</option>
+          </select>
+        </label>
         <button data-test="export-page" class="export-button" :disabled="exporting" @click="exportPage">
           {{ exporting ? "导出中…" : "导出整页代码" }}
         </button>
@@ -214,6 +238,15 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
         </button>
         <span v-if="exportError" class="export-error">{{ exportError }}</span>
       </div>
+      <div v-if="stats" data-test="analysis-stats" class="analysis-stats" :class="{ passed: stats.allPassed }">
+        <strong>{{ stats.allPassed ? "分析已完成" : "分析待完善" }}</strong>
+        <span>区域 {{ stats.parsedRegions }}/{{ stats.totalRegions }}</span>
+        <span>图标 {{ stats.totalIcons }} · SVG {{ stats.libraryIcons }} · PNG {{ stats.cropIcons }} · 待确认 {{ stats.unresolvedIcons }}</span>
+        <span>字体 {{ stats.fontStackChosen ? "已选" : "未选" }} · 待测字号 {{ stats.textWithoutSize }}</span>
+      </div>
+      <ul v-if="stats?.todos.length" data-test="analysis-todos" class="analysis-todos">
+        <li v-for="todo in stats.todos" :key="todo">{{ todo }}</li>
+      </ul>
       <div data-test="comparison-workspace" class="comparison-workspace">
         <div class="comparison-images" :style="comparisonImagesStyle">
           <section class="image-panel" data-no-canvas-pan>
@@ -286,10 +319,15 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
 <style scoped>
 .workspace-actions { display: flex; align-items: center; gap: 10px; }
 .workspace-actions :deep(.bar) { flex: 1; }
+.font-stack-field { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11px; }
+.font-stack-field select { height: 32px; max-width: 112px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--bg-inset); }
 .export-button { flex: 0 0 auto; height: 32px; padding: 0 14px; border: 1px solid #3b82f6; border-radius: 7px; color: #eff6ff; background: #2563eb; cursor: pointer; }
 .export-button:disabled, .compare-button:disabled { opacity: .55; cursor: wait; }
 .compare-button { flex: 0 0 auto; height: 32px; padding: 0 14px; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--bg-inset); cursor: pointer; }
 .export-error { max-width: 260px; color: #fca5a5; font-size: 12px; }
+.analysis-stats { display: flex; gap: 14px; align-items: center; padding: 7px 10px; border-top: 1px solid var(--border); color: #fbbf24; background: #2a2113; font-size: 11px; }
+.analysis-stats.passed { color: #86efac; background: #13271d; }
+.analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: var(--text-dim); background: var(--bg-node); font-size: 10px; }
 .regions-node { margin: -14px; overflow: hidden; border-radius: 0 0 9px 9px; }
 .file-input { display: none; }
 .upload-state { min-height: 540px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118; }

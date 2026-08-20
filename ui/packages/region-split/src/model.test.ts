@@ -171,6 +171,47 @@ describe("createOpenAiModel.nameRegion", () => {
   });
 });
 
+describe("createOpenAiModel.decideIcon", () => {
+  it("selects one icon from the supplied local candidates", async () => {
+    const fetchImpl = fakeFetch(JSON.stringify({
+      kind: "library", iconId: "mdi:magnify", query: "search",
+    }));
+    const model = createOpenAiModel(cfg(fetchImpl));
+    await expect(model.decideIcon({
+      cropBase64: "AA",
+      candidates: [
+        { id: "mdi:magnify", name: "magnify", svg: "<svg>magnify</svg>" },
+        { id: "mdi:search-web", name: "search-web", svg: "<svg>web</svg>" },
+      ],
+    })).resolves.toEqual({
+      kind: "library", iconId: "mdi:magnify", query: "search",
+      candidates: ["mdi:magnify", "mdi:search-web"],
+    });
+    const body = String(vi.mocked(fetchImpl).mock.calls[0]![1]!.body);
+    expect(body).toContain("AA");
+    expect(body).toContain("mdi:magnify");
+    expect(body).toContain("<svg>magnify</svg>");
+  });
+
+  it("rejects an icon id outside the supplied candidates", async () => {
+    const json = JSON.stringify({ kind: "library", iconId: "mdi:account", query: "user" });
+    const model = createOpenAiModel(cfg(fakeFetch(json, json)));
+    await expect(model.decideIcon({
+      cropBase64: "AA",
+      candidates: [{ id: "mdi:home", name: "home", svg: "<svg/>" }],
+    })).rejects.toThrow(/candidate/i);
+  });
+
+  it("accepts a crop fallback", async () => {
+    const model = createOpenAiModel(cfg(fakeFetch(JSON.stringify({
+      kind: "crop", reason: "品牌私有图标",
+    }))));
+    await expect(model.decideIcon({ cropBase64: "AA", candidates: [] })).resolves.toEqual({
+      kind: "crop", assetRef: "", reason: "品牌私有图标",
+    });
+  });
+});
+
 describe("createOpenAiModel.classifyChildren", () => {
   const twoChildren = JSON.stringify({
     children: [

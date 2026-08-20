@@ -103,6 +103,7 @@ describe("detectElements with a model", () => {
   const fake = (over: Partial<SegmentModel> = {}): SegmentModel => ({
     segment: async () => { throw new Error("unused"); },
     nameRegion: async () => { throw new Error("unused"); },
+    decideIcon: async () => ({ kind: "crop", assetRef: "", reason: "test fallback" }),
     classifyChildren: async ({ count }) => ({
       whole: null,
       children: Array.from({ length: count }, (_, i) => ({
@@ -212,6 +213,7 @@ describe("structural review: flattening an over cut group", () => {
     const model: SegmentModel = {
       segment: async () => { throw new Error("unused"); },
       nameRegion: async () => { throw new Error("unused"); },
+      decideIcon: async () => ({ kind: "crop", assetRef: "", reason: "test fallback" }),
       classifyChildren: async ({ count, mayBeWhole }) => ({
         whole: mayBeWhole ? { kind: "icon" as const, displayName: "扫码图标" } : null,
         children: Array.from({ length: count }, () => ({
