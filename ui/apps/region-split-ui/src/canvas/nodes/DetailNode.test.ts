@@ -64,13 +64,14 @@ describe("DetailNode", () => {
     await wrapper.vm.$nextTick();
 
     const workspace = wrapper.get('[data-test="detail-workspace"]');
-    const main = workspace.get('[data-test="detail-main"]');
-    const image = main.get('[data-test="detail-image"]');
+    const image = workspace.get('[data-test="detail-image"]');
     const imageFit = image.get('[data-test="detail-image-fit"]');
-    const inspector = main.get('[data-test="detail-inspector"]');
+    const inspector = workspace.get('[data-test="detail-inspector"]');
     expect(imageFit.findComponent({ name: "ElementOverlay" }).exists()).toBe(true);
-    expect(main.element.firstElementChild).toBe(image.element);
-    expect(main.element.lastElementChild).toBe(inspector.element);
+    expect(workspace.element.firstElementChild).toBe(image.element);
+    expect(image.element.nextElementSibling).toBe(inspector.element);
+    expect(inspector.findComponent({ name: "ElementTree" }).exists()).toBe(true);
+    expect(inspector.findComponent({ name: "ElementProperties" }).exists()).toBe(true);
     expect(inspector.find('[data-test="detail-ai-column"]').exists()).toBe(false);
 
     const aiColumn = workspace.get('[data-test="detail-ai-column"]');

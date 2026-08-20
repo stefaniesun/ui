@@ -406,8 +406,7 @@ function onRenamePrompt(id: string) {
       </p>
 
       <div data-test="detail-workspace" class="detail-workspace">
-        <main data-test="detail-main" class="detail-main">
-          <section data-test="detail-image" class="image-section">
+        <section data-test="detail-image" class="image-section">
             <header>
               元素解析图
               <span v-if="picking" data-test="picking-hint" class="hint-inline">
@@ -473,8 +472,7 @@ function onRenamePrompt(id: string) {
           :picking="picking"
           @toggle-picking="togglePicking"
           />
-          </section>
-        </main>
+        </section>
         <aside data-test="detail-ai-column" class="ai-column">
           <ElementRefactorPanel
             v-if="parsed"
@@ -513,9 +511,8 @@ function onRenamePrompt(id: string) {
 .region-bg .hex { width: 76px; height: 24px; min-height: 24px; padding: 0 5px; font-size: 10px; }
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; overflow: hidden; }
-.detail-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 13fr) minmax(0, 7fr); overflow: hidden; }
-.image-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
+.detail-workspace { height: 500px; display: grid; grid-template-columns: minmax(0, 36fr) minmax(0, 36fr) minmax(0, 28fr); grid-template-rows: minmax(0, 13fr) minmax(0, 7fr); overflow: hidden; }
+.image-section { grid-column: 1 / 3; grid-row: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
 .image-fit { min-height: 0; flex: 1; overflow: hidden; }
 .hint-inline { margin-left: 8px; color: var(--accent); }
 /* 取色提示气泡按完整适配视口偏移定位，所以外面这层铺满图片区。 */
@@ -525,8 +522,8 @@ function onRenamePrompt(id: string) {
 .image-section header { height: 26px; display: flex; align-items: center; padding: 0 9px; border-bottom: 1px solid var(--border); color: var(--text-dim); background: var(--bg-node-header); font-size: 10px; }
 .empty-result { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border); color: var(--warn); background: #e2a4000f; font-size: 10px; line-height: 1.6; }
 /* 元素树与属性区固定在区域图下方，AI 校准独立保持在最右侧。 */
-.inspector { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 240px; overflow: hidden; border-top: 1px solid var(--border); }
-.ai-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--bg-node); }
+.inspector { grid-column: 1 / 3; grid-row: 2; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: hidden; border-top: 1px solid var(--border); }
+.ai-column { grid-column: 3; grid-row: 1 / 3; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-left: 1px solid var(--border); background: var(--bg-node); }
 .ai-column > .element-refactor-panel { flex: 1; min-height: 0; max-height: none; border-top: 0; }
 .undo-refactor { align-self: flex-end; margin: 8px; }
 </style>
