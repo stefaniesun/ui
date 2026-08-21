@@ -33,21 +33,25 @@ const validParentById = computed(() => {
   const parents = new Map<string, string>();
   for (const node of props.outline.elements) {
     const parentId = node.parentHint;
-    if (!parentId || parentId === node.id || !elementById.value.has(parentId)) continue;
-    const visited = new Set([node.id]);
-    let currentId: string | null = parentId;
-    let valid = true;
-    while (currentId) {
-      if (visited.has(currentId)) { valid = false; break; }
-      visited.add(currentId);
-      const current = elementById.value.get(currentId);
-      const nextId: string | null = current?.parentHint ?? null;
-      if (!nextId) break;
-      if (nextId === currentId || !elementById.value.has(nextId)) { valid = false; break; }
-      currentId = nextId;
-    }
-    if (valid) parents.set(node.id, parentId);
+    if (parentId && parentId !== node.id && elementById.value.has(parentId)) parents.set(node.id, parentId);
   }
+  const cyclicIds = new Set<string>();
+  for (const node of props.outline.elements) {
+    const path: string[] = [];
+    const indexById = new Map<string, number>();
+    let currentId: string | undefined = node.id;
+    while (currentId && parents.has(currentId)) {
+      const cycleStart = indexById.get(currentId);
+      if (cycleStart !== undefined) {
+        for (const id of path.slice(cycleStart)) cyclicIds.add(id);
+        break;
+      }
+      indexById.set(currentId, path.length);
+      path.push(currentId);
+      currentId = parents.get(currentId);
+    }
+  }
+  for (const id of cyclicIds) parents.delete(id);
   return parents;
 });
 const childrenById = computed(() => {
@@ -103,9 +107,21 @@ function select(id: string, source: "tree" | "box") {
 }
 function bindTree(id: string, element: unknown) {
   if (element instanceof HTMLElement) treeRefs.set(id, element);
+  else treeRefs.delete(id);
 }
 function bindBox(id: string, element: unknown) {
   if (element instanceof HTMLElement) boxRefs.set(id, element);
+  else boxRefs.delete(id);
+}
+function restoreTreePanel() {
+  treePanelCollapsed.value = false;
+  const id = props.selectedId;
+  if (!id) return;
+  expandAncestors(id);
+  nextTick(() => {
+    const target = treeRefs.get(id);
+    if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
+  });
 }
 function save() {
   if (!selected.value) return;
@@ -141,7 +157,7 @@ watch(selected, node => {
             v-for="node in outline.elements" :key="node.id" :ref="element => bindBox(node.id, element)"
             type="button" class="element-box"
             :class="{ suspicious: node.suspicious, selected: node.id === selectedId, hovered: node.id === hoveredId }"
-            :style="boxStyle(node)" :aria-label="`${node.displayName} 元素框`"
+            :style="boxStyle(node)" :aria-label="`${node.displayName}${node.suspicious ? '，可疑' : ''} 元素框`" :aria-pressed="node.id === selectedId"
             @click="select(node.id, 'box')" @mouseenter="emit('hover', node.id)" @mouseleave="emit('hover', null)"
           />
         </div>
@@ -152,10 +168,12 @@ watch(selected, node => {
           <strong>结构树</strong>
           <button type="button" data-test="collapse-tree-panel" aria-label="收起结构栏" @click="treePanelCollapsed = true">«</button>
         </header>
-        <div class="outline-tree" data-test="outline-tree">
+        <div class="outline-tree" data-test="outline-tree" role="tree" aria-label="页面元素结构">
           <div
             v-for="node in visibleNodes" :key="node.id" :ref="element => bindTree(node.id, element)"
             class="tree-item" :class="{ suspicious: node.suspicious, selected: node.id === selectedId }"
+            role="treeitem" :aria-level="displayDepth(node.id) + 1" :aria-selected="node.id === selectedId"
+            :aria-label="`${node.displayName}${node.suspicious ? '，可疑' : ''}`"
             :style="{ paddingLeft: `${7 + displayDepth(node.id) * 14}px` }"
             @mouseenter="emit('hover', node.id)" @mouseleave="emit('hover', null)"
           >
@@ -173,7 +191,7 @@ watch(selected, node => {
       </aside>
       <button
         v-else type="button" class="tree-panel-restore" data-test="restore-tree-panel"
-        aria-label="展开结构栏" @click="treePanelCollapsed = false"
+        aria-label="展开结构栏" @click="restoreTreePanel"
       ><span>›</span><span>结构</span></button>
 
       <aside class="property-panel" data-test="property-panel" aria-label="元素属性编辑">

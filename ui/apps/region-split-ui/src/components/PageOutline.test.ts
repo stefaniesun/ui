@@ -1,6 +1,6 @@
 import type { PageOutline as PageOutlineDto } from "@region-split/core/browser";
 import { mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import PageOutline from "./PageOutline.vue";
 
 const outline: PageOutlineDto = {
@@ -17,6 +17,11 @@ const outline: PageOutlineDto = {
 };
 
 describe("PageOutline", () => {
+  afterEach(() => vi.restoreAllMocks());
+  function spyOnScrollIntoView() {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+    return vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+  }
   it("renders image, tree, and independent property columns", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const workspace = wrapper.get(".outline-workspace");
@@ -40,6 +45,10 @@ describe("PageOutline", () => {
     expect(boxes[0]?.attributes("style")).toContain("top: 10%");
     expect(boxes[1]?.classes()).toContain("suspicious");
     expect(boxes[0]?.classes()).not.toContain("suspicious");
+    expect(boxes[0]?.attributes("aria-pressed")).toBe("false");
+    expect(wrapper.get('[data-test="outline-tree"]').attributes("role")).toBe("tree");
+    expect(wrapper.get(".tree-item.suspicious").attributes("aria-level")).toBe("2");
+    expect(wrapper.get(".tree-item.suspicious").attributes("aria-selected")).toBe("false");
   });
 
   it("collapses descendants without selecting the parent", async () => {
@@ -60,8 +69,7 @@ describe("PageOutline", () => {
     await wrapper.get('[data-test="tree-toggle-0-1000::ok"]').trigger("click");
     expect(wrapper.findAll(".tree-item")).toHaveLength(1);
 
-    const scrollIntoView = vi.fn();
-    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const scrollIntoView = spyOnScrollIntoView();
     await wrapper.findAll(".element-box")[1]!.trigger("click");
 
     expect(wrapper.emitted("select")?.at(-1)).toEqual(["0-1000::bad"]);
@@ -69,20 +77,26 @@ describe("PageOutline", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
   });
 
-  it("treats missing, self, and cyclic parents as top-level nodes", async () => {
+  it("treats invalid parents as top-level while preserving valid descendants", async () => {
     const invalidOutline: PageOutlineDto = {
       ...outline,
       elements: [
         { ...outline.elements[0]!, id: "a", parentHint: "b", depth: 4 },
         { ...outline.elements[1]!, id: "b", parentHint: "a", depth: 5 },
         { ...outline.elements[1]!, id: "self", parentHint: "self", depth: 3 },
-        { ...outline.elements[1]!, id: "missing", parentHint: "unknown", depth: 2 },
+        { ...outline.elements[0]!, id: "missing", parentHint: "unknown", depth: 2 },
+        { ...outline.elements[1]!, id: "child", parentHint: "missing", depth: 3 },
       ],
     };
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: invalidOutline, selectedId: null } });
 
-    expect(wrapper.findAll(".tree-toggle")).toHaveLength(0);
-    for (const row of wrapper.findAll(".tree-item")) expect(row.attributes("style")).toContain("padding-left: 7px");
+    expect(wrapper.findAll(".tree-toggle")).toHaveLength(1);
+    const rows = wrapper.findAll(".tree-item");
+    for (const row of rows.slice(0, 4)) expect(row.attributes("style")).toContain("padding-left: 7px");
+    expect(rows[4]!.attributes("style")).toContain("padding-left: 21px");
+
+    await wrapper.get('[data-test="tree-toggle-missing"]').trigger("click");
+    expect(wrapper.findAll(".tree-item")).toHaveLength(4);
   });
 
   it("collapses and restores the tree panel without hiding properties or selection", async () => {
@@ -98,15 +112,16 @@ describe("PageOutline", () => {
     expect(wrapper.find('[data-test="outline-tree"]').exists()).toBe(false);
     expect(wrapper.get('[data-test="property-panel"]')).toBeTruthy();
 
+    const scrollIntoView = spyOnScrollIntoView();
     await wrapper.get('[data-test="restore-tree-panel"]').trigger("click");
     expect(wrapper.get('[data-test="outline-tree"]')).toBeTruthy();
     expect(wrapper.get(".tree-item.selected").text()).toContain("可疑图标");
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
   });
 
   it("shares selection between tree and image and exposes only three calibration fields", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const scrollIntoView = vi.fn();
-    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const scrollIntoView = spyOnScrollIntoView();
     await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
