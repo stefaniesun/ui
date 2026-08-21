@@ -33,6 +33,21 @@ describe("page outline state", () => {
     expect(state.outline.value).toEqual(outline);
   });
 
+  it("loads the current outline before waiting for unfinished regions", async () => {
+    const api = makeFakeApi();
+    let finishDetection!: (result: { total: number; completed: number; skipped: number; failed: number; failedRegionKeys: string[] }) => void;
+    vi.mocked(api.detectAllElements).mockImplementation(() => new Promise(resolve => { finishDetection = resolve; }));
+    vi.mocked(api.getPageOutline).mockResolvedValue(outline);
+    const state = createPageOutlineState(api);
+
+    const running = state.analyzeAll("p1");
+    await vi.waitFor(() => expect(state.outline.value).toEqual(outline));
+    expect(state.busy.value).toBe(true);
+
+    finishDetection({ total: 3, completed: 2, skipped: 1, failed: 0, failedRegionKeys: [] });
+    await running;
+  });
+
   it("can retry failed regions and rolls a rejected patch back", async () => {
     const api = makeFakeApi();
     vi.mocked(api.detectAllElements).mockResolvedValue({ total: 3, completed: 1, skipped: 2, failed: 0, failedRegionKeys: [] });

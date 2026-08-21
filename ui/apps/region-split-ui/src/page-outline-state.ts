@@ -45,6 +45,8 @@ export function createPageOutlineState(api: StoreApi): PageOutlineState {
       busy.value = true;
       error.value = "";
       try {
+        const initialOutline = await api.getPageOutline(projectId);
+        if (currentGeneration === generation) outline.value = initialOutline;
         const nextProgress = await api.detectAllElements(projectId, retry);
         const nextOutline = await api.getPageOutline(projectId);
         if (currentGeneration === generation) {
