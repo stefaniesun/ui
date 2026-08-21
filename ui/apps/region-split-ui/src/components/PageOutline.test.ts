@@ -27,6 +27,34 @@ describe("PageOutline", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     return vi.spyOn(HTMLElement.prototype, "scrollIntoView");
   }
+  // 整页两千多像素高，只靠滚动条移动很别扭
+  it("pans the page by dragging", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    Object.assign(panel.element, { scrollLeft: 0, scrollTop: 0 });
+
+    await panel.trigger("pointerdown", { button: 0, clientX: 100, clientY: 100 });
+    await panel.trigger("pointermove", { clientX: 60, clientY: 30 });
+
+    expect(panel.element.scrollLeft).toBe(40);
+    expect(panel.element.scrollTop).toBe(70);
+  });
+
+  // 元素框铺满了图，起拖点几乎总在某个框上；没有阈值的话轻微抖动就会吞掉点选
+  it("still selects an element when the pointer barely moved", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    Object.assign(panel.element, { scrollLeft: 0, scrollTop: 0 });
+
+    await panel.trigger("pointerdown", { button: 0, clientX: 100, clientY: 100 });
+    await panel.trigger("pointermove", { clientX: 101, clientY: 101 });
+    await panel.trigger("pointerup");
+    await wrapper.findAll('[data-test="page-outline"] .element-box')[0]!.trigger("click");
+
+    expect(panel.element.scrollLeft).toBe(0);
+    expect(wrapper.emitted("select")).toBeTruthy();
+  });
+
   const withRegions = (regions: PageOutlineDto["regions"]): PageOutlineDto => ({ ...outline, regions });
   const region = (regionKey: string, status: "parsed" | "missing" | "failed") => ({
     regionKey, displayName: `区域 ${regionKey}`, status,

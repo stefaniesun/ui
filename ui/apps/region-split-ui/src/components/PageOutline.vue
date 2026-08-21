@@ -102,6 +102,41 @@ function toggleNode(id: string) {
   else next.add(id);
   collapsedIds.value = next;
 }
+/**
+ * 按住空白拖动来平移整页。
+ *
+ * 整页有两千多像素高，只靠滚动条移动很别扭；而元素框铺满了图，
+ * 光靠"点在图片上"判断起点会让一半的位置拖不动——所以**任何位置都能起拖**，
+ * 靠位移阈值把"拖动"和"点选元素"分开：没超过阈值就当点击，元素照常选中。
+ */
+const DRAG_THRESHOLD = 4;
+const imagePanel = ref<HTMLElement | null>(null);
+let panFrom: { x: number; y: number; left: number; top: number; moved: boolean } | null = null;
+
+function onPanStart(event: PointerEvent) {
+  const panel = imagePanel.value;
+  if (event.button !== 0 || !panel) return;
+  panFrom = { x: event.clientX, y: event.clientY, left: panel.scrollLeft, top: panel.scrollTop, moved: false };
+}
+
+function onPanMove(event: PointerEvent) {
+  const panel = imagePanel.value;
+  if (!panFrom || !panel) return;
+  const dx = event.clientX - panFrom.x;
+  const dy = event.clientY - panFrom.y;
+  if (!panFrom.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+  panFrom.moved = true;
+  panel.scrollLeft = panFrom.left - dx;
+  panel.scrollTop = panFrom.top - dy;
+}
+
+function onPanEnd() { panFrom = null; }
+
+/** 拖动过就把这一下的 click 吞掉，否则松手时会顺带选中身下的元素 */
+function onPanClick(event: MouseEvent) {
+  if (panFrom?.moved) { event.stopPropagation(); event.preventDefault(); }
+}
+
 function expandAncestors(id: string) {
   const ancestors = new Set(ancestorsOf(id));
   if (!ancestors.size) return;
@@ -161,7 +196,12 @@ watch(selected, node => {
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="outline-workspace" :class="{ 'tree-panel-collapsed': treePanelCollapsed }">
-      <div class="page-scroll" data-test="image-panel">
+      <div
+        ref="imagePanel" class="page-scroll" data-test="image-panel"
+        @pointerdown="onPanStart" @pointermove="onPanMove"
+        @pointerup="onPanEnd" @pointercancel="onPanEnd" @pointerleave="onPanEnd"
+        @click.capture="onPanClick"
+      >
         <div class="page-stage">
           <img :src="imageSrc" alt="待校准整页截图" />
           <button
@@ -239,7 +279,8 @@ watch(selected, node => {
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
 .outline-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; }
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }
-.page-scroll { min-width: 0; min-height: 0; overflow: auto; padding: 18px; background: #0c1017; }
+.page-scroll { min-width: 0; min-height: 0; overflow: auto; padding: 18px; background: #0c1017; cursor: grab; }
+.page-scroll:active { cursor: grabbing; }
 .page-stage { position: relative; width: min(100%, 900px); margin: 0 auto; line-height: 0; box-shadow: 0 6px 28px #000a; }
 .page-stage > img { width: 100%; height: auto; }
 .element-box { position: absolute; padding: 0; border: 1px solid #55a4ff55; background: #3b82f610; cursor: pointer; }
