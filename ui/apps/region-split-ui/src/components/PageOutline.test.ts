@@ -17,6 +17,15 @@ const outline: PageOutlineDto = {
 };
 
 describe("PageOutline", () => {
+  it("renders image, tree, and independent property columns", () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    expect(wrapper.get('[data-test="image-panel"]')).toBeTruthy();
+    expect(wrapper.get('[data-test="tree-panel"]')).toBeTruthy();
+    expect(wrapper.get('[data-test="property-panel"]')).toBeTruthy();
+    expect(wrapper.get('[data-test="property-empty"]').text()).toContain("选择元素");
+    expect(wrapper.find('[data-test="calibration"]').exists()).toBe(false);
+  });
+
   it("renders the whole image and all boxes in page coordinates with suspicious emphasis", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "project one", outline, selectedId: null } });
     expect(wrapper.get("img").attributes("src")).toBe("/api/projects/project%20one/image");
