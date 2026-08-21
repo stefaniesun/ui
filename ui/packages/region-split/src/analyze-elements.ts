@@ -100,21 +100,33 @@ export function markTextBoxes(raw: RawImage, nodes: ElementNode[]): ElementNode[
     : node);
 }
 
-async function decideIcons(
+export async function decideIcons(
   model: SegmentModel,
   source: string,
   nodes: ElementNode[],
 ): Promise<ElementNode[]> {
   return Promise.all(nodes.map(async node => {
     if (node.kind !== "icon") return node;
-    const keywords = node.iconKeywords?.length ? node.iconKeywords : [node.text?.trim() || node.displayName.trim()];
-    const query = keywords.join(" ");
+    const keywords = (node.iconKeywords ?? []).filter(keyword => /[a-z]/i.test(keyword));
+    const query = keywords.join(" ") || node.displayName.trim();
+    if (keywords.length === 0) {
+      return {
+        ...node,
+        iconDecision: { kind: "ambiguous" as const, query, candidates: [], keywords, by: "model" as const },
+      };
+    }
     const seen = new Set<string>();
     const candidates = keywords.flatMap(keyword => searchIcons(keyword, 8)).filter(candidate => {
       if (seen.has(candidate.id)) return false;
       seen.add(candidate.id);
       return true;
     }).slice(0, 12);
+    if (candidates.length === 0) {
+      return {
+        ...node,
+        iconDecision: { kind: "ambiguous" as const, query, candidates: [], keywords, by: "model" as const },
+      };
+    }
     try {
       const cropBase64 = (await sharp(source).extract({
         left: node.box.x, top: node.box.y, width: node.box.w, height: node.box.h,

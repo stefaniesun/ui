@@ -1,13 +1,14 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { createProject } from "./analyze.js";
-import { detectElements, groupForClassification, markTextBoxes } from "./analyze-elements.js";
+import { decideIcons, detectElements, groupForClassification, markTextBoxes } from "./analyze-elements.js";
 import { ProjectStore } from "./store.js";
 import type { SegmentModel } from "./model.js";
 import type { RawImage } from "./panels.js";
+import type { ElementNode } from "./element-types.js";
 
 /** 全白的假图：这条测试只关心"哪些节点被检查了"，不关心检查结果 */
 function blankImage(width: number, height: number): RawImage {
@@ -165,6 +166,70 @@ describe("detectElements with a model", () => {
     const parents = new Set(tree.nodes.map(n => n.parentId).filter(Boolean));
     const leaves = tree.nodes.filter(n => !parents.has(n.id) && n.kind !== "image");
     expect(leaves.every(leaf => leaf.classification === "uncertain")).toBe(true);
+  });
+});
+
+describe("图标关键词兜底", () => {
+  const sourceImage = async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "rs-icon-")), "source.png");
+    await sharp({ create: { width: 64, height: 64, channels: 4, background: "#ffffff" } }).png().toFile(path);
+    return path;
+  };
+  const iconNode = (over: Partial<ElementNode> = {}): ElementNode => ({
+    id: "icon", parentId: null, box: { x: 0, y: 0, w: 24, h: 24 },
+    kind: "icon", displayName: "用户头像", style: {}, uniformity: 1,
+    source: "auto", classification: "model", scrollX: false, scrollY: false,
+    positioning: "flow", ...over,
+  });
+  const iconModelStub = (decision: Awaited<ReturnType<SegmentModel["decideIcon"]>> = {
+    kind: "crop", assetRef: "", reason: "都不像",
+  }) => {
+    const decideIcon = vi.fn(async () => decision);
+    const model: SegmentModel = {
+      segment: async () => { throw new Error("unused"); },
+      nameRegion: async () => { throw new Error("unused"); },
+      classifyChildren: async () => { throw new Error("unused"); },
+      decideIcon,
+    };
+    return { model, decideIcon };
+  };
+
+  it("marks an icon ambiguous when no usable keyword exists", async () => {
+    const { model, decideIcon } = iconModelStub();
+    const [node] = await decideIcons(model, await sourceImage(), [iconNode()]);
+    expect(node!.iconDecision?.kind).toBe("ambiguous");
+    if (node!.iconDecision?.kind !== "ambiguous") throw new Error("expected ambiguous decision");
+    expect(node!.iconDecision.candidates).toEqual([]);
+    expect(decideIcon).not.toHaveBeenCalled();
+  });
+
+  it("still uses english keywords when the model gave them", async () => {
+    const { model, decideIcon } = iconModelStub({
+      kind: "library", iconId: "mdi:gear", query: "gear", candidates: ["mdi:gear"],
+    });
+    const [node] = await decideIcons(model, await sourceImage(), [
+      iconNode({ displayName: "设置", iconKeywords: ["settings", "gear"] }),
+    ]);
+    expect(node!.iconDecision?.kind).toBe("library");
+    expect(decideIcon).toHaveBeenCalled();
+  });
+
+  it("keeps only the keywords that can match", async () => {
+    const { model, decideIcon } = iconModelStub();
+    const [node] = await decideIcons(model, await sourceImage(), [
+      iconNode({ displayName: "消息", iconKeywords: ["消息", "chat"] }),
+    ]);
+    expect(decideIcon).toHaveBeenCalled();
+    expect(node!.iconDecision?.keywords).toEqual(["chat"]);
+  });
+
+  it("does not ask the model when english keywords have no candidates", async () => {
+    const { model, decideIcon } = iconModelStub();
+    const [node] = await decideIcons(model, await sourceImage(), [
+      iconNode({ iconKeywords: ["this-icon-does-not-exist-xyz"] }),
+    ]);
+    expect(node!.iconDecision?.kind).toBe("ambiguous");
+    expect(decideIcon).not.toHaveBeenCalled();
   });
 });
 

@@ -21,10 +21,11 @@ export const iconDecisionSchema = z.discriminatedUnion("kind", [
     query: z.string().min(1),
     candidates: z.array(z.string().min(1)).min(1),
     keywords: z.array(z.string().min(1)).optional(),
+    sourceAssetRef: z.string().min(1).optional(),
     by: z.enum(["model", "human"]).optional(),
   }),
   z.object({ kind: z.literal("crop"), assetRef: z.string(), reason: z.string().min(1), keywords: z.array(z.string()).optional(), by: z.enum(["model", "human"]).optional() }),
-  z.object({ kind: z.literal("ambiguous"), query: z.string().min(1), candidates: z.array(z.string().min(1)).min(1), keywords: z.array(z.string()).optional(), by: z.enum(["model", "human"]).optional() }),
+  z.object({ kind: z.literal("ambiguous"), query: z.string().min(1), candidates: z.array(z.string().min(1)), keywords: z.array(z.string()).optional(), by: z.enum(["model", "human"]).optional() }),
 ]);
 export type IconDecision = z.infer<typeof iconDecisionSchema>;
 

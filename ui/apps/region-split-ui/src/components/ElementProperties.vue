@@ -6,6 +6,7 @@ import {
 } from "@region-split/core/browser";
 import { type IconCandidate, type StoreApi } from "../api.js";
 import { supportsBorderRadius } from "../element-state.js";
+import IconPickerModal from "./IconPickerModal.vue";
 
 const props = defineProps<{
   node: ElementNode | null;
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   "set-font": [id: string, font: { fontSize?: number; fontWeight?: number }];
   "measure-font": [];
   "choose-icon": [iconId: string, candidates: string[], query: string];
+  "use-crop": [];
 }>();
 
 // 滚动是容器的属性，叶子上没有意义
@@ -48,21 +50,32 @@ const isText = computed(() => props.node?.kind === "text");
 const fontSize = computed(() => props.node?.style.fontSize ?? 0);
 const fontWeight = computed(() => props.node?.style.fontWeight ?? 400);
 const WEIGHTS = [300, 400, 500, 600, 700, 800];
-const iconQuery = ref("");
-const iconCandidates = ref<IconCandidate[]>([]);
-const iconError = ref("");
+const iconPickerOpen = ref(false);
+const currentIconId = computed(() => props.node?.iconDecision?.kind === "library" ? props.node.iconDecision.iconId : "");
+const initialIconCandidates = computed<IconCandidate[]>(() => []);
+const initialIconQuery = computed(() => {
+  const decision = props.node?.iconDecision;
+  if (!decision) return "";
+  const keyword = "keywords" in decision
+    ? decision.keywords?.find(value => /[a-z]/i.test(value)) : undefined;
+  if (keyword) return keyword;
+  return "query" in decision && /[a-z]/i.test(decision.query) ? decision.query : "";
+});
+const iconCropSrc = computed(() => {
+  const decision = props.node?.iconDecision;
+  const assetRef = decision?.kind === "library" ? decision.sourceAssetRef : props.node?.asset?.ref;
+  if (!props.projectId || !assetRef) return "";
+  return `/api/projects/${props.projectId}/assets/${encodeURIComponent(assetRef)}`;
+});
+const searchIconCandidates = (query: string, limit: number) => props.api?.searchIcons(query, limit) ?? Promise.resolve({ candidates: [] });
 
-async function searchIconCandidates() {
-  const query = iconQuery.value.trim();
-  if (!props.api || !query) return;
-  iconError.value = "";
-  try { iconCandidates.value = (await props.api.searchIcons(query, 12)).candidates; }
-  catch (error) { iconError.value = (error as Error).message; }
+function chooseIcon(iconId: string, candidates: string[], query: string) {
+  emit("choose-icon", iconId, candidates, query);
+  iconPickerOpen.value = false;
 }
-
-function chooseIcon(iconId: string) {
-  const ids = iconCandidates.value.map(candidate => candidate.id);
-  emit("choose-icon", iconId, ids, iconQuery.value.trim());
+function useCrop() {
+  emit("use-crop");
+  iconPickerOpen.value = false;
 }
 
 /**
@@ -256,26 +269,27 @@ onBeforeUnmount(stopNudge);
 
       <section v-if="props.node.kind === 'icon'" data-test="icon-decision" class="icon-decision">
         <strong>图标素材</strong>
-        <p v-if="props.node.iconDecision?.kind === 'library'">已匹配 {{ props.node.iconDecision.iconId }}</p>
-        <p v-else-if="props.node.iconDecision?.kind === 'ambiguous'">需要人工确认候选</p>
-        <p v-else>保留原图裁片</p>
+        <p v-if="props.node.iconDecision?.kind === 'library'">已选择 {{ props.node.iconDecision.iconId }}</p>
+        <p v-else-if="props.node.iconDecision?.kind === 'ambiguous'">待确认：选择图标库图标或继续使用原图切片</p>
+        <p v-else>使用原图裁片</p>
         <img
           v-if="props.node.iconDecision?.kind !== 'library' && props.projectId && props.node.asset?.ref"
           class="icon-crop-preview"
           :src="`/api/projects/${props.projectId}/assets/${encodeURIComponent(props.node.asset.ref)}`"
           alt="原图裁片"
         />
-        <div class="icon-search">
-          <input v-model="iconQuery" data-test="icon-search-query" placeholder="搜索 home、search…" @keydown.enter.prevent="searchIconCandidates" />
-          <button type="button" :disabled="props.disabled || !iconQuery.trim()" @click="searchIconCandidates">搜索</button>
-        </div>
-        <p v-if="iconError" class="icon-error">{{ iconError }}</p>
-        <div v-if="iconCandidates.length" data-test="icon-candidates" class="icon-candidates">
-          <button v-for="candidate in iconCandidates" :key="candidate.id" type="button" :title="candidate.id" :disabled="props.disabled" @click="chooseIcon(candidate.id)">
-            <span v-html="candidate.svg" />
-            <small>{{ candidate.name }}</small>
-          </button>
-        </div>
+        <button data-test="open-icon-picker" type="button" :disabled="props.disabled" @click="iconPickerOpen = true">挑选图标</button>
+        <IconPickerModal
+          :open="iconPickerOpen"
+          :crop-src="iconCropSrc"
+          :current-icon-id="currentIconId"
+          :initial-query="initialIconQuery"
+          :initial-candidates="initialIconCandidates"
+          :search-icons="searchIconCandidates"
+          @close="iconPickerOpen = false"
+          @confirm="chooseIcon"
+          @use-crop="useCrop"
+        />
       </section>
 
       <!-- 位置尺寸是测量结果，但测量会出错，所以必须能人工微调。

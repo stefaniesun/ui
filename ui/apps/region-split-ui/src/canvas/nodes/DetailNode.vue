@@ -315,6 +315,11 @@ async function onChooseIcon(iconId: string, candidates: string[], query: string)
   await props.elementStore.chooseIcon(props.projectId, region.value, iconId, candidates, query);
   emit("parsed");
 }
+async function onUseIconCrop() {
+  if (!region.value) return;
+  await props.elementStore.useIconCrop(props.projectId, region.value);
+  emit("parsed");
+}
 
 function onSetFont(id: string, font: { fontSize?: number; fontWeight?: number }) {
   if (region.value) void props.elementStore.setFont(props.projectId, region.value, id, font);
@@ -544,6 +549,7 @@ function saveCurrentLayout() {
           @set-slot="onSetSlot"
           @set-color="onSetColor"
           @choose-icon="onChooseIcon"
+          @use-crop="onUseIconCrop"
           @set-font="onSetFont"
           @measure-font="measureFont"
           :font-note="fontNote"

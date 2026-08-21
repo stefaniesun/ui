@@ -66,11 +66,29 @@ export async function materializeTreeAssets(
       nodes.push(node);
       continue;
     }
-    const fileName = expectedAssetName(projectId, node);
+    let materializedNode = node;
+    if (node.kind === "icon" && node.iconDecision?.kind === "library") {
+      const sourceAssetRef = node.iconDecision.sourceAssetRef ?? assetFileName(projectId, node.box);
+      const sourceAssetPath = join(assetsDir, sourceAssetRef);
+      if (!existsSync(sourceAssetPath)) {
+        const temporary = join(assetsDir, `.${sourceAssetRef}.${randomUUID()}.tmp`);
+        try {
+          await sharp(source).extract({
+            left: node.box.x, top: node.box.y, width: node.box.w, height: node.box.h,
+          }).png().toFile(temporary);
+          renameSync(temporary, sourceAssetPath);
+        } finally {
+          rmSync(temporary, { force: true });
+        }
+      }
+      materializedNode = { ...node, iconDecision: { ...node.iconDecision, sourceAssetRef } };
+      changed = true;
+    }
+    const fileName = expectedAssetName(projectId, materializedNode);
     const path = join(assetsDir, fileName);
     if (!existsSync(path)) {
-      if (fileName.endsWith(".svg") && node.iconDecision?.kind === "library") {
-        const icon = iconById(node.iconDecision.iconId)!;
+      if (fileName.endsWith(".svg") && materializedNode.iconDecision?.kind === "library") {
+        const icon = iconById(materializedNode.iconDecision.iconId)!;
         writeFileSync(path, iconToSvg(icon), "utf8");
       } else {
         const temporary = join(assetsDir, `.${fileName}.${randomUUID()}.tmp`);
@@ -92,13 +110,13 @@ export async function materializeTreeAssets(
       }
     }
     files[node.id] = path;
-    const asset = { ref: fileName, cutFrom: { ...node.box } };
-    const iconDecision = node.iconDecision?.kind === "crop"
-      ? { ...node.iconDecision, assetRef: fileName }
-      : node.iconDecision;
-    if (node.asset?.ref !== fileName || !sameRect(node.asset?.cutFrom, node.box)
-      || (node.iconDecision?.kind === "crop" && node.iconDecision.assetRef !== fileName)) changed = true;
-    nodes.push({ ...node, asset, iconDecision });
+    const asset = { ref: fileName, cutFrom: { ...materializedNode.box } };
+    const iconDecision = materializedNode.iconDecision?.kind === "crop"
+      ? { ...materializedNode.iconDecision, assetRef: fileName }
+      : materializedNode.iconDecision;
+    if (materializedNode.asset?.ref !== fileName || !sameRect(materializedNode.asset?.cutFrom, materializedNode.box)
+      || (materializedNode.iconDecision?.kind === "crop" && materializedNode.iconDecision.assetRef !== fileName)) changed = true;
+    nodes.push({ ...materializedNode, asset, iconDecision });
   }
 
   const nextTree = changed ? { ...tree, nodes } : tree;

@@ -53,9 +53,19 @@ describe("materializeTreeAssets", () => {
     const ref = first.tree.nodes[0]!.asset?.ref;
     expect(ref).toMatch(/\.svg$/);
     expect(second.tree.nodes[0]!.asset?.ref).toBe(ref);
+    expect(first.tree.nodes[0]!.iconDecision).toMatchObject({
+      kind: "library", sourceAssetRef: assetFileName(projectId, iconTree.nodes[0]!.box),
+    });
     expect(readFileSync(first.files.picture!, "utf8")).toContain("<svg");
     expect(readFileSync(first.files.picture!, "utf8")).toContain("currentColor");
     expect(readFileSync(first.files.picture!, "utf8")).not.toContain("#3578e5");
+
+    const originalRef = first.tree.nodes[0]!.iconDecision?.kind === "library"
+      ? first.tree.nodes[0]!.iconDecision.sourceAssetRef : undefined;
+    expect(originalRef).toBeTruthy();
+    rmSync(join(store.assetsDir(projectId), originalRef!));
+    await materializeTreeAssets(store, projectId, region, first.tree);
+    expect(existsSync(join(store.assetsDir(projectId), originalRef!))).toBe(true);
   });
 
   it("falls back to PNG when a persisted library icon no longer exists", async () => {

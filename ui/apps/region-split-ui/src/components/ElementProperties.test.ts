@@ -13,20 +13,58 @@ const node: ElementNode = {
 };
 
 describe("ElementProperties", () => {
-  it("searches and emits a selected local icon candidate", async () => {
+  it("opens the picker and emits a confirmed local icon", async () => {
     const icon: ElementNode = {
       ...node, kind: "icon", displayName: "搜索",
-      iconDecision: { kind: "ambiguous", query: "search", candidates: ["mdi:magnify"] },
+      iconDecision: { kind: "ambiguous", query: "搜索", candidates: ["mdi:magnify"], keywords: ["搜索", "search"] },
     };
     const api = makeFakeApi(() => []);
     vi.mocked(api.searchIcons).mockResolvedValue({ candidates: [{ id: "mdi:magnify", name: "magnify", svg: "<svg></svg>" }] });
-    const wrapper = mount(ElementProperties, { props: { node: icon, api, projectId: "p1" } });
-    await wrapper.get('[data-test="icon-search-query"]').setValue("search");
-    await wrapper.get('[data-test="icon-search-query"]').trigger("keydown.enter");
+    const wrapper = mount(ElementProperties, {
+      props: { node: icon, api, projectId: "p1" },
+      global: { stubs: { Teleport: true } },
+    });
+    expect(wrapper.text()).toContain("待确认");
+    expect(wrapper.text()).toContain("选择图标库图标或继续使用原图切片");
+    await wrapper.get('[data-test="open-icon-picker"]').trigger("click");
+    expect((wrapper.get('[data-test="icon-picker-query"]').element as HTMLInputElement).value).toBe("search");
+    await wrapper.get('[data-test="icon-picker-query"]').setValue("search");
+    await wrapper.get('[data-test="icon-picker-search"]').trigger("click");
     await flushPromises();
-    await wrapper.get('[data-test="icon-candidates"] button').trigger("click");
-    expect(api.searchIcons).toHaveBeenCalledWith("search", 12);
+    await wrapper.get('[data-test="icon-candidate-mdi:magnify"]').trigger("click");
+    await wrapper.get('[data-test="icon-picker-confirm"]').trigger("click");
+    expect(api.searchIcons).toHaveBeenCalledWith("search", 24);
     expect(wrapper.emitted("choose-icon")?.[0]).toEqual(["mdi:magnify", ["mdi:magnify"], "search"]);
+  });
+
+  it("falls back to an old library query when keywords are absent", async () => {
+    const icon: ElementNode = {
+      ...node, kind: "icon", displayName: "主页",
+      iconDecision: { kind: "library", iconId: "mdi:home", query: "home", candidates: ["mdi:home"] },
+    };
+    const api = makeFakeApi(() => []);
+    vi.mocked(api.searchIcons).mockResolvedValue({ candidates: [{ id: "mdi:home", name: "home", svg: "<svg></svg>" }] });
+    const wrapper = mount(ElementProperties, {
+      props: { node: icon, api, projectId: "p1" }, global: { stubs: { Teleport: true } },
+    });
+    await wrapper.get('[data-test="open-icon-picker"]').trigger("click");
+    await flushPromises();
+    expect(api.searchIcons).toHaveBeenCalledWith("home", 24);
+  });
+
+  it("labels crop decisions and forwards using the original crop", async () => {
+    const icon: ElementNode = {
+      ...node, kind: "icon", displayName: "搜索",
+      iconDecision: { kind: "crop", assetRef: "assets/search.png", reason: "没有合适候选" },
+    };
+    const wrapper = mount(ElementProperties, {
+      props: { node: icon },
+      global: { stubs: { Teleport: true } },
+    });
+    expect(wrapper.text()).toContain("使用原图裁片");
+    await wrapper.get('[data-test="open-icon-picker"]').trigger("click");
+    await wrapper.get('[data-test="icon-picker-use-crop"]').trigger("click");
+    expect(wrapper.emitted("use-crop")).toHaveLength(1);
   });
 
   it("prompts when nothing is selected", () => {

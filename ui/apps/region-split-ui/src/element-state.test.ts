@@ -77,6 +77,39 @@ describe("createElementStore", () => {
     expect(store.selectedNode.value!.displayName).toBe("卡片");
   });
 
+  it("persists a human library icon decision", async () => {
+    const api = loaded([node({
+      id: "n1", kind: "icon", asset: { ref: "asset.png", cutFrom: { x: 0, y: 0, w: 100, h: 100 } },
+      iconDecision: { kind: "ambiguous", query: "user", candidates: [] },
+    })]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    store.select("n1");
+    await store.chooseIcon("p1", REGION, "mdi:account", ["mdi:account"], "account");
+    expect(store.selectedNode.value?.iconDecision).toMatchObject({
+      kind: "library", iconId: "mdi:account", sourceAssetRef: "asset.png", by: "human",
+    });
+    expect(api.putElements).toHaveBeenCalled();
+  });
+
+  it("persists choosing the original crop", async () => {
+    const api = loaded([node({
+      id: "n1", kind: "icon", asset: { ref: "library.svg", cutFrom: { x: 0, y: 0, w: 10, h: 10 } },
+      iconDecision: {
+        kind: "library", iconId: "mdi:user", query: "user",
+        candidates: ["mdi:user"], sourceAssetRef: "original.png",
+      },
+    })]);
+    const store = createElementStore(api);
+    await store.load("p1", REGION);
+    store.select("n1");
+    await store.useIconCrop("p1", REGION);
+    expect(store.selectedNode.value?.iconDecision).toMatchObject({
+      kind: "crop", assetRef: "original.png", keywords: ["user"], by: "human",
+    });
+    expect(api.putElements).toHaveBeenCalled();
+  });
+
   it("renames a node", async () => {
     const store = createElementStore(loaded([node({ id: "n1" })]));
     await store.load("p1", REGION);

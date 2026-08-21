@@ -107,10 +107,39 @@ export function createElementStore(api: StoreApi) {
     async chooseIcon(projectId: string, region: Rect, iconId: string, candidates: string[], query: string) {
       const selected = selectedNode.value;
       if (!selected || selected.kind !== "icon") return;
+      const sourceAssetRef = selected.iconDecision?.kind === "library"
+        ? selected.iconDecision.sourceAssetRef
+        : selected.iconDecision?.kind === "crop" ? selected.iconDecision.assetRef : selected.asset?.ref;
       await commit(projectId, region, nodes.value.map(node => node.id === selected.id ? {
         ...node,
-        iconDecision: { kind: "library" as const, iconId, candidates, query, keywords: [query], by: "human" as const },
+        iconDecision: {
+          kind: "library" as const, iconId, candidates, query, keywords: [query],
+          sourceAssetRef, by: "human" as const,
+        },
         asset: undefined,
+      } : node));
+    },
+
+    async useIconCrop(projectId: string, region: Rect) {
+      const selected = selectedNode.value;
+      if (!selected || selected.kind !== "icon") return;
+      const previousAssetRef = selected.iconDecision?.kind === "library"
+        ? selected.iconDecision.sourceAssetRef
+        : selected.iconDecision?.kind === "crop" ? selected.iconDecision.assetRef : selected.asset?.ref;
+      const decision = selected.iconDecision;
+      const keywords = decision && "keywords" in decision && decision.keywords?.length
+        ? decision.keywords
+        : decision && "query" in decision && /[a-z]/i.test(decision.query) ? [decision.query] : undefined;
+      await commit(projectId, region, nodes.value.map(node => node.id === selected.id ? {
+        ...node,
+        iconDecision: {
+          kind: "crop" as const,
+          assetRef: previousAssetRef ?? "source-region",
+          reason: "用户选择使用原图切片",
+          keywords,
+          by: "human" as const,
+        },
+        asset: previousAssetRef ? { ref: previousAssetRef, cutFrom: { ...node.box } } : node.asset,
       } : node));
     },
 
