@@ -4,6 +4,7 @@ export * from "./reconcile.js";
 export * from "./element-types.js";
 export * from "./element-detect.js";
 export * from "./element-layout.js";
+export * from "./page-outline.js";
 export * from "./emit-html.js";
 export * from "./emit-page.js";
 export * from "./asset-cache.js";

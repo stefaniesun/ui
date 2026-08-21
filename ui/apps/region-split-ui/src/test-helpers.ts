@@ -54,6 +54,17 @@ export function makeFakeApi(
       allPassed: false, todos: ["选择目标平台字体"],
     })),
     getPageCode: vi.fn(async () => ({ html: "", css: "", assets: [] })),
+    getPageOutline: vi.fn(async () => ({
+      image: { fileName: "s.png", width: 375, height: 600 }, designWidth: 375,
+      elements: [], regions: [], suspiciousCount: 0,
+    })),
+    detectAllElements: vi.fn(async () => ({
+      total: initial().length, completed: initial().length, skipped: 0, failed: 0, failedRegionKeys: [],
+    })),
+    patchPageElement: vi.fn(async () => ({
+      image: { fileName: "s.png", width: 375, height: 600 }, designWidth: 375,
+      elements: [], regions: [], suspiciousCount: 0,
+    })),
     detectElements: vi.fn(async () => ({ tree: makeElementTree(), treeVersion: "detected-v1" })),
     putElements: vi.fn(async (_id: string, _region: Rect, tree: ElementTree) => ({ tree, treeVersion: "saved-v1" })),
     ...overrides,

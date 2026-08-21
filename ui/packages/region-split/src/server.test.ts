@@ -151,6 +151,33 @@ describe("region split server", () => {
     expect((await sharp(crop.rawPayload).metadata()).height).toBe(50);
   });
 
+  it("returns a whole-page outline and persists the three allowed corrections", async () => {
+    const { app, store } = makeApp();
+    const { projectId } = (await upload(app)).json();
+    const doc = store.readDoc(projectId);
+    const region = doc.regions[0]!;
+    store.writeElementTree(projectId, {
+      regionKey: "0-400", detectedAt: "now", nodes: [{
+        id: "title", parentId: null, box: { x: 10, y: 10, w: 100, h: 30 }, kind: "text",
+        displayName: "标题", text: "旧", style: {}, uniformity: 1, source: "auto", classification: "uncertain",
+        scrollX: false, scrollY: false, positioning: "flow",
+      }],
+    }, region.bounds);
+    const read = await app.inject({ method: "GET", url: `/api/projects/${projectId}/page-outline` });
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toMatchObject({ designWidth: 375, suspiciousCount: 1 });
+    expect(read.json().elements[0]).toMatchObject({ id: "0-400::title", regionKey: "0-400", suspicious: true });
+
+    const patched = await app.inject({
+      method: "PATCH", url: `/api/projects/${projectId}/page-outline/${encodeURIComponent("0-400::title")}`,
+      payload: { kind: "image", text: "新", box: { x: 12, y: 14, w: 110, h: 32 } },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(store.readElementTree(projectId, "0-400")?.nodes[0]).toMatchObject({
+      kind: "image", classification: "human", text: "新", box: { x: 12, y: 14, w: 110, h: 32 },
+    });
+  });
+
   it("exports a full page with separated files and globally unique classes", async () => {
     const { app, store } = makeApp();
     const { projectId } = (await upload(app)).json();

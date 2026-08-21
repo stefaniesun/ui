@@ -148,12 +148,7 @@ export class ProjectStore {
     const trees = doc.trees.filter(item => item.regionKey !== tree.regionKey);
     trees.push(tree);
     trees.sort((a, b) => a.regionKey.localeCompare(b.regionKey));
-    mkdirSync(this.projectDir(projectId), { recursive: true });
-    writeFileSync(
-      this.elementsPath(projectId),
-      JSON.stringify({ ...doc, trees }, null, 2) + "\n",
-      "utf8",
-    );
+    this.#writeElementsAtomic(projectId, { ...doc, trees });
     return tree;
   }
 

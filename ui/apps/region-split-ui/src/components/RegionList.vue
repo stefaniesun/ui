@@ -11,7 +11,6 @@ const props = withDefaults(defineProps<{
 }>(), { parsedRegionKeys: () => [] });
 const emit = defineEmits<{
   hover: [id: string | null];
-  open: [id: string];
   layoutChange: [];
 }>();
 
@@ -111,7 +110,6 @@ function onRowClick(id: string, event: MouseEvent) {
   if (locked.value) return;
   const additive = event.ctrlKey || event.metaKey || event.shiftKey;
   props.store.select(id, additive);
-  if (!additive) emit("open", id);
 }
 </script>
 

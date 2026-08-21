@@ -26,7 +26,6 @@ const props = withDefaults(defineProps<{
 }>(), { parsedRegionKeys: () => [] });
 const emit = defineEmits<{
   hover: [id: string | null];
-  open: [id: string];
   layoutChange: [];
   uploaded: [];
   openPageCompare: [];
@@ -307,7 +306,6 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
             :hovered-id="props.hoveredId"
             :parsed-region-keys="props.parsedRegionKeys"
             @hover="emit('hover', $event)"
-            @open="emit('open', $event)"
             @layout-change="emit('layoutChange')"
           />
           <div v-else class="list-placeholder">分析完成后显示区域列表</div>

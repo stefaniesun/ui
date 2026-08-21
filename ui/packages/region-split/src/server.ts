@@ -9,6 +9,7 @@ import { MIN_ANALYZABLE_SIZE, detectElements } from "./analyze-elements.js";
 import { analysisStats } from "./analysis-stats.js";
 import { materializeTreeAssets } from "./asset-cache.js";
 import { elementTreeSchema, regionKey } from "./element-types.js";
+import { buildPageOutline, pageElementPatchSchema, parsePageElementId, patchElementTree } from "./page-outline.js";
 import { iconById, iconToSvg, searchIcons } from "./icon-library.js";
 import { RefactorSessionStore } from "./element-refactor-session-store.js";
 import { registerElementRefactorRoutes } from "./element-refactor-routes.js";
@@ -38,6 +39,10 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.register(multipart, { limits: { fileSize: 32 * 1024 * 1024 } });
   const { store, configStore } = deps;
   const currentModel = () => deps.createModel(configStore.read());
+  const pageOutlineFailures = new Map<string, Record<string, string>>();
+  const detectAllRuns = new Map<string, Promise<{
+    total: number; completed: number; skipped: number; failed: number; failedRegionKeys: string[];
+  }>>();
   const refactorSessions = deps.refactorSessions ?? new RefactorSessionStore();
   registerElementRefactorRoutes(app, { ...deps, sessions: refactorSessions });
 
@@ -175,6 +180,44 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     });
 
   app.get<{ Params: ProjectParams }>(
+    "/api/projects/:projectId/page-outline", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const doc = store.readDoc(projectId);
+      const trees = [];
+      for (const tree of store.readElements(projectId).trees) {
+        const region = doc.regions.find(item => regionKey(item.bounds) === tree.regionKey);
+        if (!region) continue;
+        try {
+          trees.push((await materializeTreeAssets(store, projectId, region.bounds, tree)).tree);
+        } catch {
+          trees.push(tree);
+        }
+      }
+      return buildPageOutline(doc, trees, pageOutlineFailures.get(projectId));
+    });
+
+  app.patch<{ Params: ProjectParams & { elementId: string }; Body: unknown }>(
+    "/api/projects/:projectId/page-outline/:elementId", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const identity = parsePageElementId(req.params.elementId);
+      const patch = pageElementPatchSchema.safeParse(req.body);
+      if (!identity || !patch.success) return reply.code(422).send({ error: "invalid element patch" });
+      const doc = store.readDoc(projectId);
+      const region = doc.regions.find(item => regionKey(item.bounds) === identity.regionKey);
+      const tree = store.readElementTree(projectId, identity.regionKey);
+      if (!region || !tree) return reply.code(404).send({ error: "element not found" });
+      try {
+        const next = patchElementTree(tree, region.bounds, identity.localId, patch.data);
+        store.writeElementTree(projectId, next, region.bounds);
+        return buildPageOutline(doc, store.readElements(projectId).trees, pageOutlineFailures.get(projectId));
+      } catch (err) {
+        return reply.code(422).send({ error: (err as Error).message });
+      }
+    });
+
+  app.get<{ Params: ProjectParams }>(
     "/api/projects/:projectId/page-code", async (req, reply) => {
       const { projectId } = req.params;
       if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
@@ -254,6 +297,59 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       const path = join(store.assetsDir(projectId), fileName);
       if (!existsSync(path)) return reply.code(404).send({ error: "asset not found" });
       return reply.type(isSvg ? "image/svg+xml" : "image/png").send(readFileSync(path));
+    });
+
+  app.post<{ Params: ProjectParams; Body: { retry?: boolean } }>(
+    "/api/projects/:projectId/elements/detect-all", async (req, reply) => {
+      const { projectId } = req.params;
+      if (!store.exists(projectId)) return reply.code(404).send({ error: "project not found" });
+      const running = detectAllRuns.get(projectId);
+      if (running) return running;
+      const run = (async () => {
+        const doc = store.readDoc(projectId);
+        const regions = [...doc.regions].sort((a, b) => a.bounds.y - b.bounds.y || a.bounds.x - b.bounds.x);
+        const previous = pageOutlineFailures.get(projectId) ?? {};
+        const failures: Record<string, string> = { ...previous };
+        let completed = 0;
+        let skipped = 0;
+        for (const region of regions) {
+          const key = regionKey(region.bounds);
+          const existing = store.readElementTree(projectId, key);
+          if (existing && !(req.body?.retry && previous[key])) {
+            try {
+              await materializeTreeAssets(store, projectId, region.bounds, existing);
+              skipped += 1;
+              delete failures[key];
+            } catch (err) {
+              failures[key] = (err as Error).message;
+            }
+            continue;
+          }
+          try {
+            const model = configStore.isConfigured() ? currentModel() : undefined;
+            const detected = await detectElements({ store, model }, projectId, region.bounds);
+            await materializeTreeAssets(store, projectId, region.bounds, detected);
+            completed += 1;
+            delete failures[key];
+          } catch (err) {
+            failures[key] = (err as Error).message;
+          }
+        }
+        pageOutlineFailures.set(projectId, failures);
+        return {
+          total: regions.length,
+          completed,
+          skipped,
+          failed: Object.keys(failures).length,
+          failedRegionKeys: Object.keys(failures),
+        };
+      })();
+      detectAllRuns.set(projectId, run);
+      try {
+        return await run;
+      } finally {
+        detectAllRuns.delete(projectId);
+      }
     });
 
   app.post<{ Params: ProjectParams; Body: { region: Rect } }>(

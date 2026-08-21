@@ -75,14 +75,13 @@ describe("RegionList", () => {
     expect(wrapper.find("[data-test=needs-analysis]").exists()).toBe(false);
   });
 
-  it("selects and opens on a plain click but only selects with modifiers", async () => {
+  it("selects regions without opening the retired detail workflow", async () => {
     const { store, wrapper } = await mounted();
     await wrapper.findAll("[data-test=row]")[1]!.trigger("click");
     expect(store.selectedIds.value).toEqual(["b"]);
-    expect(wrapper.emitted("open")?.[0]).toEqual(["b"]);
     await wrapper.findAll("[data-test=row]")[0]!.trigger("click", { ctrlKey: true });
     expect(store.selectedIds.value).toEqual(["b", "a"]);
-    expect(wrapper.emitted("open")).toHaveLength(1);
+    expect(wrapper.emitted("open")).toBeUndefined();
   });
 
   it("keeps connection anchors on the visible list boundary", async () => {

@@ -1,5 +1,5 @@
 import type {
-  ElementTree, ModelConfigView, Rect, Region, RegionSplitDoc,
+  ElementTree, ModelConfigView, PageElementPatch, PageOutline, Rect, Region, RegionSplitDoc,
 } from "@region-split/core/browser";
 
 export type IconCandidate = { id: string; name: string; svg: string };
@@ -29,8 +29,19 @@ export interface StoreApi {
   searchIcons(query: string, limit?: number): Promise<{ candidates: IconCandidate[] }>;
   getAnalysisStats(projectId: string): Promise<AnalysisStats>;
   getPageCode(projectId: string): Promise<PageCodeOutput>;
+  getPageOutline(projectId: string): Promise<PageOutline>;
+  detectAllElements(projectId: string, retry?: boolean): Promise<DetectAllResult>;
+  patchPageElement(projectId: string, elementId: string, patch: PageElementPatch): Promise<PageOutline>;
   detectElements(projectId: string, region: Rect): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
   putElements(projectId: string, region: Rect, tree: ElementTree): Promise<{ tree: ElementTree; treeVersion?: string | null }>;
+}
+
+export interface DetectAllResult {
+  total: number;
+  completed: number;
+  skipped: number;
+  failed: number;
+  failedRegionKeys: string[];
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -85,6 +96,23 @@ export const httpApi: StoreApi = {
   },
   getPageCode(projectId) {
     return json(`/api/projects/${projectId}/page-code`);
+  },
+  getPageOutline(projectId) {
+    return json(`/api/projects/${projectId}/page-outline`);
+  },
+  detectAllElements(projectId, retry = false) {
+    return json(`/api/projects/${projectId}/elements/detect-all`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ retry }),
+    });
+  },
+  patchPageElement(projectId, elementId, patch) {
+    return json(`/api/projects/${projectId}/page-outline/${encodeURIComponent(elementId)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    });
   },
   detectElements(projectId, region) {
     return json(`/api/projects/${projectId}/elements/detect`, {
