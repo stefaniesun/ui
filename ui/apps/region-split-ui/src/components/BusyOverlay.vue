@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Store } from "../state.js";
+import AiProcessingIndicator from "./AiProcessingIndicator.vue";
 
 const props = defineProps<{ label?: string; store?: Store }>();
 const displayLabel = computed(() => props.label ?? props.store?.busyLabel.value ?? "处理中…");
+const isAiOperation = computed(() => /^AI(?:\s|正在|分析|生成|解析|校准)/i.test(displayLabel.value));
 </script>
 
 <template>
-  <div data-test="busy-overlay" class="overlay">
-    <div class="panel">
+  <div data-test="busy-overlay" class="overlay" role="status">
+    <AiProcessingIndicator v-if="isAiOperation" :label="displayLabel" />
+    <div v-else class="panel">
       <span class="spinner" />
       <strong>{{ displayLabel }}</strong>
       <span>处理中，画布暂时锁定</span>

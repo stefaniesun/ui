@@ -53,6 +53,25 @@ describe("DetailNode", () => {
     expect(wrapper.emitted("parsed")).toHaveLength(1);
   });
 
+  it("shows the shared AI animation over the region while detecting elements", async () => {
+    let resolveDetection!: (value: { tree: ElementTree }) => void;
+    const api = stubApi();
+    api.detectElements = vi.fn(() => new Promise<{ tree: ElementTree }>((resolve) => { resolveDetection = resolve; }));
+    const store = createElementStore(api);
+    const wrapper = mountNode({ elementStore: store });
+    await flushPromises();
+
+    const pending = wrapper.get('[data-test="detect-elements"]').trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="ai-processing-indicator"]').text()).toContain("AI 正在解析元素");
+    expect(wrapper.find('[data-test="ai-processing-focus"]').exists()).toBe(true);
+
+    resolveDetection({ tree: emptyTree() });
+    await pending;
+    await flushPromises();
+    expect(wrapper.find('[data-test="ai-processing-indicator"]').exists()).toBe(false);
+  });
+
   it("shows the region name and size", () => {
     const wrapper = mountNode({ region: region("a", 0, 300) });
     expect(wrapper.text()).toContain("名-a");

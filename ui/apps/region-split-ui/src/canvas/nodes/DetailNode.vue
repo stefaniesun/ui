@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { ElementKind, Rect, Region } from "@region-split/core/browser";
 import { httpApi, regionImageUrl } from "../../api.js";
+import AiProcessingIndicator from "../../components/AiProcessingIndicator.vue";
 import ElementOverlay from "../../components/ElementOverlay.vue";
 import ElementProperties from "../../components/ElementProperties.vue";
 import ElementRefactorPanel from "../../components/ElementRefactorPanel.vue";
@@ -481,6 +482,10 @@ function adjustLayout(kind: "tree" | "ai", event: KeyboardEvent) {
                   @add-container="refactorStore.rootId.value ? undefined : onAddContainer($event)"
                   @pick-hover="onPickHover"
                   @pick="onPick"
+                />
+                <AiProcessingIndicator
+                  v-if="props.elementStore.busy.value"
+                  label="AI 正在解析元素"
                 />
                 <span
                   v-if="hoverColor"

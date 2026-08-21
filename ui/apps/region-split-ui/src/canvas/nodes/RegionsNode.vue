@@ -7,6 +7,7 @@ import type { Store } from "../../state.js";
 import { getPageArchive, imageUrl, type AnalysisStats } from "../../api.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../../font-stacks.js";
 import ActionBar from "../../components/ActionBar.vue";
+import AiProcessingIndicator from "../../components/AiProcessingIndicator.vue";
 import RegionCanvas from "../../components/RegionCanvas.vue";
 import RegionList from "../../components/RegionList.vue";
 
@@ -274,7 +275,7 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
             />
             <div v-else class="image-frame analysis-placeholder">
               <img data-test="analysis-image" class="comparison-image placeholder-image" :src="sourceUrl" alt="区域分析底图" />
-              <div v-if="props.store.busy.value" data-test="analysis-loading" class="analysis-state">AI 正在解析区域</div>
+              <AiProcessingIndicator v-if="props.store.busy.value" data-test="analysis-loading" label="AI 正在解析区域" />
               <div v-else-if="analysisFailed" data-test="analysis-failed" class="analysis-state analysis-error">
                 <strong>AI 区域分析失败</strong>
                 <button @click="retryAnalysis">重新分析</button>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { RefactorDiffItem, RefactorSessionResponse } from "@region-split/core/browser";
+import AiProcessingIndicator from "./AiProcessingIndicator.vue";
 export interface SelectedElementReference { number: string; displayName: string }
 const props = defineProps<{
   session: RefactorSessionResponse | null;
@@ -36,6 +37,7 @@ defineExpose({ clearSubmitted });
     <div data-test="ai-conversation-scroll" class="conversation-scroll">
       <div v-if="session" class="refactor-view-toggle"><button @click="emit('set-view', 'original')">原始</button><button @click="emit('set-view', 'candidate')">候选</button></div>
       <div v-if="messages.length" class="refactor-messages"><p v-for="(message, index) in messages" :key="index" :class="`is-${message.role}`">{{ message.content }}</p></div>
+      <AiProcessingIndicator v-if="busy" mode="inline" label="AI 正在校准结构" />
       <p v-if="error" class="error">{{ error }}</p>
       <div v-if="session" class="refactor-diffs"><strong>结构差异（{{ diffs.length }}）</strong><p v-for="item in diffs" :key="`${item.nodeId}-${item.kind}`">{{ item.kind }} · {{ item.after?.displayName ?? item.before?.displayName ?? item.nodeId }}</p></div>
     </div>

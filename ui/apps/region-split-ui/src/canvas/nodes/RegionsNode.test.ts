@@ -317,6 +317,28 @@ describe("RegionsNode upload and analysis orchestration", () => {
     await first;
   });
 
+  it("shows the shared AI animation while analyzing and removes it after completion", async () => {
+    let resolveAnalysis!: (value: Awaited<ReturnType<StoreApi["analyze"]>>) => void;
+    const analyze: StoreApi["analyze"] = vi.fn(() => new Promise<Awaited<ReturnType<StoreApi["analyze"]>>>((resolve) => {
+      resolveAnalysis = resolve;
+    }));
+    const { store, wrapper } = await mountNode({ analyze });
+    store.projectId.value = "p1";
+    store.doc.value = makeDoc([makeRegion("old", 0, 600)]);
+    store.regions.value = store.doc.value.regions;
+    await nextTick();
+
+    const pending = (wrapper.vm as unknown as { retryAnalysis: () => Promise<void> }).retryAnalysis();
+    await flushPromises();
+    expect(wrapper.get('[data-test="analysis-loading"]').text()).toContain("AI 正在解析区域");
+    expect(wrapper.find('[data-test="ai-processing-scan"]').exists()).toBe(true);
+
+    resolveAnalysis({ doc: makeDoc([makeRegion("done", 0, 600)], [], true) });
+    await pending;
+    await nextTick();
+    expect(wrapper.find('[data-test="ai-processing-indicator"]').exists()).toBe(false);
+  });
+
   it("hides old interactive results while re-analyzing and after re-analysis fails", async () => {
     let rejectAnalysis!: (reason: Error) => void;
     const analyze: StoreApi["analyze"] = vi.fn(() => new Promise<Awaited<ReturnType<StoreApi["analyze"]>>>((_, reject) => {
