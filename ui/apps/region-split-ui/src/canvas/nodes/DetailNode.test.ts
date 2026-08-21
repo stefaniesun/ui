@@ -113,7 +113,10 @@ describe("DetailNode", () => {
     expect(wrapper.get('[data-test="detail-ai-resizer"]').attributes("aria-orientation")).toBe("vertical");
     expect(wrapper.get('[data-test="detail-inspector-resizer"]').attributes("aria-orientation")).toBe("horizontal");
     expect(wrapper.find('[data-test="detail-image-resizer"]').exists()).toBe(true);
-    expect(wrapper.get('[data-test="detail-workspace"]').attributes("style")).toContain("--detail-image-aspect: 1.3333333333333333");
+    const style = wrapper.get('[data-test="detail-workspace"]').attributes("style");
+    expect(style).toContain("--detail-image-aspect: 1.3333333333333333");
+    expect(style).toContain("--detail-inspector-min-height: 240px");
+    expect(style).not.toContain("--detail-inspector-height:");
   });
 
   it("explicitly saves the current instance layout", async () => {

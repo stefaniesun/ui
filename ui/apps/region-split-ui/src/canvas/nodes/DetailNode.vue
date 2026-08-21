@@ -394,7 +394,7 @@ const layoutStyle = computed(() => ({
   "--detail-ai-position": `${100 - props.layout.ai}%`,
   "--detail-image-aspect": `${(region.value?.w ?? 1) / (region.value?.h ?? 1)}`,
   "--detail-image-height": `${props.layout.width * (100 - props.layout.ai) / 100 * (region.value?.h ?? 1) / (region.value?.w ?? 1)}px`,
-  "--detail-inspector-height": `${props.layout.inspectorHeight}px`,
+  "--detail-inspector-min-height": `${props.layout.inspectorHeight}px`,
 }));
 
 function updateLayoutFromPointer(event: PointerEvent) {
@@ -614,7 +614,7 @@ function saveCurrentLayout() {
 .error { margin-left: auto; color: var(--danger); font-size: 10px; }
 .bar .layout-reset { height: 24px; min-height: 24px; margin-left: auto; padding: 0 8px; }
 .source-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.detail-workspace { position: relative; container-type: inline-size; display: grid; grid-template-columns: minmax(0, var(--detail-tree)) minmax(0, var(--detail-property)) minmax(0, var(--detail-ai)); grid-template-rows: minmax(0, var(--detail-image-height)) var(--detail-inspector-height); height: calc(100% - 37px); overflow: hidden; }
+.detail-workspace { position: relative; container-type: inline-size; display: grid; grid-template-columns: minmax(0, var(--detail-tree)) minmax(0, var(--detail-property)) minmax(0, var(--detail-ai)); grid-template-rows: minmax(0, var(--detail-image-height)) minmax(var(--detail-inspector-min-height), 1fr); height: calc(100% - 37px); overflow: hidden; }
 .detail-workspace.layout-dragging { user-select: none; }
 .image-section { position: relative; grid-column: 1 / 3; grid-row: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0d13; }
 .image-fit { width: 100%; height: 100%; overflow: hidden; }
@@ -632,10 +632,10 @@ function saveCurrentLayout() {
 .layout-resizer { position: absolute; z-index: 20; outline: none; touch-action: none; }
 .layout-resizer::after { content: ""; position: absolute; background: transparent; transition: background .15s; }
 .layout-resizer:hover::after, .layout-resizer:focus-visible::after { background: var(--accent); }
-.tree-resizer { bottom: 0; left: var(--detail-tree-position); width: 10px; height: var(--detail-inspector-height); cursor: col-resize; transform: translateX(-5px); }
+.tree-resizer { top: var(--detail-image-height); bottom: 0; left: var(--detail-tree-position); width: 10px; cursor: col-resize; transform: translateX(-5px); }
 .ai-resizer { top: 0; bottom: 0; left: var(--detail-ai-position); width: 10px; cursor: col-resize; transform: translateX(-5px); }
-.inspector-resizer { right: var(--detail-ai-width); bottom: var(--detail-inspector-height); left: 0; height: 10px; cursor: row-resize; transform: translateY(5px); }
-.image-resizer { left: var(--detail-ai-position); bottom: var(--detail-inspector-height); width: 16px; height: 16px; border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); cursor: nwse-resize; transform: translate(-9px, 8px); }
+.inspector-resizer { top: var(--detail-image-height); right: var(--detail-ai-width); left: 0; height: 10px; cursor: row-resize; transform: translateY(-5px); }
+.image-resizer { top: var(--detail-image-height); left: var(--detail-ai-position); width: 16px; height: 16px; border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); cursor: nwse-resize; transform: translate(-9px, -8px); }
 .tree-resizer::after, .ai-resizer::after { top: 0; bottom: 0; left: 4px; width: 2px; }
 .inspector-resizer::after { top: 4px; right: 0; left: 0; height: 2px; }
 .ai-column > .element-refactor-panel { flex: 1; min-height: 0; max-height: none; border-top: 0; }
