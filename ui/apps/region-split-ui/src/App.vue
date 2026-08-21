@@ -108,12 +108,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         @uploaded="store.projectId.value && (syncHash(store.projectId.value), refreshParsedRegions())"
         @error="dialogError = $event"
       />
-      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, setHoveredId }">
+      <template #detail="{ region, elementStore, hoveredId: detailHoveredId, layout, setHoveredId, updateLayout, saveLayout }">
         <DetailNode
           :project-id="store.projectId.value"
           :region="region"
           :element-store="elementStore"
           :hovered-id="detailHoveredId"
+          :layout="layout"
+          :update-layout="updateLayout"
+          :save-layout="saveLayout"
           @hover="setHoveredId"
           @parsed="refreshParsedRegions"
         />

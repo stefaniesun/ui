@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import DetailNode from "./DetailNode.vue";
 import { createElementStore } from "../../element-state.js";
 import type { StoreApi } from "../../api.js";
+import { DEFAULT_REGION_DETAIL_LAYOUT } from "../../region-detail-layout.js";
 import type { ElementNode, ElementTree, Region } from "@region-split/core/browser";
 
 function stubApi(tree: ElementTree | null = null): StoreApi {
@@ -35,6 +36,7 @@ const mountNode = (over: Record<string, unknown> = {}, tree: ElementTree | null 
   mount(DetailNode, {
     props: {
       projectId: "p1", region: region("a", 0, 300), elementStore: createElementStore(stubApi(tree)),
+      layout: { ...DEFAULT_REGION_DETAIL_LAYOUT }, updateLayout: vi.fn(), saveLayout: vi.fn(),
       ...over,
     },
     global: { stubs: { ElementOverlay: true, ElementTree: true, ElementProperties: true } },
@@ -100,18 +102,26 @@ describe("DetailNode", () => {
     expect(aiColumn.find('[data-test="ai-composer"]').exists()).toBe(true);
   });
 
-  it("shows width-driven image layout and only column resize controls", async () => {
+  it("removes layout copy and exposes all four region controls", async () => {
     const wrapper = mountNode({ region: region("a", 0, 300) }, emptyTree());
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("树 40% / 属性 40% / AI 20%");
-    expect(wrapper.find('[data-test="detail-row-resizer"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("元素解析图");
+    expect(wrapper.find('[data-test="detail-layout-values"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="detail-layout-save"]').text()).toBe("保存布局");
     expect(wrapper.get('[data-test="detail-tree-resizer"]').attributes("aria-orientation")).toBe("vertical");
     expect(wrapper.get('[data-test="detail-ai-resizer"]').attributes("aria-orientation")).toBe("vertical");
+    expect(wrapper.get('[data-test="detail-inspector-resizer"]').attributes("aria-orientation")).toBe("horizontal");
+    expect(wrapper.find('[data-test="detail-image-resizer"]').exists()).toBe(true);
     expect(wrapper.get('[data-test="detail-workspace"]').attributes("style")).toContain("--detail-image-aspect: 1.3333333333333333");
+  });
 
-    await wrapper.get('[data-test="detail-layout-reset"]').trigger("click");
-    expect(wrapper.get('[data-test="detail-layout-values"]').text()).toContain("树 40% / 属性 40% / AI 20%");
+  it("explicitly saves the current instance layout", async () => {
+    const saveLayout = vi.fn();
+    const wrapper = mountNode({ saveLayout }, emptyTree());
+    await wrapper.get('[data-test="detail-layout-save"]').trigger("click");
+    expect(saveLayout).toHaveBeenCalledOnce();
+    expect(wrapper.get('[data-test="detail-layout-save"]').text()).toBe("已保存");
   });
 
   it("always shows the AI panel and asks for an element selection", async () => {

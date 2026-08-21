@@ -6,7 +6,9 @@ const props = withDefaults(defineProps<{
   title: string;
   position: Point;
   width?: number;
+  height?: number;
   minHeight?: number;
+  resizable?: boolean;
   status?: "idle" | "active" | "done" | "warn";
   input?: boolean;
   output?: boolean;
@@ -25,6 +27,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   dragStart: [event: PointerEvent, nodeId: string];
+  resizeStart: [event: PointerEvent, nodeId: string, direction: "right" | "bottom" | "corner"];
   close: [nodeId: string];
 }>();
 </script>
@@ -37,6 +40,7 @@ const emit = defineEmits<{
       left: `${props.position.x}px`,
       top: `${props.position.y}px`,
       width: `${props.width}px`,
+      height: props.height ? `${props.height}px` : undefined,
       minHeight: `${props.minHeight}px`,
       '--node-accent': props.accentColor ?? 'var(--accent)',
     }"
@@ -67,6 +71,11 @@ const emit = defineEmits<{
       >×</button>
     </header>
     <div class="node-body"><slot /></div>
+    <template v-if="props.resizable">
+      <span data-test="node-resize-right" class="node-resizer resize-right" @pointerdown.stop.prevent="emit('resizeStart', $event, props.nodeId, 'right')" />
+      <span data-test="node-resize-bottom" class="node-resizer resize-bottom" @pointerdown.stop.prevent="emit('resizeStart', $event, props.nodeId, 'bottom')" />
+      <span data-test="node-resize-corner" class="node-resizer resize-corner" @pointerdown.stop.prevent="emit('resizeStart', $event, props.nodeId, 'corner')" />
+    </template>
     <span v-if="props.output" class="port output-port" data-port="output" aria-hidden="true" />
   </article>
 </template>
@@ -86,7 +95,11 @@ const emit = defineEmits<{
 .status-done .status-dot { background: var(--ok); box-shadow: 0 0 8px #3ecf8e88; }
 .status-active .status-dot { background: var(--node-accent); box-shadow: 0 0 8px color-mix(in srgb, var(--node-accent) 65%, transparent); }
 .status-warn .status-dot { background: var(--warn); }
-.node-body { min-height: inherit; padding: 14px; overflow: hidden; }
+.node-body { min-height: inherit; height: calc(100% - 42px); padding: 14px; overflow: hidden; }
+.node-resizer { position: absolute; z-index: 30; touch-action: none; }
+.resize-right { top: 42px; right: -5px; bottom: 10px; width: 10px; cursor: ew-resize; }
+.resize-bottom { right: 10px; bottom: -5px; left: 0; height: 10px; cursor: ns-resize; }
+.resize-corner { right: -6px; bottom: -6px; width: 16px; height: 16px; border-right: 2px solid var(--node-accent); border-bottom: 2px solid var(--node-accent); cursor: nwse-resize; }
 .port { position: absolute; top: 21px; z-index: 3; width: 12px; height: 12px; border: 2px solid var(--border-strong); border-radius: 50%; background: var(--bg-canvas); transform: translateY(-50%); }
 .input-port { left: -7px; }
 .output-port { right: -7px; }

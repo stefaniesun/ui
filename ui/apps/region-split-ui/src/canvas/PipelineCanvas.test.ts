@@ -73,6 +73,47 @@ describe("PipelineCanvas dynamic details", () => {
     expect(wrapper.find('[data-node-id="detail:b"]').exists()).toBe(true);
   });
 
+  it("keeps open detail layouts independent and only new details use the saved template", async () => {
+    const wrapper = mounted();
+    const vm = wrapper.vm as unknown as {
+      openDetail(id: string): void;
+      closeDetail(id: string): void;
+      updateDetailLayout(id: string, patch: { width?: number; tree?: number }): void;
+      saveDetailLayout(id: string): void;
+      detailLayouts: Record<string, { width: number; tree: number }>;
+    };
+    vm.openDetail("a");
+    vm.openDetail("b");
+    vm.updateDetailLayout("a", { width: 1420, tree: 33 });
+    expect(vm.detailLayouts.a).toMatchObject({ width: 1420, tree: 33 });
+    expect(vm.detailLayouts.b).toMatchObject({ width: 1280, tree: 40 });
+
+    vm.saveDetailLayout("a");
+    expect(vm.detailLayouts.b).toMatchObject({ width: 1280, tree: 40 });
+    vm.closeDetail("b");
+    vm.openDetail("b");
+    expect(vm.detailLayouts.b).toMatchObject({ width: 1420, tree: 33 });
+  });
+
+  it("resizes the detail frame from its right edge", async () => {
+    const wrapper = mounted();
+    const vm = wrapper.vm as unknown as { openDetail(id: string): void };
+    vm.openDetail("a");
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-node-id="detail:a"] [data-test="node-resize-right"]').trigger("pointerdown", {
+      button: 0, clientX: 0, clientY: 0,
+    });
+    const move = new Event("pointermove") as PointerEvent;
+    Object.assign(move, { clientX: 120, clientY: 0 });
+    window.dispatchEvent(move);
+    await wrapper.vm.$nextTick();
+    const frameStyle = wrapper.get('[data-node-id="detail:a"]').attributes("style") ?? "";
+    const widthMatch = frameStyle.match(/width:\s*([\d.]+)px/);
+    const width = Number.parseFloat(widthMatch?.[1] ?? "0");
+    expect(width).toBeCloseTo(1400, 0);
+    window.dispatchEvent(new Event("pointerup"));
+  });
+
   it("draws one connection per opened region", async () => {
     const wrapper = mounted();
     (wrapper.vm as unknown as { openDetail(id: string): void }).openDetail("a");

@@ -2,6 +2,12 @@
 import type { Region } from "@region-split/core/browser";
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import type { ElementStore } from "../element-state.js";
+import {
+  createRegionDetailLayout,
+  normalizeRegionDetailLayout,
+  saveRegionDetailLayout,
+  type RegionDetailLayout,
+} from "../region-detail-layout.js";
 import { regionColor } from "../region-visual.js";
 import {
   bezierPath,
@@ -55,6 +61,7 @@ const fixedPositions = reactive(loadNodePositions(
   DEFAULT_NODE_POSITIONS,
 ));
 const detailPositions = reactive<Record<string, Point>>({});
+const detailLayouts = reactive<Record<string, RegionDetailLayout>>({});
 const openRegionIds = ref<string[]>([]);
 const pageOpen = ref(false);
 const elementStores = new Map<string, ElementStore>();
@@ -64,6 +71,7 @@ const connectionStarts = reactive<Record<string, Point>>({});
 let highlightTimer: ReturnType<typeof setTimeout> | undefined;
 let connectionFrame = 0;
 let drag: { nodeId: string; start: Point; origin: Point } | null = null;
+let frameResize: { regionId: string; direction: "right" | "bottom" | "corner"; start: Point; origin: RegionDetailLayout } | null = null;
 let pan: { start: Point; origin: Point } | null = null;
 let resizeObserver: ResizeObserver | undefined;
 
@@ -112,9 +120,9 @@ function persist(): void {
 function detailBounds(regionId: string): Bounds | null {
   const position = detailPositions[regionId];
   if (!position) return null;
-  const element = canvas.value?.querySelector<HTMLElement>(`[data-node-id="${detailNodeId(regionId)}"]`);
-  const measuredHeight = element ? element.getBoundingClientRect().height / viewport.zoom : 0;
-  return { ...position, width: DETAIL.width, height: Math.max(DETAIL.height, measuredHeight) };
+  const layout = detailLayouts[regionId];
+  if (!layout) return null;
+  return { ...position, width: layout.width, height: layout.height };
 }
 
 function occupiedNodeBounds(): Bounds[] {
@@ -169,11 +177,13 @@ function openDetail(regionId: string): void {
     focusDetail(regionId);
     return;
   }
+  const layout = createRegionDetailLayout(storageTarget());
+  detailLayouts[regionId] = layout;
   if (!detailPositions[regionId]) {
     detailPositions[regionId] = nextDetailPosition(
       { ...fixedPositions.workspace, ...WORKSPACE },
       occupiedNodeBounds(),
-      DETAIL,
+      { width: layout.width, height: layout.height },
       1500,
     );
   }
@@ -187,6 +197,7 @@ function openDetail(regionId: string): void {
 function closeDetail(regionId: string): void {
   openRegionIds.value = openRegionIds.value.filter(id => id !== regionId);
   elementStores.delete(regionId);
+  delete detailLayouts[regionId];
   delete detailHoveredIds[regionId];
   delete connectionStarts[regionId];
   if (highlightedRegionId.value === regionId) highlightedRegionId.value = null;
@@ -211,6 +222,19 @@ function setDetailHovered(regionId: string, id: string | null): void {
   detailHoveredIds[regionId] = id;
 }
 
+function updateDetailLayout(regionId: string, patch: Partial<RegionDetailLayout>): void {
+  const current = detailLayouts[regionId];
+  if (!current) return;
+  Object.assign(current, normalizeRegionDetailLayout({ ...current, ...patch }));
+  refreshConnections();
+}
+
+function saveDetailLayout(regionId: string): void {
+  const current = detailLayouts[regionId];
+  if (!current) return;
+  Object.assign(current, saveRegionDetailLayout(storageTarget(), current));
+}
+
 function nodePosition(nodeId: string): Point | undefined {
   if (nodeId.startsWith("detail:")) return detailPositions[nodeId.slice(7)];
   return fixedPositions[nodeId as keyof typeof fixedPositions];
@@ -221,11 +245,23 @@ function startNodeDrag(event: PointerEvent, nodeId: string): void {
   const position = nodePosition(nodeId);
   if (!position) return;
   drag = { nodeId, start: { x: event.clientX, y: event.clientY }, origin: { ...position } };
+  listenPointer();
+}
+
+function startFrameResize(event: PointerEvent, nodeId: string, direction: "right" | "bottom" | "corner"): void {
+  if (event.button !== 0 || !nodeId.startsWith("detail:")) return;
+  const regionId = nodeId.slice(7);
+  const layout = detailLayouts[regionId];
+  if (!layout) return;
+  frameResize = { regionId, direction, start: { x: event.clientX, y: event.clientY }, origin: { ...layout } };
+  listenPointer();
+}
+
+function listenPointer(): void {
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", stopPointer);
   window.addEventListener("pointercancel", stopPointer);
 }
-
 
 function startPan(event: PointerEvent): void {
   if (event.button !== 0 || !canStartPan(event.target, canvas.value)) return;
@@ -236,7 +272,14 @@ function startPan(event: PointerEvent): void {
 }
 
 function onPointerMove(event: PointerEvent): void {
-  if (drag) {
+  if (frameResize) {
+    const dx = (event.clientX - frameResize.start.x) / viewport.zoom;
+    const dy = (event.clientY - frameResize.start.y) / viewport.zoom;
+    updateDetailLayout(frameResize.regionId, {
+      width: frameResize.direction === "bottom" ? frameResize.origin.width : frameResize.origin.width + dx,
+      height: frameResize.direction === "right" ? frameResize.origin.height : frameResize.origin.height + dy,
+    });
+  } else if (drag) {
     const position = nodePosition(drag.nodeId);
     if (!position) return;
     position.x = drag.origin.x + (event.clientX - drag.start.x) / viewport.zoom;
@@ -253,6 +296,7 @@ function onPointerMove(event: PointerEvent): void {
 function stopPointer(): void {
   if (drag) persist();
   drag = null;
+  frameResize = null;
   pan = null;
   window.removeEventListener("pointermove", onPointerMove);
   window.removeEventListener("pointerup", stopPointer);
@@ -413,14 +457,17 @@ defineExpose({ openDetail, closeDetail, openPageCompare, closePageCompare, refre
         :node-id="detailNodeId(region.id)"
         title="区域详情"
         :position="detailPositions[region.id]!"
-        :width="DETAIL.width"
-        :min-height="DETAIL.height"
+        :width="detailLayouts[region.id]?.width ?? DETAIL.width"
+        :height="detailLayouts[region.id]?.height ?? DETAIL.height"
+        :min-height="0"
+        :resizable="true"
         :input="true"
         :output="false"
         :closable="true"
         :highlighted="highlightedRegionId === region.id"
         :accent-color="regionColor(region.id)"
         @drag-start="startNodeDrag"
+        @resize-start="startFrameResize"
         @close="closeDetail(region.id)"
       >
         <template #status><span>{{ region.displayName }}</span></template>
@@ -430,7 +477,10 @@ defineExpose({ openDetail, closeDetail, openPageCompare, closePageCompare, refre
           :region="region"
           :element-store="elementStores.get(region.id)!"
           :hovered-id="detailHoveredIds[region.id] ?? null"
+          :layout="detailLayouts[region.id]!"
           :set-hovered-id="(id: string | null) => setDetailHovered(region.id, id)"
+          :update-layout="(patch: Partial<RegionDetailLayout>) => updateDetailLayout(region.id, patch)"
+          :save-layout="() => saveDetailLayout(region.id)"
         />
       </PipelineNode>
     </div>
