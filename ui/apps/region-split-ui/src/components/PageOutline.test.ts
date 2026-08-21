@@ -17,7 +17,12 @@ const outline: PageOutlineDto = {
 };
 
 describe("PageOutline", () => {
-  afterEach(() => vi.restoreAllMocks());
+  const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+    else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  });
   function spyOnScrollIntoView() {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     return vi.spyOn(HTMLElement.prototype, "scrollIntoView");
