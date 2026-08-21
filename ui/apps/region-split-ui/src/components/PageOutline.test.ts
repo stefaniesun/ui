@@ -85,6 +85,24 @@ describe("PageOutline", () => {
     for (const row of wrapper.findAll(".tree-item")) expect(row.attributes("style")).toContain("padding-left: 7px");
   });
 
+  it("collapses and restores the tree panel without hiding properties or selection", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
+    const properties = wrapper.get('[data-test="property-panel"]');
+    expect(properties.text()).toContain("可疑图标");
+    expect(properties.text()).toContain("1.1.1");
+    expect(properties.text()).toContain("页面");
+    expect(properties.text()).toContain("可疑");
+
+    await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
+    expect(wrapper.get(".outline-workspace").classes()).toContain("tree-panel-collapsed");
+    expect(wrapper.find('[data-test="outline-tree"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="property-panel"]')).toBeTruthy();
+
+    await wrapper.get('[data-test="restore-tree-panel"]').trigger("click");
+    expect(wrapper.get('[data-test="outline-tree"]')).toBeTruthy();
+    expect(wrapper.get(".tree-item.selected").text()).toContain("可疑图标");
+  });
+
   it("shares selection between tree and image and exposes only three calibration fields", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const scrollIntoView = vi.fn();
