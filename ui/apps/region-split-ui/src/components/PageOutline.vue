@@ -77,7 +77,17 @@ const visibleNodes = computed(() => ordered.value.filter(node =>
   !ancestorsOf(node.id).some(parentId => collapsedIds.value.has(parentId)),
 ));
 function displayDepth(id: string) { return ancestorsOf(id).length; }
-const failedRegions = computed(() => props.outline.regions.filter(region => region.status === "failed" || region.status === "missing"));
+// 「还没轮到」和「跑失败了」要分开：合成一个数字时，解析还在进行中的界面
+// 和真的失败了的界面长得一模一样，人没法判断该等还是该重跑。
+const failedRegions = computed(() => props.outline.regions.filter(region => region.status === "failed"));
+const missingRegions = computed(() => props.outline.regions.filter(region => region.status === "missing"));
+const retryLabel = computed(() => {
+  const failed = failedRegions.value.length;
+  const missing = missingRegions.value.length;
+  if (failed && missing) return `重跑失败 ${failed} · 未解析 ${missing}`;
+  if (failed) return `重跑失败区域（${failed}）`;
+  return `解析剩余区域（${missing}）`;
+});
 
 function boxStyle(node: PageOutlineElement) {
   const { width, height } = props.outline.image;
@@ -143,9 +153,10 @@ watch(selected, node => {
         <span>可疑项 {{ outline.suspiciousCount }} / {{ outline.elements.length }}</span>
       </div>
       <div class="progress" aria-live="polite">{{ busy ? (progressText || "正在解析全部区域…") : progressText }}</div>
-      <button v-if="failedRegions.length" type="button" data-test="retry-failed" @click="emit('retry')">
-        重跑失败/缺失区域（{{ failedRegions.length }}）
-      </button>
+      <button
+        v-if="!busy && (failedRegions.length || missingRegions.length)"
+        type="button" data-test="retry-failed" @click="emit('retry')"
+      >{{ retryLabel }}</button>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
 

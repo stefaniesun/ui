@@ -27,6 +27,45 @@ describe("PageOutline", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     return vi.spyOn(HTMLElement.prototype, "scrollIntoView");
   }
+  const withRegions = (regions: PageOutlineDto["regions"]): PageOutlineDto => ({ ...outline, regions });
+  const region = (regionKey: string, status: "parsed" | "missing" | "failed") => ({
+    regionKey, displayName: `区域 ${regionKey}`, status,
+    bounds: { x: 0, y: 0, w: 400, h: 100 },
+  });
+
+  // 「还没轮到」和「跑失败了」合成一个数字时，正在解析的界面和真失败的界面
+  // 长得一模一样，人没法判断该等还是该重跑
+  it("says how many regions failed rather than lumping in the unparsed ones", () => {
+    const wrapper = mount(PageOutline, {
+      props: {
+        projectId: "p1", selectedId: null,
+        outline: withRegions([region("0-100", "failed"), region("100-200", "parsed")]),
+      },
+    });
+    expect(wrapper.get('[data-test="retry-failed"]').text()).toBe("重跑失败区域（1）");
+  });
+
+  it("calls the remaining regions unparsed, not failed", () => {
+    const wrapper = mount(PageOutline, {
+      props: {
+        projectId: "p1", selectedId: null,
+        outline: withRegions([region("0-100", "missing"), region("100-200", "missing")]),
+      },
+    });
+    expect(wrapper.get('[data-test="retry-failed"]').text()).toBe("解析剩余区域（2）");
+  });
+
+  // 跑的过程中不该出现重跑按钮：那时"缺失"只是还没轮到
+  it("hides the retry button while a run is in flight", () => {
+    const wrapper = mount(PageOutline, {
+      props: {
+        projectId: "p1", selectedId: null, busy: true,
+        outline: withRegions([region("0-100", "missing")]),
+      },
+    });
+    expect(wrapper.find('[data-test="retry-failed"]').exists()).toBe(false);
+  });
+
   it("renders image, tree, and independent property columns", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const workspace = wrapper.get(".outline-workspace");
