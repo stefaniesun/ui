@@ -19,6 +19,7 @@ const emit = defineEmits<{
 }>();
 const treeRefs = new Map<string, HTMLElement>();
 const boxRefs = new Map<string, HTMLElement>();
+const collapsedIds = ref(new Set<string>());
 const editKind = ref<ElementKind>("text");
 const editText = ref("");
 const editBox = ref<Rect>({ x: 0, y: 0, w: 4, h: 4 });
@@ -26,6 +27,32 @@ const editBox = ref<Rect>({ x: 0, y: 0, w: 4, h: 4 });
 const selected = computed(() => props.outline.elements.find(element => element.id === props.selectedId) ?? null);
 const imageSrc = computed(() => `/api/projects/${encodeURIComponent(props.projectId)}/image`);
 const ordered = computed(() => props.outline.elements);
+const elementById = computed(() => new Map(props.outline.elements.map(node => [node.id, node])));
+const childrenById = computed(() => {
+  const children = new Map<string, string[]>();
+  for (const node of props.outline.elements) {
+    const parentId = node.parentHint;
+    if (!parentId || parentId === node.id || !elementById.value.has(parentId)) continue;
+    const siblings = children.get(parentId) ?? [];
+    siblings.push(node.id);
+    children.set(parentId, siblings);
+  }
+  return children;
+});
+function ancestorsOf(id: string) {
+  const ancestors: string[] = [];
+  const visited = new Set([id]);
+  let current = elementById.value.get(id);
+  while (current?.parentHint && elementById.value.has(current.parentHint) && !visited.has(current.parentHint)) {
+    visited.add(current.parentHint);
+    ancestors.push(current.parentHint);
+    current = elementById.value.get(current.parentHint);
+  }
+  return ancestors;
+}
+const visibleNodes = computed(() => ordered.value.filter(node =>
+  !ancestorsOf(node.id).some(parentId => collapsedIds.value.has(parentId)),
+));
 const failedRegions = computed(() => props.outline.regions.filter(region => region.status === "failed" || region.status === "missing"));
 
 function boxStyle(node: PageOutlineElement) {
@@ -35,7 +62,19 @@ function boxStyle(node: PageOutlineElement) {
     width: `${node.box.w / width * 100}%`, height: `${node.box.h / height * 100}%`,
   };
 }
+function toggleNode(id: string) {
+  const next = new Set(collapsedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  collapsedIds.value = next;
+}
+function expandAncestors(id: string) {
+  const ancestors = new Set(ancestorsOf(id));
+  if (!ancestors.size) return;
+  collapsedIds.value = new Set([...collapsedIds.value].filter(nodeId => !ancestors.has(nodeId)));
+}
 function select(id: string, source: "tree" | "box") {
+  if (source === "box") expandAncestors(id);
   emit("select", id);
   nextTick(() => {
     const target = source === "tree" ? boxRefs.get(id) : treeRefs.get(id);
@@ -91,15 +130,22 @@ watch(selected, node => {
       <aside class="tree-panel" data-test="tree-panel" aria-label="页面结构树">
         <header class="panel-header"><strong>结构树</strong></header>
         <div class="outline-tree" data-test="outline-tree">
-          <button
-            v-for="node in ordered" :key="node.id" :ref="element => bindTree(node.id, element)"
-            type="button" class="tree-item"
-            :class="{ suspicious: node.suspicious, selected: node.id === selectedId }"
+          <div
+            v-for="node in visibleNodes" :key="node.id" :ref="element => bindTree(node.id, element)"
+            class="tree-item" :class="{ suspicious: node.suspicious, selected: node.id === selectedId }"
             :style="{ paddingLeft: `${7 + node.depth * 14}px` }"
-            @click="select(node.id, 'tree')" @mouseenter="emit('hover', node.id)" @mouseleave="emit('hover', null)"
+            @mouseenter="emit('hover', node.id)" @mouseleave="emit('hover', null)"
           >
-            <span>{{ node.outlineNumber }}</span><strong>{{ node.displayName }}</strong><small>{{ node.kind }}</small>
-          </button>
+            <button
+              v-if="childrenById.has(node.id)" type="button" class="tree-toggle"
+              :data-test="`tree-toggle-${node.id}`" :aria-label="`${collapsedIds.has(node.id) ? '展开' : '折叠'} ${node.displayName}`"
+              :aria-expanded="!collapsedIds.has(node.id)" @click.stop="toggleNode(node.id)"
+            >{{ collapsedIds.has(node.id) ? "›" : "⌄" }}</button>
+            <span v-else class="tree-toggle-spacer" />
+            <button type="button" class="tree-item-content" @click="select(node.id, 'tree')">
+              <span>{{ node.outlineNumber }}</span><strong>{{ node.displayName }}</strong><small>{{ node.kind }}</small>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -145,9 +191,12 @@ watch(selected, node => {
 .property-panel { overflow: auto; }
 .panel-header { padding: 10px; border-bottom: 1px solid #2a3342; }
 .outline-tree { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
-.tree-item { width: 100%; display: grid; grid-template-columns: 48px 1fr auto; gap: 7px; align-items: center; padding: 7px; border: 1px solid transparent; border-radius: 5px; color: #cad5e3; background: transparent; text-align: left; cursor: pointer; }
+.tree-item { width: 100%; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; border: 1px solid transparent; border-radius: 5px; color: #cad5e3; background: transparent; }
 .tree-item:hover { background: #202938; }.tree-item.suspicious { color: #ffd38a; }.tree-item.selected { border-color: #30d5ff; background: #183b4a; }
-.tree-item small { color: #8192aa; }.calibration { padding: 10px; display: grid; gap: 8px; }
+.tree-toggle, .tree-item-content { border: 0; color: inherit; background: transparent; cursor: pointer; }
+.tree-toggle { width: 24px; height: 30px; padding: 0; font-size: 18px; }.tree-toggle-spacer { width: 24px; }
+.tree-item-content { min-width: 0; display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 7px; align-items: center; padding: 7px 7px 7px 0; text-align: left; }
+.tree-item-content strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.tree-item small { color: #8192aa; }.calibration { padding: 10px; display: grid; gap: 8px; }
 .calibration label { display: grid; gap: 3px; color: #93a4bb; font-size: 11px; }.calibration input, .calibration select { min-width: 0; padding: 5px; border: 1px solid #354155; border-radius: 4px; color: #e7edf6; background: #10151d; }
 .rect-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }

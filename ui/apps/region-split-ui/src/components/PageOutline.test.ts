@@ -42,9 +42,33 @@ describe("PageOutline", () => {
     expect(boxes[0]?.classes()).not.toContain("suspicious");
   });
 
+  it("collapses descendants without selecting the parent", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    expect(wrapper.findAll(".tree-item")).toHaveLength(2);
+
+    await wrapper.get('[data-test="tree-toggle-0-1000::ok"]').trigger("click");
+
+    expect(wrapper.findAll(".tree-item")).toHaveLength(1);
+    expect(wrapper.emitted("select")).toBeUndefined();
+
+    await wrapper.get('[data-test="tree-toggle-0-1000::ok"]').trigger("click");
+    expect(wrapper.findAll(".tree-item")).toHaveLength(2);
+  });
+
+  it("expands ancestors when an image box selects a hidden descendant", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    await wrapper.get('[data-test="tree-toggle-0-1000::ok"]').trigger("click");
+    expect(wrapper.findAll(".tree-item")).toHaveLength(1);
+
+    await wrapper.findAll(".element-box")[1]!.trigger("click");
+
+    expect(wrapper.emitted("select")?.at(-1)).toEqual(["0-1000::bad"]);
+    expect(wrapper.findAll(".tree-item")).toHaveLength(2);
+  });
+
   it("shares selection between tree and image and exposes only three calibration fields", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    await wrapper.findAll(".tree-item")[1]!.trigger("click");
+    await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
     await wrapper.setProps({ selectedId: "0-1000::bad" });
     expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
