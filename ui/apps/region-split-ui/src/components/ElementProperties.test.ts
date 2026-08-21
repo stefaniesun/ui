@@ -52,6 +52,54 @@ describe("ElementProperties", () => {
     expect(api.searchIcons).toHaveBeenCalledWith("home", 24);
   });
 
+  it("shows the materialized SVG for a selected library icon", () => {
+    const icon: ElementNode = {
+      ...node,
+      kind: "icon",
+      displayName: "消息",
+      asset: { ref: "assets/icons/mdi chat.svg", cutFrom: { x: 0, y: 0, w: 24, h: 24 } },
+      iconDecision: {
+        kind: "library",
+        iconId: "mdi:chat-processing-outline",
+        query: "chat",
+        candidates: ["mdi:chat-processing-outline"],
+      },
+    };
+    const wrapper = mount(ElementProperties, {
+      props: { node: icon, projectId: "project one" },
+      global: { stubs: { Teleport: true } },
+    });
+
+    const preview = wrapper.get('[data-test="selected-icon-preview"]');
+    expect(preview.attributes("src")).toBe(
+      "/api/projects/project%20one/assets/assets%2Ficons%2Fmdi%20chat.svg",
+    );
+    expect(preview.attributes("alt")).toBe("mdi:chat-processing-outline 图标预览");
+    expect(wrapper.text()).toContain("mdi:chat-processing-outline");
+  });
+
+  it("does not show a library SVG preview for a crop decision", () => {
+    const icon: ElementNode = {
+      ...node,
+      kind: "icon",
+      displayName: "消息",
+      asset: { ref: "assets/message.png", cutFrom: { x: 0, y: 0, w: 24, h: 24 } },
+      iconDecision: {
+        kind: "crop",
+        assetRef: "assets/message.png",
+        reason: "用户保留原图",
+      },
+    };
+    const wrapper = mount(ElementProperties, {
+      props: { node: icon, projectId: "p1" },
+      global: { stubs: { Teleport: true } },
+    });
+
+    expect(wrapper.find('[data-test="selected-icon-preview"]').exists()).toBe(false);
+    expect(wrapper.get(".icon-crop-preview").attributes("src"))
+      .toBe("/api/projects/p1/assets/assets%2Fmessage.png");
+  });
+
   it("labels crop decisions and forwards using the original crop", async () => {
     const icon: ElementNode = {
       ...node, kind: "icon", displayName: "搜索",

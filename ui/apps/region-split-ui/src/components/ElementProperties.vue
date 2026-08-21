@@ -67,6 +67,12 @@ const iconCropSrc = computed(() => {
   if (!props.projectId || !assetRef) return "";
   return `/api/projects/${props.projectId}/assets/${encodeURIComponent(assetRef)}`;
 });
+const selectedIconSrc = computed(() => {
+  if (props.node?.iconDecision?.kind !== "library") return "";
+  const assetRef = props.node.asset?.ref;
+  if (!props.projectId || !assetRef) return "";
+  return `/api/projects/${encodeURIComponent(props.projectId)}/assets/${encodeURIComponent(assetRef)}`;
+});
 const searchIconCandidates = (query: string, limit: number) => props.api?.searchIcons(query, limit) ?? Promise.resolve({ candidates: [] });
 
 function chooseIcon(iconId: string, candidates: string[], query: string) {
@@ -269,7 +275,16 @@ onBeforeUnmount(stopNudge);
 
       <section v-if="props.node.kind === 'icon'" data-test="icon-decision" class="icon-decision">
         <strong>图标素材</strong>
-        <p v-if="props.node.iconDecision?.kind === 'library'">已选择 {{ props.node.iconDecision.iconId }}</p>
+        <div v-if="props.node.iconDecision?.kind === 'library'" class="selected-icon">
+          <img
+            v-if="selectedIconSrc"
+            data-test="selected-icon-preview"
+            class="selected-icon-preview"
+            :src="selectedIconSrc"
+            :alt="`${props.node.iconDecision.iconId} 图标预览`"
+          />
+          <p>已选择 {{ props.node.iconDecision.iconId }}</p>
+        </div>
         <p v-else-if="props.node.iconDecision?.kind === 'ambiguous'">待确认：选择图标库图标或继续使用原图切片</p>
         <p v-else>使用原图裁片</p>
         <img
@@ -533,7 +548,10 @@ onBeforeUnmount(stopNudge);
 .properties { height: 100%; padding: 8px; overflow: auto; border-left: 1px solid var(--border); background: var(--bg-node); }
 .icon-decision { margin: 8px 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); font-size: 10px; }
 .icon-decision p { margin: 5px 0; }
-.icon-crop-preview { width: 40px; height: 40px; object-fit: contain; background: #fff; }
+.selected-icon { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+.selected-icon p { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.selected-icon-preview, .icon-crop-preview { width: 40px; height: 40px; object-fit: contain; background: #fff; }
+.selected-icon-preview { flex: none; }
 .icon-search { display: flex; gap: 5px; }
 .icon-search input { min-width: 0; flex: 1; }
 .icon-candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
