@@ -1,6 +1,6 @@
 import type { PageOutline as PageOutlineDto } from "@region-split/core/browser";
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import PageOutline from "./PageOutline.vue";
 
 const outline: PageOutlineDto = {
@@ -60,16 +60,38 @@ describe("PageOutline", () => {
     await wrapper.get('[data-test="tree-toggle-0-1000::ok"]').trigger("click");
     expect(wrapper.findAll(".tree-item")).toHaveLength(1);
 
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
     await wrapper.findAll(".element-box")[1]!.trigger("click");
 
     expect(wrapper.emitted("select")?.at(-1)).toEqual(["0-1000::bad"]);
     expect(wrapper.findAll(".tree-item")).toHaveLength(2);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+  });
+
+  it("treats missing, self, and cyclic parents as top-level nodes", async () => {
+    const invalidOutline: PageOutlineDto = {
+      ...outline,
+      elements: [
+        { ...outline.elements[0]!, id: "a", parentHint: "b", depth: 4 },
+        { ...outline.elements[1]!, id: "b", parentHint: "a", depth: 5 },
+        { ...outline.elements[1]!, id: "self", parentHint: "self", depth: 3 },
+        { ...outline.elements[1]!, id: "missing", parentHint: "unknown", depth: 2 },
+      ],
+    };
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: invalidOutline, selectedId: null } });
+
+    expect(wrapper.findAll(".tree-toggle")).toHaveLength(0);
+    for (const row of wrapper.findAll(".tree-item")) expect(row.attributes("style")).toContain("padding-left: 7px");
   });
 
   it("shares selection between tree and image and exposes only three calibration fields", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
     await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
     await wrapper.setProps({ selectedId: "0-1000::bad" });
     expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
     expect(wrapper.get('[data-test="calibration-text"]')).toBeTruthy();

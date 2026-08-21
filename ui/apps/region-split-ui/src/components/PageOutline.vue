@@ -28,31 +28,50 @@ const selected = computed(() => props.outline.elements.find(element => element.i
 const imageSrc = computed(() => `/api/projects/${encodeURIComponent(props.projectId)}/image`);
 const ordered = computed(() => props.outline.elements);
 const elementById = computed(() => new Map(props.outline.elements.map(node => [node.id, node])));
-const childrenById = computed(() => {
-  const children = new Map<string, string[]>();
+const validParentById = computed(() => {
+  const parents = new Map<string, string>();
   for (const node of props.outline.elements) {
     const parentId = node.parentHint;
     if (!parentId || parentId === node.id || !elementById.value.has(parentId)) continue;
+    const visited = new Set([node.id]);
+    let currentId: string | null = parentId;
+    let valid = true;
+    while (currentId) {
+      if (visited.has(currentId)) { valid = false; break; }
+      visited.add(currentId);
+      const current = elementById.value.get(currentId);
+      const nextId: string | null = current?.parentHint ?? null;
+      if (!nextId) break;
+      if (nextId === currentId || !elementById.value.has(nextId)) { valid = false; break; }
+      currentId = nextId;
+    }
+    if (valid) parents.set(node.id, parentId);
+  }
+  return parents;
+});
+const childrenById = computed(() => {
+  const children = new Map<string, string[]>();
+  for (const [childId, parentId] of validParentById.value) {
     const siblings = children.get(parentId) ?? [];
-    siblings.push(node.id);
+    siblings.push(childId);
     children.set(parentId, siblings);
   }
   return children;
 });
 function ancestorsOf(id: string) {
   const ancestors: string[] = [];
-  const visited = new Set([id]);
-  let current = elementById.value.get(id);
-  while (current?.parentHint && elementById.value.has(current.parentHint) && !visited.has(current.parentHint)) {
-    visited.add(current.parentHint);
-    ancestors.push(current.parentHint);
-    current = elementById.value.get(current.parentHint);
+  let currentId: string | undefined = id;
+  while (currentId && validParentById.value.has(currentId)) {
+    const parentId = validParentById.value.get(currentId)!;
+    ancestors.push(parentId);
+    currentId = parentId;
   }
   return ancestors;
 }
 const visibleNodes = computed(() => ordered.value.filter(node =>
   !ancestorsOf(node.id).some(parentId => collapsedIds.value.has(parentId)),
 ));
+function displayDepth(id: string) { return ancestorsOf(id).length; }
 const failedRegions = computed(() => props.outline.regions.filter(region => region.status === "failed" || region.status === "missing"));
 
 function boxStyle(node: PageOutlineElement) {
@@ -133,7 +152,7 @@ watch(selected, node => {
           <div
             v-for="node in visibleNodes" :key="node.id" :ref="element => bindTree(node.id, element)"
             class="tree-item" :class="{ suspicious: node.suspicious, selected: node.id === selectedId }"
-            :style="{ paddingLeft: `${7 + node.depth * 14}px` }"
+            :style="{ paddingLeft: `${7 + displayDepth(node.id) * 14}px` }"
             @mouseenter="emit('hover', node.id)" @mouseleave="emit('hover', null)"
           >
             <button
