@@ -10,7 +10,7 @@ const outline: PageOutlineDto = {
     { id: "0-1000::ok", localId: "ok", regionKey: "0-1000", regionName: "页面", parentHint: null, outlineNumber: "1.1", depth: 0, suspicious: false,
       box: { x: 40, y: 100, w: 200, h: 50 }, kind: "text", displayName: "标题", text: "标题",
       style: {}, uniformity: 1, source: "auto", classification: "tool", scrollX: false, scrollY: false, positioning: "flow" },
-    { id: "0-1000::bad", localId: "bad", regionKey: "0-1000", regionName: "页面", parentHint: null, outlineNumber: "1.2", depth: 0, suspicious: true,
+    { id: "0-1000::bad", localId: "bad", regionKey: "0-1000", regionName: "页面", parentHint: "0-1000::ok", outlineNumber: "1.1.1", depth: 1, suspicious: true,
       box: { x: 20, y: 300, w: 40, h: 40 }, kind: "icon", displayName: "可疑图标",
       style: {}, uniformity: 1, source: "auto", classification: "uncertain", scrollX: false, scrollY: false, positioning: "flow" },
   ],
@@ -19,11 +19,16 @@ const outline: PageOutlineDto = {
 describe("PageOutline", () => {
   it("renders image, tree, and independent property columns", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    expect(wrapper.get('[data-test="image-panel"]')).toBeTruthy();
-    expect(wrapper.get('[data-test="tree-panel"]')).toBeTruthy();
-    expect(wrapper.get('[data-test="property-panel"]')).toBeTruthy();
-    expect(wrapper.get('[data-test="property-empty"]').text()).toContain("选择元素");
-    expect(wrapper.find('[data-test="calibration"]').exists()).toBe(false);
+    const workspace = wrapper.get(".outline-workspace");
+    const panels = [
+      wrapper.get('[data-test="image-panel"]'),
+      wrapper.get('[data-test="tree-panel"]'),
+      wrapper.get('[data-test="property-panel"]'),
+    ];
+    expect(panels.every(panel => panel.element.parentElement === workspace.element)).toBe(true);
+    expect(panels[1]!.find('[data-test="calibration"]').exists()).toBe(false);
+    expect(panels[2]!.get('[data-test="property-empty"]').text()).toContain("选择元素");
+    expect(panels[2]!.find('[data-test="calibration"]').exists()).toBe(false);
   });
 
   it("renders the whole image and all boxes in page coordinates with suspicious emphasis", () => {

@@ -19,7 +19,6 @@ const emit = defineEmits<{
 }>();
 const treeRefs = new Map<string, HTMLElement>();
 const boxRefs = new Map<string, HTMLElement>();
-const treePanelCollapsed = ref(false);
 const editKind = ref<ElementKind>("text");
 const editText = ref("");
 const editBox = ref<Rect>({ x: 0, y: 0, w: 4, h: 4 });
@@ -75,7 +74,7 @@ watch(selected, node => {
     </header>
     <p v-if="error" class="error">{{ error }}</p>
 
-    <section class="outline-workspace" :class="{ 'tree-panel-collapsed': treePanelCollapsed }">
+    <section class="outline-workspace">
       <div class="page-scroll" data-test="image-panel">
         <div class="page-stage">
           <img :src="imageSrc" alt="待校准整页截图" />
@@ -89,7 +88,7 @@ watch(selected, node => {
         </div>
       </div>
 
-      <aside class="tree-panel" data-test="tree-panel">
+      <aside class="tree-panel" data-test="tree-panel" aria-label="页面结构树">
         <header class="panel-header"><strong>结构树</strong></header>
         <div class="outline-tree" data-test="outline-tree">
           <button
@@ -104,7 +103,7 @@ watch(selected, node => {
         </div>
       </aside>
 
-      <aside class="property-panel" data-test="property-panel">
+      <aside class="property-panel" data-test="property-panel" aria-label="元素属性编辑">
         <form v-if="selected" class="calibration" data-test="calibration" @submit.prevent="save">
           <strong>校准 {{ selected.displayName }}</strong>
           <label>分类
@@ -152,6 +151,6 @@ watch(selected, node => {
 .calibration label { display: grid; gap: 3px; color: #93a4bb; font-size: 11px; }.calibration input, .calibration select { min-width: 0; padding: 5px; border: 1px solid #354155; border-radius: 4px; color: #e7edf6; background: #10151d; }
 .rect-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
-@media (max-width: 900px) { .outline-workspace { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(55vh, 1fr) 320px; }.page-scroll { grid-column: 1 / -1; }.tree-panel, .property-panel { border-top: 1px solid #2a3342; }.tree-panel { border-left: 0; } }
+@media (max-width: 900px) { .outline-workspace { grid-template-columns: 1fr 1fr; grid-template-rows: minmax(360px, 55vh) minmax(280px, auto); overflow: auto; }.page-scroll { grid-column: 1 / -1; min-height: 360px; }.tree-panel, .property-panel { min-height: 280px; border-top: 1px solid #2a3342; }.tree-panel { border-left: 0; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
