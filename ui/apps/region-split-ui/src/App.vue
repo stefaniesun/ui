@@ -127,6 +127,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :configured="Boolean(store.modelConfig.value?.baseUrl && store.modelConfig.value?.model && store.modelConfig.value?.hasApiKey)"
       :config-path="store.modelConfig.value?.configPath"
       @upload="uploadAndAnalyze"
+      @error="dialogError = { title: '无法上传图片', message: $event, retryable: false }"
       @refresh-model-config="refreshModelConfig"
     />
     <div v-else-if="!pageOutline.outline.value" class="analysis-loading" aria-live="polite">
@@ -152,7 +153,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @export-page="exportPage"
       @open-page-compare="pageCompareOpen = true"
       @refresh-model-config="refreshModelConfig"
-      @patch="(id, patch) => pageOutline.patch(store.projectId.value, id, patch)"
+      @patch="(id, patch) => pageOutline.patch(store.projectId.value, id, patch).catch(() => undefined)"
     />
     <section v-if="pageCompareOpen && store.projectId.value" class="page-compare-dialog" role="dialog" aria-modal="true" aria-label="整页比对">
       <header><strong>整页比对</strong><button type="button" aria-label="关闭整页比对" @click="pageCompareOpen = false">×</button></header>

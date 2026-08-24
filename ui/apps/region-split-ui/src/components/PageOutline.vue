@@ -277,7 +277,7 @@ watch(selected, node => {
 
     <section class="outline-workspace" :class="{ 'tree-panel-collapsed': treePanelCollapsed }">
       <div
-        ref="imagePanel" class="page-scroll" data-test="image-panel"
+        ref="imagePanel" class="page-scroll edge-to-edge" data-test="image-panel"
         @pointerdown="onPanStart" @pointermove="onPanMove"
         @pointerup="onPanEnd" @pointercancel="onPanEnd" @pointerleave="onPanEnd"
         @click.capture="onPanClick" @wheel="onZoom"
@@ -361,7 +361,7 @@ watch(selected, node => {
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
 .outline-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; }
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }
-.page-scroll { min-width: 0; min-height: 0; overflow: auto; padding: 18px; background: #0c1017; cursor: grab; }
+.page-scroll { min-width: 0; min-height: 0; overflow: auto; background: #0c1017; cursor: grab; }.page-scroll.edge-to-edge { padding: 0; }
 .page-scroll:active { cursor: grabbing; }
 .page-stage { position: relative; min-width: 0; margin: 0 auto; line-height: 0; box-shadow: 0 6px 28px #000a; transform-origin: 0 0; }
 .page-stage > img { width: 100%; height: auto; }

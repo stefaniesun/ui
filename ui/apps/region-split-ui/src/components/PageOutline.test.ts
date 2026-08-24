@@ -177,10 +177,11 @@ describe("PageOutline", () => {
     expect(panels[2]!.find('[data-test="calibration"]').exists()).toBe(false);
   });
 
-  it("fills the panel width instead of capping at a fixed size", () => {
+  it("fills the panel width without a fixed cap or panel inset", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 100%");
     expect(wrapper.get('[data-test="page-stage"]').attributes("style")).not.toContain("900px");
+    expect(wrapper.get('[data-test="image-panel"]').classes()).toContain("edge-to-edge");
   });
 
   it("zooms in on the wheel and keeps the pointer anchored", async () => {

@@ -30,6 +30,21 @@ describe("UploadPanel", () => {
     expect(wrapper.emitted("upload")).toEqual([[dropped]]);
   });
 
+  it("rejects unsupported dropped files with a visible error event", async () => {
+    const wrapper = mount(UploadPanel, { props: { busy: false, configured: true } });
+    const text = new File(["text"], "notes.txt", { type: "text/plain" });
+    await wrapper.get(".upload-drop-zone").trigger("drop", { dataTransfer: { files: [text] } });
+    expect(wrapper.emitted("upload")).toBeUndefined();
+    expect(wrapper.emitted("error")?.[0]).toEqual(["仅支持 PNG、JPG 或 WebP 图片。"]);
+  });
+
+  it("does not accept drops before the model is configured", async () => {
+    const wrapper = mount(UploadPanel, { props: { busy: false, configured: false } });
+    await wrapper.get(".upload-drop-zone").trigger("drop", { dataTransfer: { files: [file()] } });
+    expect(wrapper.emitted("upload")).toBeUndefined();
+    expect(wrapper.emitted("error")?.[0]).toEqual(["请先配置 AI 模型并刷新配置。"]);
+  });
+
   it("disables selection and ignores drops while busy", async () => {
     const wrapper = mount(UploadPanel, { props: { busy: true, configured: true } });
     expect(wrapper.get("input[type=file]").attributes()).toHaveProperty("disabled");

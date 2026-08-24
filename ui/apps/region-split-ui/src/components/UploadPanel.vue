@@ -2,11 +2,17 @@
 import { ref } from "vue";
 
 const props = defineProps<{ busy: boolean; configured: boolean; configPath?: string }>();
-const emit = defineEmits<{ upload: [file: File]; refreshModelConfig: [] }>();
+const emit = defineEmits<{ upload: [file: File]; refreshModelConfig: []; error: [message: string] }>();
 const input = ref<HTMLInputElement | null>(null);
 
 function submit(file?: File) {
-  if (!props.busy && file) emit("upload", file);
+  if (!file || props.busy) return;
+  if (!props.configured) { emit("error", "请先配置 AI 模型并刷新配置。"); return; }
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    emit("error", "仅支持 PNG、JPG 或 WebP 图片。");
+    return;
+  }
+  emit("upload", file);
 }
 function onChange(event: Event) {
   submit((event.target as HTMLInputElement).files?.[0]);
