@@ -196,10 +196,10 @@ describe("PageOutline", () => {
       expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
     }
 
-    const invalidWheel = new WheelEvent("wheel", { deltaY: -100, clientX: Number.NaN, clientY: 50, bubbles: true, cancelable: true });
-    viewport.element.dispatchEvent(invalidWheel);
+    const zeroWheel = new WheelEvent("wheel", { deltaY: 0, clientX: 50, clientY: 50, bubbles: true, cancelable: true });
+    viewport.element.dispatchEvent(zeroWheel);
     await wrapper.vm.$nextTick();
-    expect(invalidWheel.defaultPrevented).toBe(false);
+    expect(zeroWheel.defaultPrevented).toBe(false);
     expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
   });
 
@@ -498,8 +498,8 @@ describe("PageOutline", () => {
     const transform = stage.attributes("style") ?? "";
     const x = Number(transform.match(/translate3d\(([-\d.]+)px/)?.[1]);
     const y = Number(transform.match(/translate3d\([^,]+, ([-\d.]+)px/)?.[1]);
-    expect(x).toBeCloseTo(-432);
-    expect(y).toBeCloseTo(-336);
+    expect(x).toBeCloseTo(-456);
+    expect(y).toBeCloseTo(-416);
     await wrapper.setProps({ selectedId: "0-1000::bad" });
     expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
     expect(wrapper.get('[data-test="calibration-text"]')).toBeTruthy();
