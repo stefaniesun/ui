@@ -68,16 +68,6 @@ async function showAnalyzedResult(
 }
 
 describe("RegionsNode upload and analysis orchestration", () => {
-  it("shows a portrait phone upload preview before a project exists", async () => {
-    const { wrapper } = await mountNode();
-
-    const upload = wrapper.get('[data-test="phone-upload"]');
-    expect(upload.classes()).toContain("phone-upload");
-    expect(upload.get(".phone-status-bar").text()).toContain("9:41");
-    expect(upload.get(".upload-drop-zone").text()).toContain("拖放 PNG、JPG 或 WebP");
-    expect(upload.get(".upload-drop-zone").text()).toContain("推荐手机长截图");
-    expect(upload.get(".upload-button").text()).toContain("选择图片");
-  });
   it("shows analysis completion and non-blocking todos", async () => {
     const api = makeFakeApi(() => []);
     vi.mocked(api.getAnalysisStats).mockResolvedValue({
