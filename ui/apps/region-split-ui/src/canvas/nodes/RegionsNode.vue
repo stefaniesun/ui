@@ -215,10 +215,20 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
   <div class="regions-node" data-canvas-pan @click.stop>
     <input ref="input" class="file-input" type="file" accept="image/png,image/jpeg,image/webp" @change="onFile" />
 
-    <div v-if="!props.store.doc.value?.image" class="upload-state" @dragover.prevent @drop.prevent="onDrop">
-      <button class="upload-button" :disabled="props.store.busy.value" @click="input?.click()">选择图片</button>
-      <span>或拖放图片到这里，上传后将自动 AI 分析</span>
-      <button data-test="refresh-model-config" class="text-button" @click="props.store.loadModelConfig()">刷新模型配置</button>
+    <div v-if="!props.store.doc.value?.image" class="upload-state">
+      <div class="phone-upload" data-test="phone-upload">
+        <div class="phone-status-bar"><span>9:41</span><span class="phone-sensors" aria-hidden="true">● ◒ ▰</span></div>
+        <div class="phone-screen">
+          <div class="upload-drop-zone" @dragover.prevent @drop.prevent="onDrop">
+            <span class="upload-icon" aria-hidden="true">＋</span>
+            <strong>拖放 PNG、JPG 或 WebP</strong>
+            <span>推荐手机长截图，上传后将自动 AI 分析</span>
+            <button class="upload-button" :disabled="props.store.busy.value" @click="input?.click()">选择图片</button>
+          </div>
+          <button data-test="refresh-model-config" class="text-button" @click="props.store.loadModelConfig()">刷新模型配置</button>
+        </div>
+        <span class="phone-home-indicator" aria-hidden="true"></span>
+      </div>
     </div>
 
     <template v-else>
@@ -329,9 +339,14 @@ defineExpose({ retryAnalysis, markAnalysisFailed: reportAnalysisError, getRegion
 .analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: var(--text-dim); background: var(--bg-node); font-size: 10px; }
 .regions-node { margin: -14px; overflow: hidden; border-radius: 0 0 9px 9px; }
 .file-input { display: none; }
-.upload-state { min-height: 540px; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--muted); background: #0e1118; }
+.upload-state { min-height: 680px; display: grid; place-content: center; padding: 28px; color: var(--muted); background: radial-gradient(circle at 50% 38%, #192237 0, #0e1118 52%); }
+.phone-upload { width: min(330px, 82vw); aspect-ratio: 9 / 18.5; display: grid; grid-template-rows: 34px 1fr 24px; overflow: hidden; border: 8px solid #05070b; border-radius: 42px; color: #d8e2f0; background: #0e1420; box-shadow: 0 18px 54px #000a, inset 0 0 0 1px #39445a; }
+.phone-status-bar { display: flex; align-items: center; justify-content: space-between; padding: 7px 19px 0; color: #cbd5e1; font-size: 10px; font-weight: 700; }.phone-sensors { letter-spacing: 2px; font-size: 8px; }
+.phone-screen { min-height: 0; display: grid; place-content: center; justify-items: center; gap: 18px; padding: 20px; }
+.upload-drop-zone { width: 100%; min-height: 330px; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 28px 22px; border: 1px dashed #47617f; border-radius: 22px; color: #8fa2bb; text-align: center; background: linear-gradient(180deg, #172132cc, #111823cc); }.upload-drop-zone strong { color: #d9e5f4; font-size: 14px; }.upload-drop-zone > span:not(.upload-icon) { max-width: 220px; font-size: 11px; line-height: 1.6; }.upload-icon { width: 52px; height: 52px; display: grid; place-items: center; margin-bottom: 8px; border: 1px solid #3d5675; border-radius: 50%; color: #66a9ff; background: #14253b; font-size: 30px; font-weight: 200; }
+.phone-home-indicator { width: 96px; height: 4px; align-self: center; justify-self: center; border-radius: 999px; background: #8792a4; opacity: .65; }
 .upload-button,
-.analysis-state button { border: 1px solid var(--accent); border-radius: 6px; padding: 9px 16px; color: white; background: var(--accent); cursor: pointer; }
+.analysis-state button { border: 1px solid var(--accent); border-radius: 8px; padding: 10px 20px; color: white; background: var(--accent); cursor: pointer; }
 .text-button { border: 0; color: var(--accent); background: transparent; cursor: pointer; }
 .comparison-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 245px; align-items: start; background: var(--bg-inset); }
 .comparison-images { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 430px)); gap: 0; align-items: start; }
