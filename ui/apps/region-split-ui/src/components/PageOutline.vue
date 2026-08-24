@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
+import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
+import type { AnalysisStats } from "../api.js";
 
 const props = defineProps<{
   projectId: string;
@@ -11,11 +13,18 @@ const props = defineProps<{
   busy?: boolean;
   progressText?: string;
   error?: string;
+  fontStack?: string;
+  stats?: AnalysisStats | null;
+  exporting?: boolean;
 }>();
 const emit = defineEmits<{
   select: [id: string];
   hover: [id: string | null];
   retry: [];
+  fontStack: [value: string];
+  exportPage: [];
+  openPageCompare: [];
+  refreshModelConfig: [];
   patch: [id: string, patch: { kind?: ElementKind; text?: string; box?: Rect }];
 }>();
 const treeRefs = new Map<string, HTMLElement>();
@@ -247,6 +256,23 @@ watch(selected, node => {
         type="button" data-test="retry-failed" @click="emit('retry')"
       >{{ retryLabel }}</button>
     </header>
+    <div class="migrated-tools">
+      <label class="font-stack-field"><span>目标字体</span>
+        <select data-test="font-stack" :value="fontStack || DEFAULT_FONT_STACK.value" @change="emit('fontStack', ($event.target as HTMLSelectElement).value)">
+          <option v-for="option in FONT_STACKS" :key="option.id" :value="option.value">{{ option.label }}</option>
+        </select>
+      </label>
+      <button type="button" data-test="export-page" :disabled="exporting" @click="emit('exportPage')">{{ exporting ? "导出中…" : "导出整页代码" }}</button>
+      <button type="button" data-test="open-page-compare" @click="emit('openPageCompare')">整页比对</button>
+      <button type="button" data-test="refresh-model-config" @click="emit('refreshModelConfig')">刷新模型配置</button>
+    </div>
+    <div v-if="stats" data-test="analysis-stats" class="analysis-stats" :class="{ passed: stats.allPassed }">
+      <strong>{{ stats.allPassed ? "分析已完成" : "分析待完善" }}</strong>
+      <span>区域 {{ stats.parsedRegions }}/{{ stats.totalRegions }}</span>
+      <span>图标 {{ stats.totalIcons }} · SVG {{ stats.libraryIcons }} · PNG {{ stats.cropIcons }} · 待确认 {{ stats.unresolvedIcons }}</span>
+      <span>字体 {{ stats.fontStackChosen ? "已选" : "未选" }} · 待测字号 {{ stats.textWithoutSize }}</span>
+    </div>
+    <ul v-if="stats?.todos.length" data-test="analysis-todos" class="analysis-todos"><li v-for="todo in stats.todos" :key="todo">{{ todo }}</li></ul>
     <p v-if="error" class="error">{{ error }}</p>
 
     <section class="outline-workspace" :class="{ 'tree-panel-collapsed': treePanelCollapsed }">
@@ -329,7 +355,9 @@ watch(selected, node => {
 .outline-toolbar { min-height: 52px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #2a3342; background: #171c25; }
 .outline-toolbar div:first-child { display: flex; align-items: baseline; gap: 10px; }
 .outline-toolbar span, .progress { color: #93a4bb; font-size: 12px; }
-.outline-toolbar button, .calibration button { border: 1px solid #3979d1; border-radius: 5px; padding: 6px 10px; color: #cfe3ff; background: #19365d; cursor: pointer; }
+.outline-toolbar button, .calibration button, .migrated-tools button { border: 1px solid #3979d1; border-radius: 5px; padding: 6px 10px; color: #cfe3ff; background: #19365d; cursor: pointer; }
+.migrated-tools { min-height: 42px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 5px 14px; border-bottom: 1px solid #2a3342; background: #141a24; }.font-stack-field { display: flex; align-items: center; gap: 7px; color: #93a4bb; font-size: 11px; }.font-stack-field select { height: 30px; max-width: 180px; border: 1px solid #354155; border-radius: 5px; color: #dce7f5; background: #101620; }
+.analysis-stats { display: flex; gap: 14px; align-items: center; padding: 7px 14px; border-bottom: 1px solid #4c3818; color: #fbbf24; background: #2a2113; font-size: 11px; }.analysis-stats.passed { color: #86efac; background: #13271d; }.analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: #93a4bb; background: #151a23; font-size: 10px; }
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
 .outline-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; }
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }

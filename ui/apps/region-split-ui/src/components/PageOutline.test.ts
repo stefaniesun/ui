@@ -2,6 +2,7 @@ import type { PageOutline as PageOutlineDto } from "@region-split/core/browser";
 import { mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import PageOutline from "./PageOutline.vue";
+import { DEFAULT_FONT_STACK } from "../font-stacks.js";
 
 const outline: PageOutlineDto = {
   image: { fileName: "page.png", width: 400, height: 1000 }, designWidth: 400, suspiciousCount: 1,
@@ -130,6 +131,36 @@ describe("PageOutline", () => {
     expect(wrapper.get('[data-test="page-outline"] .element-box').attributes("style")).toContain("--kind-color: #ffd166");
     expect(wrapper.get(".element-box.selected").classes()).toContain("selected");
     expect(wrapper.get(".element-box.suspicious").classes()).toContain("suspicious");
+  });
+
+  it("exposes migrated font, export, comparison, stats, and todo controls", async () => {
+    const wrapper = mount(PageOutline, {
+      props: {
+        projectId: "p1", outline, selectedId: null,
+        fontStack: DEFAULT_FONT_STACK.value,
+        stats: {
+          totalRegions: 2, parsedRegions: 1, totalIcons: 3, libraryIcons: 1,
+          cropIcons: 1, unresolvedIcons: 1, textWithoutSize: 0,
+          fontStackChosen: false, allPassed: false, todos: ["解析区域 底部"],
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-test="font-stack"]').element).toBeInstanceOf(HTMLSelectElement);
+    expect(wrapper.get('[data-test="export-page"]').text()).toContain("导出整页代码");
+    expect(wrapper.get('[data-test="open-page-compare"]').text()).toContain("整页比对");
+    expect(wrapper.get('[data-test="refresh-model-config"]').text()).toContain("刷新模型配置");
+    expect(wrapper.get('[data-test="analysis-stats"]').text()).toContain("区域 1/2");
+    expect(wrapper.get('[data-test="analysis-todos"]').text()).toContain("解析区域 底部");
+
+    await wrapper.get('[data-test="font-stack"]').setValue('Roboto, "Noto Sans CJK SC", "Source Han Sans SC", sans-serif');
+    await wrapper.get('[data-test="export-page"]').trigger("click");
+    await wrapper.get('[data-test="open-page-compare"]').trigger("click");
+    await wrapper.get('[data-test="refresh-model-config"]').trigger("click");
+    expect(wrapper.emitted("fontStack")?.[0]).toEqual(['Roboto, "Noto Sans CJK SC", "Source Han Sans SC", sans-serif']);
+    expect(wrapper.emitted("exportPage")).toHaveLength(1);
+    expect(wrapper.emitted("openPageCompare")).toHaveLength(1);
+    expect(wrapper.emitted("refreshModelConfig")).toHaveLength(1);
   });
 
   it("renders image, tree, and independent property columns", () => {

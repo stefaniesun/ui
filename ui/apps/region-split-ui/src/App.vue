@@ -6,13 +6,15 @@ import BusyOverlay from "./components/BusyOverlay.vue";
 import ErrorDialog from "./components/ErrorDialog.vue";
 import PageOutline from "./components/PageOutline.vue";
 import UploadPanel from "./components/UploadPanel.vue";
-import { httpApi } from "./api.js";
+import { getPageArchive, httpApi, type AnalysisStats } from "./api.js";
 import { createPageOutlineState } from "./page-outline-state.js";
 import { createStore } from "./state.js";
 
 const store = createStore(httpApi);
 const pageOutline = createPageOutlineState(httpApi);
 const hoveredId = ref<string | null>(null);
+const outlineStats = ref<AnalysisStats | null>(null);
+const exportingPage = ref(false);
 const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
 const pipelineCanvas = ref<{
   openPageCompare(): void;
@@ -28,7 +30,10 @@ const analyzing = computed(() => store.busy.value && store.busyLabel.value === "
 
 watch(() => [store.projectId.value, store.doc.value?.updatedAt] as const, async ([projectId]) => {
   await refreshParsedRegions();
-  if (projectId && store.doc.value?.analyzedAt) await pageOutline.analyzeAll(projectId);
+  if (projectId && store.doc.value?.analyzedAt) {
+    await pageOutline.analyzeAll(projectId);
+    await refreshOutlineStats();
+  } else outlineStats.value = null;
 });
 
 function getRegionAnchor(id: string) {
@@ -37,6 +42,27 @@ function getRegionAnchor(id: string) {
 async function refreshParsedRegions() {
   const projectId = store.projectId.value;
   parsedRegionKeys.value = projectId ? (await httpApi.getParsedRegions(projectId)).regionKeys : [];
+}
+async function refreshOutlineStats() {
+  if (!store.projectId.value || !store.doc.value?.analyzedAt) { outlineStats.value = null; return; }
+  try { outlineStats.value = await httpApi.getAnalysisStats(store.projectId.value); }
+  catch { outlineStats.value = null; }
+}
+function downloadArchive(projectId: string, archive: Blob) {
+  const url = URL.createObjectURL(archive);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `region-page-${projectId}.zip`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+async function exportPage() {
+  const projectId = store.projectId.value;
+  if (!projectId || exportingPage.value) return;
+  exportingPage.value = true;
+  try { downloadArchive(projectId, await getPageArchive(projectId)); }
+  catch (error) { dialogError.value = { title: "整页代码导出失败", message: (error as Error).message, retryable: false }; }
+  finally { exportingPage.value = false; }
 }
 
 function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
@@ -118,9 +144,16 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :busy="pageOutline.busy.value"
       :progress-text="pageOutline.progressText.value"
       :error="pageOutline.error.value"
+      :font-stack="store.doc.value?.fontStack"
+      :stats="outlineStats"
+      :exporting="exportingPage"
       @select="pageOutline.selectedId.value = $event"
       @hover="pageOutline.hoveredId.value = $event"
       @retry="pageOutline.analyzeAll(store.projectId.value, true)"
+      @font-stack="store.setFontStack"
+      @export-page="exportPage"
+      @open-page-compare="pipelineCanvas?.openPageCompare()"
+      @refresh-model-config="store.loadModelConfig"
       @patch="(id, patch) => pageOutline.patch(store.projectId.value, id, patch)"
     />
     <BusyOverlay v-if="store.busy.value && !analyzing" :label="store.busyLabel.value" />
