@@ -104,18 +104,9 @@ function onKeydown(event: KeyboardEvent) {
   }
   if (pageCompareOpen.value && event.key === "Escape") { pageCompareOpen.value = false; return; }
   if (store.busy.value || isEditingTarget(event.target)) return;
-  const mod = event.ctrlKey || event.metaKey;
-  if (store.mode.value === "split" && event.key !== "Escape") return;
-  if (mod && event.key.toLowerCase() === "z") {
-    event.preventDefault();
-    if (event.shiftKey) void store.redo(); else void store.undo();
-  } else if (event.key === "Escape") {
-    if (store.mode.value === "split") store.cancelSplit();
-    else store.clearSelection();
-  } else if (event.key === "ArrowUp" && store.selectedIds.value.length === 1) {
-    event.preventDefault(); void store.nudge(-1);
-  } else if (event.key === "ArrowDown" && store.selectedIds.value.length === 1) {
-    event.preventDefault(); void store.nudge(1);
+  if (event.key === "Escape") {
+    pageOutline.selectedId.value = null;
+    pageOutline.hoveredId.value = null;
   }
 }
 
