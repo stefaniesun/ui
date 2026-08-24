@@ -115,6 +115,8 @@ describe("PageOutline", () => {
     const options = wrapper.get('[data-test="calibration-kind"]').findAll("option");
     expect(options.map(option => option.text())).toContain("文字");
     expect(options.map(option => option.text())).not.toContain("text");
+    expect(options.find(option => option.text() === "文字")?.attributes("value")).toBe("text");
+    expect(wrapper.get(".tree-item small").text()).toBe("文字");
   });
 
   it("labels the box fields in chinese", () => {
@@ -123,9 +125,13 @@ describe("PageOutline", () => {
     for (const label of ["横坐标", "纵坐标", "宽", "高"]) expect(text).toContain(label);
   });
 
-  it("tints an element box by its kind", () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+  it("tints an element box by its kind while status styles stay higher priority", () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
     expect(wrapper.get('[data-test="page-outline"] .element-box').attributes("style")).toContain("--kind-color: #ffd166");
+    const styles = wrapper.get("style").text();
+    expect(styles).toContain("border: 1px solid var(--kind-color)");
+    expect(styles.indexOf(".element-box.suspicious")).toBeGreaterThan(styles.indexOf("border: 1px solid var(--kind-color)"));
+    expect(styles.indexOf(".element-box.selected")).toBeGreaterThan(styles.indexOf(".element-box.suspicious"));
   });
 
   it("renders image, tree, and independent property columns", () => {

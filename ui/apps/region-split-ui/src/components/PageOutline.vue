@@ -246,7 +246,7 @@ watch(selected, node => {
             >{{ collapsedIds.has(node.id) ? "›" : "⌄" }}</button>
             <span v-else class="tree-toggle-spacer" />
             <button type="button" class="tree-item-content" @click="select(node.id, 'tree')">
-              <span>{{ node.outlineNumber }}</span><strong>{{ node.displayName }}</strong><small>{{ node.kind }}</small>
+              <span>{{ node.outlineNumber }}</span><strong>{{ node.displayName }}</strong><small>{{ KIND_LABEL[node.kind] }}</small>
             </button>
           </div>
         </div>
