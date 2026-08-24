@@ -16,24 +16,18 @@ const exportingPage = ref(false);
 const uploadingAndAnalyzing = ref(false);
 const pageCompareOpen = ref(false);
 const dialogError = ref<{ title: string; message: string; configPath?: string; retryable: boolean } | null>(null);
-const parsedRegionKeys = ref<string[]>([]);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
 const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
 const analyzing = computed(() => store.busy.value && store.busyLabel.value === "AI 分析中…");
 
 watch(() => [store.projectId.value, store.doc.value?.updatedAt] as const, async ([projectId]) => {
-  await refreshParsedRegions();
   if (projectId && store.doc.value?.analyzedAt) {
     await pageOutline.analyzeAll(projectId);
     await refreshOutlineStats();
   } else outlineStats.value = null;
 });
 
-async function refreshParsedRegions() {
-  const projectId = store.projectId.value;
-  parsedRegionKeys.value = projectId ? (await httpApi.getParsedRegions(projectId)).regionKeys : [];
-}
 async function refreshOutlineStats() {
   if (!store.projectId.value || !store.doc.value?.analyzedAt) { outlineStats.value = null; return; }
   try { outlineStats.value = await httpApi.getAnalysisStats(store.projectId.value); }
@@ -46,6 +40,18 @@ function downloadArchive(projectId: string, archive: Blob) {
   anchor.download = `region-page-${projectId}.zip`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+async function retryRegionAnalysis() {
+  dialogError.value = null;
+  if (!store.projectId.value || store.busy.value) return;
+  await store.analyze();
+  if (store.error.value || !store.doc.value?.analyzedAt) {
+    dialogError.value = { title: "AI 区域分析失败", message: store.error.value || "AI 区域分析失败，请检查模型配置后重试。", configPath: store.modelConfig.value?.configPath, retryable: true };
+    return;
+  }
+  window.location.hash = `project=${store.projectId.value}`;
+  await pageOutline.analyzeAll(store.projectId.value);
+  await refreshOutlineStats();
 }
 async function uploadAndAnalyze(file: File) {
   if (store.busy.value || uploadingAndAnalyzing.value) return;
@@ -60,13 +66,22 @@ async function uploadAndAnalyze(file: File) {
     }
     await store.analyze();
     if (store.error.value || !store.doc.value?.analyzedAt) {
-      dialogError.value = { title: "AI 区域分析失败", message: store.error.value || "AI 区域分析失败，请检查模型配置后重试。", configPath: store.modelConfig.value?.configPath, retryable: false };
+      dialogError.value = { title: "AI 区域分析失败", message: store.error.value || "AI 区域分析失败，请检查模型配置后重试。", configPath: store.modelConfig.value?.configPath, retryable: true };
       return;
     }
-    await refreshParsedRegions();
+    window.location.hash = `project=${store.projectId.value}`;
     await pageOutline.analyzeAll(store.projectId.value);
     await refreshOutlineStats();
   } finally { uploadingAndAnalyzing.value = false; }
+}
+async function updateFontStack(value: string) {
+  await store.setFontStack(value);
+  if (store.error.value) dialogError.value = { title: "字体设置保存失败", message: store.error.value, retryable: false };
+  else await refreshOutlineStats();
+}
+async function refreshModelConfig() {
+  await store.loadModelConfig();
+  if (store.error.value) dialogError.value = { title: "模型配置刷新失败", message: store.error.value, retryable: false };
 }
 async function exportPage() {
   const projectId = store.projectId.value;
@@ -121,7 +136,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :configured="Boolean(store.modelConfig.value?.baseUrl && store.modelConfig.value?.model && store.modelConfig.value?.hasApiKey)"
       :config-path="store.modelConfig.value?.configPath"
       @upload="uploadAndAnalyze"
-      @refresh-model-config="store.loadModelConfig"
+      @refresh-model-config="refreshModelConfig"
     />
     <div v-else-if="!pageOutline.outline.value" class="analysis-loading" aria-live="polite">
       <strong>{{ store.busyLabel.value || pageOutline.progressText.value || "正在准备整页轮廓…" }}</strong>
@@ -142,10 +157,10 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @select="pageOutline.selectedId.value = $event"
       @hover="pageOutline.hoveredId.value = $event"
       @retry="pageOutline.analyzeAll(store.projectId.value, true)"
-      @font-stack="store.setFontStack"
+      @font-stack="updateFontStack"
       @export-page="exportPage"
       @open-page-compare="pageCompareOpen = true"
-      @refresh-model-config="store.loadModelConfig"
+      @refresh-model-config="refreshModelConfig"
       @patch="(id, patch) => pageOutline.patch(store.projectId.value, id, patch)"
     />
     <section v-if="pageCompareOpen && store.projectId.value" class="page-compare-dialog" role="dialog" aria-modal="true" aria-label="整页比对">
@@ -163,6 +178,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :config-path="dialogError.configPath"
       :retryable="dialogError.retryable"
       @close="dialogError = null"
+      @retry="retryRegionAnalysis"
     />
   </main>
 </template>

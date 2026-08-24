@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App.vue";
+import { httpApi } from "./api.js";
 
 vi.mock("./api.js", async () => {
   const actual = await vi.importActual<typeof import("./api.js")>("./api.js");
@@ -35,6 +36,18 @@ describe("App pipeline workspace", () => {
       configurable: true,
       value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 1600, bottom: 900, width: 1600, height: 900, toJSON: () => ({}) }),
     });
+  });
+
+  it("uploads, analyzes, syncs the project hash, and builds the outline", async () => {
+    const wrapper = await mounted();
+    const upload = wrapper.getComponent({ name: "UploadPanel" });
+    upload.vm.$emit("upload", new File(["page"], "page.png", { type: "image/png" }));
+
+    await vi.waitFor(() => expect(httpApi.analyze).toHaveBeenCalledOnce(), { timeout: 3_000 });
+    expect(httpApi.upload).toHaveBeenCalledOnce();
+    expect(location.hash).toBe("#project=p1");
+    expect(wrapper.find('[data-test="page-outline"]').exists()).toBe(true);
+    wrapper.unmount();
   });
 
   it("opens a project directly in the outline without mounting the retired canvas", async () => {
