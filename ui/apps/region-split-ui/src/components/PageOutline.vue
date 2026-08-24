@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
+import { DEFAULT_VIEW, fitView, zoomAt, type CanvasView } from "../infinite-canvas-view.js";
 import type { AnalysisStats } from "../api.js";
 
 const props = defineProps<{
@@ -113,91 +114,39 @@ function toggleNode(id: string) {
   else next.add(id);
   collapsedIds.value = next;
 }
-/**
- * 按住空白拖动来平移整页。
- *
- * 整页有两千多像素高，只靠滚动条移动很别扭；而元素框铺满了图，
- * 光靠"点在图片上"判断起点会让一半的位置拖不动——所以**任何位置都能起拖**，
- * 靠位移阈值把"拖动"和"点选元素"分开：没超过阈值就当点击，元素照常选中。
- */
-const DRAG_THRESHOLD = 4;
-const MIN_ZOOM = 0.2;
-const MAX_ZOOM = 4;
+const FIT_PADDING = 32;
 const ZOOM_STEP = 0.1;
-const imagePanel = ref<HTMLElement | null>(null);
+const canvasViewport = ref<HTMLElement | null>(null);
+const canvasStage = ref<HTMLElement | null>(null);
 const pageStage = ref<HTMLElement | null>(null);
-const zoom = ref(1);
-const stageStyle = computed(() => ({ width: `${Math.round(zoom.value * 100)}%` }));
-let pendingZoomAnchor: { x: number; y: number; ratioX: number; ratioY: number } | null = null;
-let zoomCorrectionScheduled = false;
-let panFrom: { x: number; y: number; left: number; top: number; moved: boolean } | null = null;
-let suppressClick = false;
+const view = ref<CanvasView>({ ...DEFAULT_VIEW });
+const zoomLabel = computed(() => `${Math.round(view.value.scale * 100)}%`);
+const canvasStageStyle = computed(() => ({
+  transform: `translate3d(${view.value.x}px, ${view.value.y}px, 0) scale(${view.value.scale})`,
+}));
+const pageStageStyle = computed(() => ({
+  aspectRatio: `${props.outline.image.width} / ${props.outline.image.height}`,
+}));
 
-function onZoom(event: WheelEvent) {
-  const panel = imagePanel.value;
-  const stage = pageStage.value;
-  if (!panel || !stage || event.deltaY === 0) return;
-  event.preventDefault();
-  const previous = zoom.value;
-  const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number((previous + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)).toFixed(2))));
-  if (next === previous) return;
-  if (!pendingZoomAnchor) {
-    const rect = stage.getBoundingClientRect();
-    pendingZoomAnchor = {
-      x: event.clientX, y: event.clientY,
-      ratioX: rect.width ? (event.clientX - rect.left) / rect.width : 0,
-      ratioY: rect.height ? (event.clientY - rect.top) / rect.height : 0,
-    };
-  } else {
-    pendingZoomAnchor.x = event.clientX;
-    pendingZoomAnchor.y = event.clientY;
-  }
-  zoom.value = next;
-  if (zoomCorrectionScheduled) return;
-  zoomCorrectionScheduled = true;
-  nextTick(() => {
-    zoomCorrectionScheduled = false;
-    const anchor = pendingZoomAnchor;
-    pendingZoomAnchor = null;
-    const currentStage = pageStage.value;
-    const currentPanel = imagePanel.value;
-    if (!anchor || !currentStage || !currentPanel) return;
-    const rect = currentStage.getBoundingClientRect();
-    currentPanel.scrollLeft += rect.left + rect.width * anchor.ratioX - anchor.x;
-    currentPanel.scrollTop += rect.top + rect.height * anchor.ratioY - anchor.y;
-  });
+function fitCanvas() {
+  const viewport = canvasViewport.value;
+  const stage = canvasStage.value;
+  if (!viewport || !stage) return;
+  view.value = fitView(
+    { width: viewport.clientWidth, height: viewport.clientHeight },
+    { width: stage.clientWidth, height: stage.clientHeight },
+    FIT_PADDING,
+  );
 }
-
-function onPanStart(event: PointerEvent) {
-  const panel = imagePanel.value;
-  if (event.button !== 0 || !panel) return;
-  panFrom = { x: event.clientX, y: event.clientY, left: panel.scrollLeft, top: panel.scrollTop, moved: false };
+function zoomBy(step: number) {
+  const viewport = canvasViewport.value;
+  const anchor = { x: (viewport?.clientWidth ?? 0) / 2, y: (viewport?.clientHeight ?? 0) / 2 };
+  view.value = zoomAt(view.value, view.value.scale + step, anchor);
 }
-
-function onPanMove(event: PointerEvent) {
-  const panel = imagePanel.value;
-  if (!panFrom || !panel) return;
-  const dx = event.clientX - panFrom.x;
-  const dy = event.clientY - panFrom.y;
-  if (!panFrom.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-  panFrom.moved = true;
-  panel.scrollLeft = panFrom.left - dx;
-  panel.scrollTop = panFrom.top - dy;
-}
-
-function onPanEnd() {
-  suppressClick = panFrom?.moved === true;
-  // click 在 pointerup **之后**才触发，所以不能靠 panFrom 判断——那时它已经被清掉了。
-  // 把"这一下要吞掉"单独记下来，交给紧随其后的 click 消费。
-  panFrom = null;
-}
-
-/** 拖动过就把这一下的 click 吞掉，否则松手时会顺带选中身下的元素 */
-function onPanClick(event: MouseEvent) {
-  if (!suppressClick) return;
-  suppressClick = false;
-  event.stopPropagation();
-  event.preventDefault();
+function setActualSize() {
+  const viewport = canvasViewport.value;
+  const anchor = { x: (viewport?.clientWidth ?? 0) / 2, y: (viewport?.clientHeight ?? 0) / 2 };
+  view.value = zoomAt(view.value, 1, anchor);
 }
 
 function expandAncestors(id: string) {
@@ -208,8 +157,8 @@ function expandAncestors(id: string) {
 function select(id: string, source: "tree" | "box") {
   if (source === "box") expandAncestors(id);
   emit("select", id);
-  nextTick(() => {
-    const target = source === "tree" ? boxRefs.get(id) : treeRefs.get(id);
+  if (source === "box") nextTick(() => {
+    const target = treeRefs.get(id);
     if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
   });
 }
@@ -265,6 +214,13 @@ watch(selected, node => {
       <button type="button" data-test="export-page" :disabled="exporting" @click="emit('exportPage')">{{ exporting ? "导出中…" : "导出整页代码" }}</button>
       <button type="button" data-test="open-page-compare" @click="emit('openPageCompare')">整页比对</button>
       <button type="button" data-test="refresh-model-config" @click="emit('refreshModelConfig')">刷新模型配置</button>
+      <div class="view-controls" data-test="view-controls" aria-label="画布视图控制">
+        <button type="button" data-test="zoom-out" aria-label="缩小画布" @click="zoomBy(-ZOOM_STEP)">−</button>
+        <output data-test="zoom-level" aria-live="polite">{{ zoomLabel }}</output>
+        <button type="button" data-test="zoom-in" aria-label="放大画布" @click="zoomBy(ZOOM_STEP)">+</button>
+        <button type="button" data-test="fit-view" @click="fitCanvas">适应视图</button>
+        <button type="button" data-test="actual-size" @click="setActualSize">100%</button>
+      </div>
     </div>
     <div v-if="stats" data-test="analysis-stats" class="analysis-stats" :class="{ passed: stats.allPassed }">
       <strong>{{ stats.allPassed ? "分析已完成" : "分析待完善" }}</strong>
@@ -275,14 +231,13 @@ watch(selected, node => {
     <ul v-if="stats?.todos.length" data-test="analysis-todos" class="analysis-todos"><li v-for="todo in stats.todos" :key="todo">{{ todo }}</li></ul>
     <p v-if="error" class="error">{{ error }}</p>
 
-    <section class="outline-workspace" :class="{ 'tree-panel-collapsed': treePanelCollapsed }">
+    <section ref="canvasViewport" class="canvas-viewport" data-test="canvas-viewport">
       <div
-        ref="imagePanel" class="page-scroll edge-to-edge" data-test="image-panel"
-        @pointerdown="onPanStart" @pointermove="onPanMove"
-        @pointerup="onPanEnd" @pointercancel="onPanEnd" @pointerleave="onPanEnd"
-        @click.capture="onPanClick" @wheel="onZoom"
+        ref="canvasStage" class="outline-workspace canvas-stage" data-test="canvas-stage"
+        :class="{ 'tree-panel-collapsed': treePanelCollapsed }" :style="canvasStageStyle"
       >
-        <div ref="pageStage" class="page-stage" data-test="page-stage" :style="stageStyle">
+        <div class="page-scroll" data-test="image-panel">
+          <div ref="pageStage" class="page-stage" data-test="page-stage" :style="pageStageStyle">
           <img :src="imageSrc" alt="待校准整页截图" />
           <button
             v-for="node in outline.elements" :key="node.id" :ref="element => bindBox(node.id, element)"
@@ -345,26 +300,27 @@ watch(selected, node => {
           <button type="submit" data-test="save-calibration">保存校准</button>
         </form>
         <div v-else class="property-empty" data-test="property-empty">选择元素后编辑属性</div>
-      </aside>
+        </aside>
+      </div>
     </section>
   </main>
 </template>
 
 <style scoped>
-.page-outline { height: 100%; min-height: 0; display: flex; flex-direction: column; color: var(--text, #e5e7eb); background: #11151d; }
+.page-outline { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; color: var(--text, #e5e7eb); background: #11151d; }
 .outline-toolbar { min-height: 52px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #2a3342; background: #171c25; }
 .outline-toolbar div:first-child { display: flex; align-items: baseline; gap: 10px; }
 .outline-toolbar span, .progress { color: #93a4bb; font-size: 12px; }
 .outline-toolbar button, .calibration button, .migrated-tools button { border: 1px solid #3979d1; border-radius: 5px; padding: 6px 10px; color: #cfe3ff; background: #19365d; cursor: pointer; }
-.migrated-tools { min-height: 42px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 5px 14px; border-bottom: 1px solid #2a3342; background: #141a24; }.font-stack-field { display: flex; align-items: center; gap: 7px; color: #93a4bb; font-size: 11px; }.font-stack-field select { height: 30px; max-width: 180px; border: 1px solid #354155; border-radius: 5px; color: #dce7f5; background: #101620; }
+.migrated-tools { min-height: 42px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding: 5px 14px; border-bottom: 1px solid #2a3342; background: #141a24; }.font-stack-field { display: flex; align-items: center; gap: 7px; color: #93a4bb; font-size: 11px; }.font-stack-field select { height: 30px; max-width: 180px; border: 1px solid #354155; border-radius: 5px; color: #dce7f5; background: #101620; }.view-controls { display: flex; align-items: center; gap: 6px; }.view-controls output { min-width: 48px; color: #cfe3ff; text-align: center; font-variant-numeric: tabular-nums; }
 .analysis-stats { display: flex; gap: 14px; align-items: center; padding: 7px 14px; border-bottom: 1px solid #4c3818; color: #fbbf24; background: #2a2113; font-size: 11px; }.analysis-stats.passed { color: #86efac; background: #13271d; }.analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: #93a4bb; background: #151a23; font-size: 10px; }
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
-.outline-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: #0c1017; background-image: radial-gradient(circle, #263244 1px, transparent 1px); background-size: 24px 24px; cursor: grab; touch-action: none; }
+.outline-workspace { position: absolute; top: 0; left: 0; width: 1200px; min-height: 760px; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; align-items: stretch; transform-origin: 0 0; will-change: transform; box-shadow: 0 12px 42px #000b; }
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }
-.page-scroll { min-width: 0; min-height: 0; overflow: auto; background: #0c1017; cursor: grab; }.page-scroll.edge-to-edge { padding: 0; }
-.page-scroll:active { cursor: grabbing; }
-.page-stage { position: relative; min-width: 0; margin: 0 auto; line-height: 0; box-shadow: 0 6px 28px #000a; transform-origin: 0 0; }
-.page-stage > img { width: 100%; height: auto; }
+.page-scroll { min-width: 0; min-height: 0; overflow: hidden; background: #0c1017; }
+.page-stage { position: relative; width: 100%; min-width: 0; margin: 0; line-height: 0; }
+.page-stage > img { display: block; width: 100%; height: auto; }
 .element-box { position: absolute; padding: 0; border: 1px solid var(--kind-color); background: color-mix(in srgb, var(--kind-color) 10%, transparent); cursor: pointer; }
 .element-box:hover, .element-box.hovered { border-color: var(--kind-color); background: color-mix(in srgb, var(--kind-color) 22%, transparent); }
 .element-box.suspicious { z-index: 2; border: 2px solid #ffb020; background: #ff9d0029; }
@@ -387,7 +343,7 @@ watch(selected, node => {
 .calibration label { display: grid; gap: 3px; color: #93a4bb; font-size: 11px; }.calibration input, .calibration select { min-width: 0; padding: 5px; border: 1px solid #354155; border-radius: 4px; color: #e7edf6; background: #10151d; }
 .rect-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
-@media (max-width: 900px) { .outline-workspace, .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) minmax(260px, 38vw); grid-template-rows: minmax(360px, 55vh) minmax(280px, auto); overflow: auto; }.page-scroll { grid-column: 1 / -1; min-height: 360px; }.tree-panel, .tree-panel-restore, .property-panel { min-height: 280px; border-top: 1px solid #2a3342; }.tree-panel, .tree-panel-restore { border-left: 0; }.tree-panel-restore { writing-mode: vertical-rl; } }
-@media (max-width: 640px) { .outline-workspace, .outline-workspace.tree-panel-collapsed { display: flex; flex-direction: column; overflow: auto; }.page-scroll { min-height: 55vh; }.tree-panel, .property-panel { min-height: 280px; }.tree-panel-restore { min-height: 34px; writing-mode: horizontal-tb; } }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+@media (max-width: 900px) { .outline-workspace, .outline-workspace.tree-panel-collapsed { width: 1080px; min-height: 680px; } }
+@media (max-width: 640px) { .outline-workspace, .outline-workspace.tree-panel-collapsed { width: 960px; min-height: 620px; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 </style>

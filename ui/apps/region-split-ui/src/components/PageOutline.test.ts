@@ -28,50 +28,6 @@ describe("PageOutline", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
     return vi.spyOn(HTMLElement.prototype, "scrollIntoView");
   }
-  // 整页两千多像素高，只靠滚动条移动很别扭
-  it("pans the page by dragging", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    Object.assign(panel.element, { scrollLeft: 0, scrollTop: 0 });
-
-    await panel.trigger("pointerdown", { button: 0, clientX: 100, clientY: 100 });
-    await panel.trigger("pointermove", { clientX: 60, clientY: 30 });
-
-    expect(panel.element.scrollLeft).toBe(40);
-    expect(panel.element.scrollTop).toBe(70);
-  });
-
-  // click 在 pointerup 之后才触发，所以判据不能挂在拖动状态上——那时它已经被清掉了。
-  // 实机验过：漏了这一条，每拖一次就误选一个元素。
-  it("does not select the element under the pointer after a drag", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    Object.assign(panel.element, { scrollLeft: 0, scrollTop: 0 });
-    const box = wrapper.findAll('[data-test="page-outline"] .element-box')[0]!;
-
-    await panel.trigger("pointerdown", { button: 0, clientX: 100, clientY: 100 });
-    await panel.trigger("pointermove", { clientX: 100, clientY: 20 });
-    await panel.trigger("pointerup");
-    await box.trigger("click");
-
-    expect(wrapper.emitted("select")).toBeFalsy();
-  });
-
-  // 元素框铺满了图，起拖点几乎总在某个框上；没有阈值的话轻微抖动就会吞掉点选
-  it("still selects an element when the pointer barely moved", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    Object.assign(panel.element, { scrollLeft: 0, scrollTop: 0 });
-
-    await panel.trigger("pointerdown", { button: 0, clientX: 100, clientY: 100 });
-    await panel.trigger("pointermove", { clientX: 101, clientY: 101 });
-    await panel.trigger("pointerup");
-    await wrapper.findAll('[data-test="page-outline"] .element-box')[0]!.trigger("click");
-
-    expect(panel.element.scrollLeft).toBe(0);
-    expect(wrapper.emitted("select")).toBeTruthy();
-  });
-
   const withRegions = (regions: PageOutlineDto["regions"]): PageOutlineDto => ({ ...outline, regions });
   const region = (regionKey: string, status: "parsed" | "missing" | "failed") => ({
     regionKey, displayName: `区域 ${regionKey}`, status,
@@ -163,100 +119,29 @@ describe("PageOutline", () => {
     expect(wrapper.emitted("refreshModelConfig")).toHaveLength(1);
   });
 
-  it("renders image, tree, and independent property columns", () => {
+  it("keeps tools outside one transformed three-column stage", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const workspace = wrapper.get(".outline-workspace");
-    const panels = [
-      wrapper.get('[data-test="image-panel"]'),
-      wrapper.get('[data-test="tree-panel"]'),
-      wrapper.get('[data-test="property-panel"]'),
-    ];
-    expect(panels.every(panel => panel.element.parentElement === workspace.element)).toBe(true);
-    expect(panels[1]!.find('[data-test="calibration"]').exists()).toBe(false);
-    expect(panels[2]!.get('[data-test="property-empty"]').text()).toContain("选择元素");
-    expect(panels[2]!.find('[data-test="calibration"]').exists()).toBe(false);
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    const tools = wrapper.get('[data-test="view-controls"]');
+    expect(tools.element.parentElement).not.toBe(viewport.element);
+    expect(stage.element.parentElement).toBe(viewport.element);
+    for (const selector of ['[data-test="image-panel"]', '[data-test="tree-panel"]', '[data-test="property-panel"]']) {
+      expect(wrapper.get(selector).element.parentElement).toBe(stage.element);
+    }
+    expect(stage.attributes("style")).toContain("translate3d(");
+    expect(stage.attributes("style")).toContain("scale(");
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("aspect-ratio: 400 / 1000");
+    expect(wrapper.get('[data-test="image-panel"]').classes()).not.toContain("edge-to-edge");
   });
 
-  it("fills the panel width without a fixed cap or panel inset", () => {
+  it("renders accessible fit and 100 percent controls", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 100%");
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).not.toContain("900px");
-    expect(wrapper.get('[data-test="image-panel"]').classes()).toContain("edge-to-edge");
-  });
-
-  it("zooms in on the wheel and keeps the pointer anchored", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    const stage = wrapper.get('[data-test="page-stage"]');
-    Object.defineProperties(panel.element, {
-      scrollLeft: { value: 0, writable: true }, scrollTop: { value: 0, writable: true },
-      clientWidth: { value: 400 }, clientHeight: { value: 600 },
-    });
-    let stageWidth = 400;
-    vi.spyOn(stage.element, "getBoundingClientRect").mockImplementation(() => ({
-      left: 18 - (panel.element as HTMLElement).scrollLeft,
-      top: 18 - (panel.element as HTMLElement).scrollTop,
-      width: stageWidth, height: stageWidth * 2.5,
-      right: 18 - (panel.element as HTMLElement).scrollLeft + stageWidth,
-      bottom: 18 - (panel.element as HTMLElement).scrollTop + stageWidth * 2.5,
-      x: 18, y: 18, toJSON: () => ({}),
-    }));
-
-    const event = new WheelEvent("wheel", { deltaY: -100, clientX: 218, clientY: 318, bubbles: true, cancelable: true });
-    panel.element.dispatchEvent(event);
-    stageWidth = 440;
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 110%");
-    expect(event.defaultPrevented).toBe(true);
-    expect((panel.element as HTMLElement).scrollLeft).toBeCloseTo(20);
-    expect((panel.element as HTMLElement).scrollTop).toBeCloseTo(30);
-  });
-
-  it("coalesces fast wheel events without losing the pointer anchor", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    const stage = wrapper.get('[data-test="page-stage"]');
-    Object.defineProperties(panel.element, {
-      scrollLeft: { value: 0, writable: true }, scrollTop: { value: 0, writable: true },
-    });
-    let stageWidth = 400;
-    vi.spyOn(stage.element, "getBoundingClientRect").mockImplementation(() => ({
-      left: 18 - (panel.element as HTMLElement).scrollLeft, top: 18 - (panel.element as HTMLElement).scrollTop,
-      width: stageWidth, height: stageWidth * 2.5, right: 18 + stageWidth, bottom: 18 + stageWidth * 2.5,
-      x: 18, y: 18, toJSON: () => ({}),
-    }));
-
-    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 218, clientY: 318, bubbles: true, cancelable: true }));
-    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 218, clientY: 318, bubbles: true, cancelable: true }));
-    stageWidth = 480;
-    await wrapper.vm.$nextTick();
-
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 120%");
-    expect((panel.element as HTMLElement).scrollLeft).toBeCloseTo(40);
-    expect((panel.element as HTMLElement).scrollTop).toBeCloseTo(60);
-  });
-
-  it("zooms back out on the opposite wheel direction", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 100, clientY: 100, bubbles: true, cancelable: true }));
-    await wrapper.vm.$nextTick();
-    const zoomedIn = wrapper.get('[data-test="page-stage"]').attributes("style");
-    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, clientX: 100, clientY: 100, bubbles: true, cancelable: true }));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).not.toBe(zoomedIn);
-  });
-
-  it("clamps the zoom", async () => {
-    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const panel = wrapper.get('[data-test="image-panel"]');
-    for (let i = 0; i < 50; i += 1) panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true }));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 400%");
-    for (let i = 0; i < 100; i += 1) panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true }));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 20%");
+    expect(wrapper.get('[data-test="zoom-out"]').attributes("aria-label")).toBe("缩小画布");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toMatch(/^\d+%$/);
+    expect(wrapper.get('[data-test="zoom-in"]').attributes("aria-label")).toBe("放大画布");
+    expect(wrapper.get('[data-test="fit-view"]').text()).toBe("适应视图");
+    expect(wrapper.get('[data-test="actual-size"]').text()).toBe("100%");
   });
 
   it("renders the whole image and all boxes in page coordinates with suspicious emphasis", () => {
@@ -342,12 +227,12 @@ describe("PageOutline", () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
   });
 
-  it("shares selection between tree and image and exposes only three calibration fields", async () => {
+  it("shares selection between tree and image without independently scrolling the image panel", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const scrollIntoView = spyOnScrollIntoView();
     await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+    expect(scrollIntoView).not.toHaveBeenCalled();
     await wrapper.setProps({ selectedId: "0-1000::bad" });
     expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
     expect(wrapper.get('[data-test="calibration-text"]')).toBeTruthy();
