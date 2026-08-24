@@ -430,7 +430,7 @@ describe("PageOutline", () => {
     expect(wrapper.findAll(".tree-item")).toHaveLength(4);
   });
 
-  it("keeps the visual center and scale when the stage size changes", async () => {
+  it("shrinks the stage without resizing the image column and keeps the current view", async () => {
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
     const viewport = wrapper.get('[data-test="canvas-viewport"]');
@@ -442,10 +442,17 @@ describe("PageOutline", () => {
     await wrapper.get('[data-test="zoom-in"]').trigger("click");
     const zoom = wrapper.get('[data-test="zoom-level"]').text();
     const before = stage.attributes("style") ?? "";
+    const imagePanel = wrapper.get('[data-test="image-panel"]');
+    setElementSize(imagePanel.element, 600, 760);
+    await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
     setElementSize(stage.element, 934, 760);
+    setElementSize(imagePanel.element, 600, 760);
     resizeCallback?.();
     await wrapper.vm.$nextTick();
     const after = stage.attributes("style") ?? "";
+    expect(stage.classes()).toContain("tree-panel-collapsed");
+    expect(stage.element.clientWidth).toBe(934);
+    expect(imagePanel.element.clientWidth).toBe(600);
     expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
     expect(after).toBe(before);
   });
