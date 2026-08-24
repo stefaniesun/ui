@@ -11,13 +11,20 @@ vi.mock("./api.js", async () => {
 async function mounted() {
   const wrapper = mount(App, {
     attachTo: document.body,
-    global: { stubs: { RegionsNode: true } },
+    global: { stubs: { RegionsNode: true, UploadPanel: false } },
   });
   await new Promise(resolve => setTimeout(resolve, 0));
   return wrapper;
 }
 
 describe("App pipeline workspace", () => {
+  it("shows only the upload panel before a project exists", async () => {
+    const wrapper = await mounted();
+    expect(wrapper.findComponent({ name: "UploadPanel" }).exists()).toBe(true);
+    expect(wrapper.find(".pipeline-canvas").exists()).toBe(false);
+    expect(wrapper.find(".brand").exists()).toBe(false);
+    wrapper.unmount();
+  });
   beforeEach(() => {
     document.body.innerHTML = "";
     localStorage.clear();
@@ -29,7 +36,9 @@ describe("App pipeline workspace", () => {
   });
 
   it("renders one comparison workspace without intermediate nodes or edges", async () => {
+    location.hash = "#project=p1";
     const wrapper = await mounted();
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(wrapper.findAll("[data-node-id]").map(node => node.attributes("data-node-id")))
       .toEqual(["workspace"]);
     expect(wrapper.findAll(".edges path")).toHaveLength(0);
@@ -48,7 +57,9 @@ describe("App pipeline workspace", () => {
   });
 
   it("closes an error dialog with Escape before changing region state", async () => {
+    location.hash = "#project=p1";
     const wrapper = await mounted();
+    await new Promise(resolve => setTimeout(resolve, 0));
     wrapper.getComponent({ name: "RegionsNode" }).vm.$emit("error", {
       title: "AI 模型未配置", message: "必须配置模型", configPath: "config.json", retryable: false,
     });

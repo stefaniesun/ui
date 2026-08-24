@@ -5,6 +5,7 @@ import RegionsNode, { type RegionNodeError } from "./canvas/nodes/RegionsNode.vu
 import BusyOverlay from "./components/BusyOverlay.vue";
 import ErrorDialog from "./components/ErrorDialog.vue";
 import PageOutline from "./components/PageOutline.vue";
+import UploadPanel from "./components/UploadPanel.vue";
 import { httpApi } from "./api.js";
 import { createPageOutlineState } from "./page-outline-state.js";
 import { createStore } from "./state.js";
@@ -80,12 +81,14 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
 <template>
   <main class="app-shell">
-    <div class="brand">
-      <span class="brand-mark">RS</span>
-      <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
-    </div>
-    <PipelineCanvas
-      ref="pipelineCanvas"
+    <UploadPanel v-if="!store.projectId.value" :busy="store.busy.value" @upload="store.uploadImage" />
+    <template v-else>
+      <div class="brand">
+        <span class="brand-mark">RS</span>
+        <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
+      </div>
+      <PipelineCanvas
+        ref="pipelineCanvas"
       :regions="store.regions.value"
       :project-id="store.projectId.value"
       :get-region-anchor="getRegionAnchor"
@@ -103,8 +106,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
         @layout-change="pipelineCanvas?.refreshConnections()"
         @uploaded="store.projectId.value && (syncHash(store.projectId.value), refreshParsedRegions())"
         @error="dialogError = $event"
-      />
-    </PipelineCanvas>
+        />
+      </PipelineCanvas>
+    </template>
     <PageOutline
       v-if="pageOutline.outline.value && store.projectId.value"
       :project-id="store.projectId.value"
