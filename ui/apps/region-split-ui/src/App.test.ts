@@ -5,13 +5,15 @@ import App from "./App.vue";
 vi.mock("./api.js", async () => {
   const actual = await vi.importActual<typeof import("./api.js")>("./api.js");
   const helpers = await vi.importActual<typeof import("./test-helpers.js")>("./test-helpers.js");
-  return { ...actual, httpApi: helpers.makeFakeApi(() => [helpers.makeRegion("a", 0, 300), helpers.makeRegion("b", 300, 300)]) };
+  const httpApi = helpers.makeFakeApi(() => [helpers.makeRegion("a", 0, 300), helpers.makeRegion("b", 300, 300)]);
+  httpApi.getProject = vi.fn(async () => ({ projectId: "p1", doc: helpers.makeDoc([helpers.makeRegion("a", 0, 300), helpers.makeRegion("b", 300, 300)], [], true) }));
+  return { ...actual, httpApi };
 });
 
 async function mounted() {
   const wrapper = mount(App, {
     attachTo: document.body,
-    global: { stubs: { RegionsNode: true, UploadPanel: false } },
+    global: { stubs: { UploadPanel: false } },
   });
   await new Promise(resolve => setTimeout(resolve, 0));
   return wrapper;
@@ -35,15 +37,12 @@ describe("App pipeline workspace", () => {
     });
   });
 
-  it("renders one comparison workspace without intermediate nodes or edges", async () => {
+  it("opens a project directly in the outline without mounting the retired canvas", async () => {
     location.hash = "#project=p1";
     const wrapper = await mounted();
-    await new Promise(resolve => setTimeout(resolve, 0));
-    expect(wrapper.findAll("[data-node-id]").map(node => node.attributes("data-node-id")))
-      .toEqual(["workspace"]);
-    expect(wrapper.findAll(".edges path")).toHaveLength(0);
-    expect(wrapper.text()).not.toContain("表面分析");
-    expect(wrapper.text()).not.toContain("AI 分段");
+    await vi.waitFor(() => expect(wrapper.find('[data-test="page-outline"]').exists()).toBe(true));
+    expect(wrapper.find(".pipeline-canvas").exists()).toBe(false);
+    expect(wrapper.find("[data-node-id]").exists()).toBe(false);
     wrapper.unmount();
   });
 
@@ -56,20 +55,17 @@ describe("App pipeline workspace", () => {
     expect(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))).not.toThrow();
   });
 
-  it("closes an error dialog with Escape before changing region state", async () => {
+  it("closes the standalone page comparison with Escape", async () => {
     location.hash = "#project=p1";
     const wrapper = await mounted();
-    await new Promise(resolve => setTimeout(resolve, 0));
-    wrapper.getComponent({ name: "RegionsNode" }).vm.$emit("error", {
-      title: "AI 模型未配置", message: "必须配置模型", configPath: "config.json", retryable: false,
-    });
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+    await vi.waitFor(() => expect(wrapper.find('[data-test="open-page-compare"]').exists()).toBe(true));
+    await wrapper.get('[data-test="open-page-compare"]').trigger("click");
+    expect(wrapper.find('[aria-label="整页比对"]').exists()).toBe(true);
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="整页比对"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

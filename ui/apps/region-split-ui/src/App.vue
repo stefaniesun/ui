@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import PipelineCanvas from "./canvas/PipelineCanvas.vue";
-import RegionsNode, { type RegionNodeError } from "./canvas/nodes/RegionsNode.vue";
 import BusyOverlay from "./components/BusyOverlay.vue";
 import ErrorDialog from "./components/ErrorDialog.vue";
 import PageOutline from "./components/PageOutline.vue";
+import PageCompare from "./components/PageCompare.vue";
 import UploadPanel from "./components/UploadPanel.vue";
 import { getPageArchive, httpApi, type AnalysisStats } from "./api.js";
 import { createPageOutlineState } from "./page-outline-state.js";
@@ -12,18 +11,12 @@ import { createStore } from "./state.js";
 
 const store = createStore(httpApi);
 const pageOutline = createPageOutlineState(httpApi);
-const hoveredId = ref<string | null>(null);
 const outlineStats = ref<AnalysisStats | null>(null);
 const exportingPage = ref(false);
 const uploadingAndAnalyzing = ref(false);
-const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
-const pipelineCanvas = ref<{
-  openPageCompare(): void;
-  refreshConnections(): void;
-} | null>(null);
-const dialogError = ref<RegionNodeError | null>(null);
+const pageCompareOpen = ref(false);
+const dialogError = ref<{ title: string; message: string; configPath?: string; retryable: boolean } | null>(null);
 const parsedRegionKeys = ref<string[]>([]);
-const showPanels = ref(true);
 const hasImage = computed(() => store.doc.value?.image !== undefined);
 const analyzed = computed(() => Boolean(store.doc.value?.analyzedAt));
 const workspaceStatus = computed(() => analyzed.value ? "done" : hasImage.value ? "active" : "idle");
@@ -37,9 +30,6 @@ watch(() => [store.projectId.value, store.doc.value?.updatedAt] as const, async 
   } else outlineStats.value = null;
 });
 
-function getRegionAnchor(id: string) {
-  return regionsNode.value?.getRegionAnchor(id) ?? null;
-}
 async function refreshParsedRegions() {
   const projectId = store.projectId.value;
   parsedRegionKeys.value = projectId ? (await httpApi.getParsedRegions(projectId)).regionKeys : [];
@@ -60,7 +50,7 @@ function downloadArchive(projectId: string, archive: Blob) {
 async function uploadAndAnalyze(file: File) {
   if (store.busy.value || uploadingAndAnalyzing.value) return;
   if (!store.modelConfig.value) await store.loadModelConfig();
-  if (!store.modelConfig.value?.configured) return;
+  if (!(store.modelConfig.value?.baseUrl && store.modelConfig.value?.model && store.modelConfig.value?.hasApiKey)) return;
   uploadingAndAnalyzing.value = true;
   try {
     await store.uploadImage(file);
@@ -87,14 +77,9 @@ async function exportPage() {
   finally { exportingPage.value = false; }
 }
 
-function syncHash(projectId: string) { window.location.hash = `project=${projectId}`; }
 function isEditingTarget(target: EventTarget | null) {
   const element = target as HTMLElement | null;
   return element?.tagName === "INPUT" || element?.tagName === "TEXTAREA" || element?.isContentEditable;
-}
-async function retryAnalysis() {
-  dialogError.value = null;
-  await regionsNode.value?.retryAnalysis();
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -102,6 +87,7 @@ function onKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") dialogError.value = null;
     return;
   }
+  if (pageCompareOpen.value && event.key === "Escape") { pageCompareOpen.value = false; return; }
   if (store.busy.value || isEditingTarget(event.target)) return;
   const mod = event.ctrlKey || event.metaKey;
   if (store.mode.value === "split" && event.key !== "Escape") return;
@@ -132,38 +118,15 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
     <UploadPanel
       v-if="!store.projectId.value"
       :busy="store.busy.value || uploadingAndAnalyzing"
-      :configured="Boolean(store.modelConfig.value?.configured)"
+      :configured="Boolean(store.modelConfig.value?.baseUrl && store.modelConfig.value?.model && store.modelConfig.value?.hasApiKey)"
       :config-path="store.modelConfig.value?.configPath"
       @upload="uploadAndAnalyze"
       @refresh-model-config="store.loadModelConfig"
     />
-    <template v-else>
-      <div class="brand">
-        <span class="brand-mark">RS</span>
-        <div><strong>Region Split</strong><small>视觉区域拆分工作台</small></div>
-      </div>
-      <PipelineCanvas
-        ref="pipelineCanvas"
-      :regions="store.regions.value"
-      :project-id="store.projectId.value"
-      :get-region-anchor="getRegionAnchor"
-      :page-api="httpApi"
-      :image-size="{ w: store.doc.value?.image.width ?? 1, h: store.doc.value?.image.height ?? 1 }"
-    >
-      <RegionsNode
-        ref="regionsNode"
-        :store="store"
-        :hovered-id="hoveredId"
-        :show-panels="showPanels"
-        :parsed-region-keys="parsedRegionKeys"
-        @hover="hoveredId = $event"
-        @open-page-compare="pipelineCanvas?.openPageCompare()"
-        @layout-change="pipelineCanvas?.refreshConnections()"
-        @uploaded="store.projectId.value && (syncHash(store.projectId.value), refreshParsedRegions())"
-        @error="dialogError = $event"
-        />
-      </PipelineCanvas>
-    </template>
+    <div v-else-if="!pageOutline.outline.value" class="analysis-loading" aria-live="polite">
+      <strong>{{ store.busyLabel.value || pageOutline.progressText.value || "正在准备整页轮廓…" }}</strong>
+      <span>区域分析完成后将直接进入整页三栏工作区</span>
+    </div>
     <PageOutline
       v-if="pageOutline.outline.value && store.projectId.value"
       :project-id="store.projectId.value"
@@ -181,10 +144,17 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       @retry="pageOutline.analyzeAll(store.projectId.value, true)"
       @font-stack="store.setFontStack"
       @export-page="exportPage"
-      @open-page-compare="pipelineCanvas?.openPageCompare()"
+      @open-page-compare="pageCompareOpen = true"
       @refresh-model-config="store.loadModelConfig"
       @patch="(id, patch) => pageOutline.patch(store.projectId.value, id, patch)"
     />
+    <section v-if="pageCompareOpen && store.projectId.value" class="page-compare-dialog" role="dialog" aria-modal="true" aria-label="整页比对">
+      <header><strong>整页比对</strong><button type="button" aria-label="关闭整页比对" @click="pageCompareOpen = false">×</button></header>
+      <PageCompare
+        :project-id="store.projectId.value" :api="httpApi"
+        :image-size="{ w: store.doc.value?.image.width ?? 1, h: store.doc.value?.image.height ?? 1 }"
+      />
+    </section>
     <BusyOverlay v-if="store.busy.value && !analyzing" :label="store.busyLabel.value" />
     <ErrorDialog
       v-if="dialogError"
@@ -193,7 +163,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
       :config-path="dialogError.configPath"
       :retryable="dialogError.retryable"
       @close="dialogError = null"
-      @retry="retryAnalysis"
     />
   </main>
 </template>
@@ -201,6 +170,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 <style scoped>
 .app-shell { position: relative; width: 100%; height: 100%; overflow: hidden; }
 .app-shell > .page-outline { position: absolute; z-index: 20; inset: 0; }
-.brand { position: absolute; z-index: 30; left: 16px; top: 14px; display: flex; align-items: center; gap: 9px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: #24272eee; box-shadow: 0 8px 20px #0007; pointer-events: none; }
-.brand-mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 7px; color: white; background: var(--accent); font-size: 10px; font-weight: 800; }.brand strong,.brand small { display: block; }.brand strong { font-size: 12px; }.brand small { margin-top: 2px; color: var(--text-faint); font-size: 9px; }
+.analysis-loading { height: 100%; display: grid; place-content: center; gap: 8px; color: #dbe7f5; text-align: center; background: #0c1119; }.analysis-loading span { color: #8d9bb0; font-size: 12px; }
+.page-compare-dialog { position: absolute; z-index: 50; inset: 5%; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #354155; border-radius: 10px; color: #e5e7eb; background: #121720; box-shadow: 0 20px 70px #000c; }.page-compare-dialog > header { min-height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid #2a3342; }.page-compare-dialog > header button { border: 0; color: #cbd5e1; background: transparent; font-size: 22px; cursor: pointer; }.page-compare-dialog :deep(.page-compare) { min-height: 0; flex: 1; overflow: auto; }
 </style>

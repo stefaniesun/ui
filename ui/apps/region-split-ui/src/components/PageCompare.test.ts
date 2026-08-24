@@ -1,7 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
-import PageCompareNode from "./PageCompareNode.vue";
+import PageCompare from "./PageCompare.vue";
 
 const payload = {
   html: '<section class="region"><img src="assets/a.png"></section>',
@@ -14,11 +14,11 @@ const stubApi = (result: typeof payload | Error = payload) => ({
     return result;
   }),
 });
-const mountNode = (api = stubApi()) => mount(PageCompareNode, {
+const mountNode = (api = stubApi()) => mount(PageCompare, {
   props: { projectId: "p1", api, imageSize: { w: 1170, h: 2532 } },
 });
 
-describe("PageCompareNode", () => {
+describe("PageCompare", () => {
   it("offers to build the comparison before anything is loaded", () => {
     expect(mountNode().find('[data-test="build-page"]').exists()).toBe(true);
   });

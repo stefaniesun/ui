@@ -64,7 +64,7 @@ function toImage(event: { clientX: number; clientY: number }): { x: number; y: n
 /**
  * 取色的落点在这张解析图上——它底下铺的就是区域原图，和之前那张被移除的
  * "区域原图"预览是同一个 URL，所以取到的像素一样。
- * 这里只报坐标，不碰 canvas：采样要用原图的自然尺寸，那份状态在 DetailNode。
+ * 这里只报坐标，不处理画布状态；采样必须使用原图的自然尺寸，由调用方提供。
  */
 function onPickMove(event: MouseEvent) {
   if (!props.picking) return;

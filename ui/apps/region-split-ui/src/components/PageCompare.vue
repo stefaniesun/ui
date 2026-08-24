@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { imageUrl, type PageCodeOutput } from "../../api.js";
-import { pagePreviewDocument } from "../../page-preview.js";
+import { imageUrl, type PageCodeOutput } from "../api.js";
+import { pagePreviewDocument } from "../page-preview.js";
 
 const props = defineProps<{
   projectId: string;
