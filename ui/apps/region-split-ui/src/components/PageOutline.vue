@@ -116,28 +116,46 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.1;
 const imagePanel = ref<HTMLElement | null>(null);
+const pageStage = ref<HTMLElement | null>(null);
 const zoom = ref(1);
 const stageStyle = computed(() => ({ width: `${Math.round(zoom.value * 100)}%` }));
+let pendingZoomAnchor: { x: number; y: number; ratioX: number; ratioY: number } | null = null;
+let zoomCorrectionScheduled = false;
 let panFrom: { x: number; y: number; left: number; top: number; moved: boolean } | null = null;
 let suppressClick = false;
 
 function onZoom(event: WheelEvent) {
   const panel = imagePanel.value;
-  if (!panel || event.deltaY === 0) return;
+  const stage = pageStage.value;
+  if (!panel || !stage || event.deltaY === 0) return;
   event.preventDefault();
   const previous = zoom.value;
   const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number((previous + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)).toFixed(2))));
   if (next === previous) return;
-  const rect = panel.getBoundingClientRect();
-  const pointerX = event.clientX - rect.left;
-  const pointerY = event.clientY - rect.top;
-  const contentX = panel.scrollLeft + pointerX;
-  const contentY = panel.scrollTop + pointerY;
+  if (!pendingZoomAnchor) {
+    const rect = stage.getBoundingClientRect();
+    pendingZoomAnchor = {
+      x: event.clientX, y: event.clientY,
+      ratioX: rect.width ? (event.clientX - rect.left) / rect.width : 0,
+      ratioY: rect.height ? (event.clientY - rect.top) / rect.height : 0,
+    };
+  } else {
+    pendingZoomAnchor.x = event.clientX;
+    pendingZoomAnchor.y = event.clientY;
+  }
   zoom.value = next;
-  const ratio = next / previous;
+  if (zoomCorrectionScheduled) return;
+  zoomCorrectionScheduled = true;
   nextTick(() => {
-    panel.scrollLeft = contentX * ratio - pointerX;
-    panel.scrollTop = contentY * ratio - pointerY;
+    zoomCorrectionScheduled = false;
+    const anchor = pendingZoomAnchor;
+    pendingZoomAnchor = null;
+    const currentStage = pageStage.value;
+    const currentPanel = imagePanel.value;
+    if (!anchor || !currentStage || !currentPanel) return;
+    const rect = currentStage.getBoundingClientRect();
+    currentPanel.scrollLeft += rect.left + rect.width * anchor.ratioX - anchor.x;
+    currentPanel.scrollTop += rect.top + rect.height * anchor.ratioY - anchor.y;
   });
 }
 
@@ -238,7 +256,7 @@ watch(selected, node => {
         @pointerup="onPanEnd" @pointercancel="onPanEnd" @pointerleave="onPanEnd"
         @click.capture="onPanClick" @wheel="onZoom"
       >
-        <div class="page-stage" data-test="page-stage" :style="stageStyle">
+        <div ref="pageStage" class="page-stage" data-test="page-stage" :style="stageStyle">
           <img :src="imageSrc" alt="待校准整页截图" />
           <button
             v-for="node in outline.elements" :key="node.id" :ref="element => bindBox(node.id, element)"

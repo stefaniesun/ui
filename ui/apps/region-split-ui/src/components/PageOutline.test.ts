@@ -155,17 +155,54 @@ describe("PageOutline", () => {
   it("zooms in on the wheel and keeps the pointer anchored", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const panel = wrapper.get('[data-test="image-panel"]');
+    const stage = wrapper.get('[data-test="page-stage"]');
     Object.defineProperties(panel.element, {
       scrollLeft: { value: 0, writable: true }, scrollTop: { value: 0, writable: true },
       clientWidth: { value: 400 }, clientHeight: { value: 600 },
     });
+    let stageWidth = 400;
+    vi.spyOn(stage.element, "getBoundingClientRect").mockImplementation(() => ({
+      left: 18 - (panel.element as HTMLElement).scrollLeft,
+      top: 18 - (panel.element as HTMLElement).scrollTop,
+      width: stageWidth, height: stageWidth * 2.5,
+      right: 18 - (panel.element as HTMLElement).scrollLeft + stageWidth,
+      bottom: 18 - (panel.element as HTMLElement).scrollTop + stageWidth * 2.5,
+      x: 18, y: 18, toJSON: () => ({}),
+    }));
 
-    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 200, clientY: 300, bubbles: true, cancelable: true }));
+    const event = new WheelEvent("wheel", { deltaY: -100, clientX: 218, clientY: 318, bubbles: true, cancelable: true });
+    panel.element.dispatchEvent(event);
+    stageWidth = 440;
     await wrapper.vm.$nextTick();
 
     expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 110%");
+    expect(event.defaultPrevented).toBe(true);
     expect((panel.element as HTMLElement).scrollLeft).toBeCloseTo(20);
     expect((panel.element as HTMLElement).scrollTop).toBeCloseTo(30);
+  });
+
+  it("coalesces fast wheel events without losing the pointer anchor", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    const stage = wrapper.get('[data-test="page-stage"]');
+    Object.defineProperties(panel.element, {
+      scrollLeft: { value: 0, writable: true }, scrollTop: { value: 0, writable: true },
+    });
+    let stageWidth = 400;
+    vi.spyOn(stage.element, "getBoundingClientRect").mockImplementation(() => ({
+      left: 18 - (panel.element as HTMLElement).scrollLeft, top: 18 - (panel.element as HTMLElement).scrollTop,
+      width: stageWidth, height: stageWidth * 2.5, right: 18 + stageWidth, bottom: 18 + stageWidth * 2.5,
+      x: 18, y: 18, toJSON: () => ({}),
+    }));
+
+    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 218, clientY: 318, bubbles: true, cancelable: true }));
+    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 218, clientY: 318, bubbles: true, cancelable: true }));
+    stageWidth = 480;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 120%");
+    expect((panel.element as HTMLElement).scrollLeft).toBeCloseTo(40);
+    expect((panel.element as HTMLElement).scrollTop).toBeCloseTo(60);
   });
 
   it("zooms back out on the opposite wheel direction", async () => {
