@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
-import { DEFAULT_VIEW, fitView, zoomAt, type CanvasView } from "../infinite-canvas-view.js";
+import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
 import type { AnalysisStats } from "../api.js";
 
 const props = defineProps<{
@@ -120,6 +120,12 @@ const canvasViewport = ref<HTMLElement | null>(null);
 const canvasStage = ref<HTMLElement | null>(null);
 const pageStage = ref<HTMLElement | null>(null);
 const view = ref<CanvasView>({ ...DEFAULT_VIEW });
+const viewportSize = ref<CanvasSize>({ width: 0, height: 0 });
+const stageSize = ref<CanvasSize>({ width: 0, height: 0 });
+const userChangedView = ref(false);
+let hasValidInitialView = false;
+let imageLoadCorrectionPending = true;
+let resizeObserver: ResizeObserver | null = null;
 const zoomLabel = computed(() => `${Math.round(view.value.scale * 100)}%`);
 const canvasStageStyle = computed(() => ({
   transform: `translate3d(${view.value.x}px, ${view.value.y}px, 0) scale(${view.value.scale})`,
@@ -128,26 +134,84 @@ const pageStageStyle = computed(() => ({
   aspectRatio: `${props.outline.image.width} / ${props.outline.image.height}`,
 }));
 
-function fitCanvas() {
-  const viewport = canvasViewport.value;
-  const stage = canvasStage.value;
-  if (!viewport || !stage) return;
-  view.value = fitView(
-    { width: viewport.clientWidth, height: viewport.clientHeight },
-    { width: stage.clientWidth, height: stage.clientHeight },
-    FIT_PADDING,
-  );
+function measure(element: HTMLElement | null): CanvasSize {
+  if (!element) return { width: 0, height: 0 };
+  return { width: element.clientWidth, height: element.clientHeight };
+}
+function hasSize(size: CanvasSize) {
+  return Number.isFinite(size.width) && Number.isFinite(size.height) && size.width > 0 && size.height > 0;
+}
+function fitCanvas(markAsUserAction = true) {
+  viewportSize.value = measure(canvasViewport.value);
+  stageSize.value = measure(canvasStage.value);
+  view.value = fitView(viewportSize.value, stageSize.value, FIT_PADDING);
+  if (markAsUserAction) userChangedView.value = true;
 }
 function zoomBy(step: number) {
-  const viewport = canvasViewport.value;
-  const anchor = { x: (viewport?.clientWidth ?? 0) / 2, y: (viewport?.clientHeight ?? 0) / 2 };
+  const anchor = { x: viewportSize.value.width / 2, y: viewportSize.value.height / 2 };
   view.value = zoomAt(view.value, view.value.scale + step, anchor);
+  userChangedView.value = true;
 }
 function setActualSize() {
-  const viewport = canvasViewport.value;
-  const anchor = { x: (viewport?.clientWidth ?? 0) / 2, y: (viewport?.clientHeight ?? 0) / 2 };
+  const anchor = { x: viewportSize.value.width / 2, y: viewportSize.value.height / 2 };
   view.value = zoomAt(view.value, 1, anchor);
+  userChangedView.value = true;
 }
+function pointInViewport(event: MouseEvent | WheelEvent) {
+  const rect = canvasViewport.value?.getBoundingClientRect();
+  return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
+}
+function isScrollablePanel(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest(".tree-panel, .tree-panel-restore, .property-panel"));
+}
+function onCanvasWheel(event: WheelEvent) {
+  if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
+  if (isScrollablePanel(event.target) && !event.ctrlKey) return;
+  const anchor = pointInViewport(event);
+  if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) return;
+  event.preventDefault();
+  const direction = event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+  view.value = zoomAt(view.value, view.value.scale + direction, anchor);
+  userChangedView.value = true;
+}
+function onCanvasDoubleClick(event: MouseEvent) {
+  if (event.target === canvasViewport.value) fitCanvas();
+}
+function measureCanvas() {
+  const previousViewport = viewportSize.value;
+  viewportSize.value = measure(canvasViewport.value);
+  stageSize.value = measure(canvasStage.value);
+  if (!hasSize(viewportSize.value) || !hasSize(stageSize.value)) return;
+  if (!hasValidInitialView) {
+    fitCanvas(false);
+    hasValidInitialView = true;
+    return;
+  }
+  if (hasSize(previousViewport)
+    && (previousViewport.width !== viewportSize.value.width || previousViewport.height !== viewportSize.value.height)) {
+    view.value = keepViewportCenter(view.value, previousViewport, viewportSize.value);
+  }
+}
+function onImageLoad() {
+  if (!imageLoadCorrectionPending) return;
+  imageLoadCorrectionPending = false;
+  const previousStage = stageSize.value;
+  stageSize.value = measure(canvasStage.value);
+  viewportSize.value = measure(canvasViewport.value);
+  if (!userChangedView.value
+    && (!hasValidInitialView || previousStage.width !== stageSize.value.width || previousStage.height !== stageSize.value.height)) {
+    fitCanvas(false);
+    hasValidInitialView = hasSize(viewportSize.value) && hasSize(stageSize.value);
+  }
+}
+onMounted(() => {
+  measureCanvas();
+  if (typeof ResizeObserver === "undefined") return;
+  resizeObserver = new ResizeObserver(measureCanvas);
+  if (canvasViewport.value) resizeObserver.observe(canvasViewport.value);
+  if (canvasStage.value) resizeObserver.observe(canvasStage.value);
+});
+onBeforeUnmount(() => resizeObserver?.disconnect());
 
 function expandAncestors(id: string) {
   const ancestors = new Set(ancestorsOf(id));
@@ -218,7 +282,7 @@ watch(selected, node => {
         <button type="button" data-test="zoom-out" aria-label="缩小画布" @click="zoomBy(-ZOOM_STEP)">−</button>
         <output data-test="zoom-level" aria-live="polite">{{ zoomLabel }}</output>
         <button type="button" data-test="zoom-in" aria-label="放大画布" @click="zoomBy(ZOOM_STEP)">+</button>
-        <button type="button" data-test="fit-view" @click="fitCanvas">适应视图</button>
+        <button type="button" data-test="fit-view" @click="fitCanvas()">适应视图</button>
         <button type="button" data-test="actual-size" @click="setActualSize">100%</button>
       </div>
     </div>
@@ -231,14 +295,17 @@ watch(selected, node => {
     <ul v-if="stats?.todos.length" data-test="analysis-todos" class="analysis-todos"><li v-for="todo in stats.todos" :key="todo">{{ todo }}</li></ul>
     <p v-if="error" class="error">{{ error }}</p>
 
-    <section ref="canvasViewport" class="canvas-viewport" data-test="canvas-viewport">
+    <section
+      ref="canvasViewport" class="canvas-viewport" data-test="canvas-viewport"
+      @wheel="onCanvasWheel" @dblclick="onCanvasDoubleClick"
+    >
       <div
         ref="canvasStage" class="outline-workspace canvas-stage" data-test="canvas-stage"
         :class="{ 'tree-panel-collapsed': treePanelCollapsed }" :style="canvasStageStyle"
       >
         <div class="page-scroll" data-test="image-panel">
           <div ref="pageStage" class="page-stage" data-test="page-stage" :style="pageStageStyle">
-          <img :src="imageSrc" alt="待校准整页截图" />
+          <img :src="imageSrc" alt="待校准整页截图" @load="onImageLoad" />
           <button
             v-for="node in outline.elements" :key="node.id" :ref="element => bindBox(node.id, element)"
             type="button" class="element-box"

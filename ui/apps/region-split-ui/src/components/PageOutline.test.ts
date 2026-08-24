@@ -4,6 +4,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import PageOutline from "./PageOutline.vue";
 import { DEFAULT_FONT_STACK } from "../font-stacks.js";
 
+let resizeCallback: (() => void) | null = null;
+class ResizeObserverStub {
+  constructor(callback: ResizeObserverCallback) {
+    resizeCallback = () => callback([], this as unknown as ResizeObserver);
+  }
+  observe = vi.fn();
+  disconnect = vi.fn();
+  unobserve = vi.fn();
+}
+
+function setElementSize(element: Element, width: number, height: number) {
+  Object.defineProperties(element, {
+    clientWidth: { configurable: true, value: width },
+    clientHeight: { configurable: true, value: height },
+  });
+}
+
 const outline: PageOutlineDto = {
   image: { fileName: "page.png", width: 400, height: 1000 }, designWidth: 400, suspiciousCount: 1,
   regions: [{ regionKey: "0-1000", displayName: "页面", bounds: { x: 0, y: 0, w: 400, h: 1000 }, status: "parsed" }],
@@ -20,6 +37,8 @@ const outline: PageOutlineDto = {
 describe("PageOutline", () => {
   const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
   afterEach(() => {
+    resizeCallback = null;
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
     if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
     else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
@@ -142,6 +161,100 @@ describe("PageOutline", () => {
     expect(wrapper.get('[data-test="zoom-in"]').attributes("aria-label")).toBe("放大画布");
     expect(wrapper.get('[data-test="fit-view"]').text()).toBe("适应视图");
     expect(wrapper.get('[data-test="actual-size"]').text()).toBe("100%");
+  });
+
+  it("fits the whole stage after the first valid measurement", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    setElementSize(viewport.element, 1024, 700);
+    setElementSize(stage.element, 1200, 760);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+    expect(stage.attributes("style")).toContain("scale(0.8)");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("80%");
+  });
+
+  it("zooms empty canvas around the pointer but preserves ordinary panel scrolling", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    vi.spyOn(viewport.element, "getBoundingClientRect").mockReturnValue({ left: 10, top: 20, width: 800, height: 600, right: 810, bottom: 620, x: 10, y: 20, toJSON: () => ({}) });
+    const canvasWheel = new WheelEvent("wheel", { deltaY: -100, clientX: 310, clientY: 220, bubbles: true, cancelable: true });
+    viewport.element.dispatchEvent(canvasWheel);
+    await wrapper.vm.$nextTick();
+    expect(canvasWheel.defaultPrevented).toBe(true);
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("translate3d(-30");
+
+    for (const selector of ['[data-test="tree-panel"]', '[data-test="property-panel"]']) {
+      const panelWheel = new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true });
+      wrapper.get(selector).element.dispatchEvent(panelWheel);
+      await wrapper.vm.$nextTick();
+      expect(panelWheel.defaultPrevented).toBe(false);
+      expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
+    }
+
+    const invalidWheel = new WheelEvent("wheel", { deltaY: -100, clientX: Number.NaN, clientY: 50, bubbles: true, cancelable: true });
+    viewport.element.dispatchEvent(invalidWheel);
+    await wrapper.vm.$nextTick();
+    expect(invalidWheel.defaultPrevented).toBe(false);
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
+  });
+
+  it("zooms toolbar buttons around the viewport center and restores actual size", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    setElementSize(viewport.element, 1024, 700);
+    setElementSize(stage.element, 1200, 760);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("90%");
+    await wrapper.get('[data-test="actual-size"]').trigger("click");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("100%");
+    setElementSize(viewport.element, 904, 700);
+    await wrapper.get('[data-test="fit-view"]').trigger("click");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("70%");
+  });
+
+  it("clamps repeated wheel zoom to 20 and 400 percent", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    for (let index = 0; index < 50; index += 1) {
+      viewport.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -1, bubbles: true, cancelable: true }));
+    }
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("400%");
+    for (let index = 0; index < 100; index += 1) {
+      viewport.element.dispatchEvent(new WheelEvent("wheel", { deltaY: 1, bubbles: true, cancelable: true }));
+    }
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("20%");
+  });
+
+  it("zooms from a panel with ctrl wheel and fits only on viewport double click", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    setElementSize(viewport.element, 1024, 700);
+    setElementSize(stage.element, 1200, 760);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+    const event = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, clientX: 600, clientY: 300, bubbles: true, cancelable: true });
+    wrapper.get('[data-test="property-panel"]').element.dispatchEvent(event);
+    await wrapper.vm.$nextTick();
+    expect(event.defaultPrevented).toBe(true);
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("90%");
+    await wrapper.get('[data-test="property-panel"]').trigger("dblclick");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("90%");
+    await viewport.trigger("dblclick");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("80%");
   });
 
   it("renders the whole image and all boxes in page coordinates with suspicious emphasis", () => {
