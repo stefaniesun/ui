@@ -272,6 +272,116 @@ describe("PageOutline", () => {
     expect(wrapper.get(".tree-item.suspicious").attributes("aria-selected")).toBe("false");
   });
 
+  it("pans from empty canvas with the left pointer, captures it, and preserves focus", async () => {
+    const wrapper = mount(PageOutline, { attachTo: document.body, props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const focused = wrapper.get('[data-test="fit-view"]').element as HTMLButtonElement;
+    focused.focus();
+    const capture = vi.fn();
+    Object.defineProperty(viewport.element, "setPointerCapture", { configurable: true, value: capture });
+    await viewport.trigger("pointerdown", { button: 0, pointerId: 7, clientX: 100, clientY: 100 });
+    await viewport.trigger("pointermove", { pointerId: 7, clientX: 140, clientY: 130 });
+    expect(capture).toHaveBeenCalledWith(7);
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("translate3d(40px, 30px, 0)");
+    expect(document.activeElement).toBe(focused);
+    wrapper.unmount();
+  });
+
+  it("does not left-pan from interactive content", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const before = wrapper.get('[data-test="canvas-stage"]').attributes("style");
+    for (const selector of [".tree-item-content", '[data-test="calibration-text"]', ".element-box"]) {
+      await wrapper.get(selector).trigger("pointerdown", { button: 0, pointerId: 1, clientX: 100, clientY: 100 });
+      await viewport.trigger("pointermove", { pointerId: 1, clientX: 160, clientY: 160 });
+      await viewport.trigger("pointerup", { pointerId: 1 });
+    }
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toBe(before);
+  });
+
+  it("pans from panel content with the middle pointer", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    Object.defineProperty(viewport.element, "setPointerCapture", { configurable: true, value: vi.fn() });
+    await wrapper.get('[data-test="calibration-text"]').trigger("pointerdown", { button: 1, pointerId: 3, clientX: 100, clientY: 100 });
+    await viewport.trigger("pointermove", { pointerId: 3, clientX: 150, clientY: 140 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("translate3d(50px, 40px, 0)");
+  });
+
+  it("does not suppress the next left click after middle-button panning", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    Object.defineProperties(viewport.element, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: () => false },
+    });
+    await wrapper.get('[data-test="calibration-text"]').trigger("pointerdown", { button: 1, pointerId: 3, clientX: 100, clientY: 100 });
+    await viewport.trigger("pointermove", { pointerId: 3, clientX: 150, clientY: 140 });
+    await viewport.trigger("pointerup", { pointerId: 3 });
+    await wrapper.get(".element-box").trigger("click");
+    expect(wrapper.emitted("select")).toEqual([["0-1000::ok"]]);
+  });
+
+  it("pans with space plus left pointer but not while editing", async () => {
+    const wrapper = mount(PageOutline, { attachTo: document.body, props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    Object.defineProperty(viewport.element, "setPointerCapture", { configurable: true, value: vi.fn() });
+    (document.activeElement as HTMLElement | null)?.blur();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true }));
+    await wrapper.get(".tree-item-content").trigger("pointerdown", { button: 0, pointerId: 4, clientX: 100, clientY: 100 });
+    await viewport.trigger("pointermove", { pointerId: 4, clientX: 125, clientY: 135 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("translate3d(25px, 35px, 0)");
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space", bubbles: true }));
+    const input = wrapper.get('[data-test="calibration-text"]');
+    (input.element as HTMLInputElement).focus();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", bubbles: true }));
+    const before = wrapper.get('[data-test="canvas-stage"]').attributes("style");
+    await input.trigger("pointerdown", { button: 0, pointerId: 5, clientX: 100, clientY: 100 });
+    await viewport.trigger("pointermove", { pointerId: 5, clientX: 150, clientY: 150 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toBe(before);
+    wrapper.unmount();
+  });
+
+  it("keeps a click below the pan threshold", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    Object.defineProperties(viewport.element, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: () => false },
+    });
+    await viewport.trigger("pointerdown", { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
+    await viewport.trigger("pointermove", { pointerId: 1, clientX: 12, clientY: 12 });
+    await viewport.trigger("pointerup", { pointerId: 1 });
+    await wrapper.get(".element-box").trigger("click");
+    expect(wrapper.emitted("select")).toEqual([["0-1000::ok"]]);
+  });
+
+  it("suppresses a click after a real pan and clears pan state on cancel", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const releasePointerCapture = vi.fn();
+    Object.defineProperties(viewport.element, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: () => true },
+      releasePointerCapture: { configurable: true, value: releasePointerCapture },
+    });
+    await viewport.trigger("pointerdown", { button: 0, pointerId: 2, clientX: 10, clientY: 10 });
+    await viewport.trigger("pointermove", { pointerId: 2, clientX: 40, clientY: 40 });
+    await viewport.trigger("pointerup", { pointerId: 2 });
+    await viewport.trigger("lostpointercapture", { pointerId: 2 });
+    expect(releasePointerCapture).toHaveBeenCalledWith(2);
+    await wrapper.get(".element-box").trigger("click");
+    expect(wrapper.emitted("select")).toBeFalsy();
+    await viewport.trigger("pointerdown", { button: 0, pointerId: 9, clientX: 10, clientY: 10 });
+    await viewport.trigger("pointermove", { pointerId: 9, clientX: 30, clientY: 30 });
+    await viewport.trigger("pointercancel", { pointerId: 9 });
+    const before = wrapper.get('[data-test="canvas-stage"]').attributes("style");
+    await viewport.trigger("pointermove", { pointerId: 9, clientX: 80, clientY: 80 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toBe(before);
+    await wrapper.get(".element-box").trigger("click");
+    expect(wrapper.emitted("select")).toEqual([["0-1000::ok"]]);
+  });
+
   it("collapses descendants without selecting the parent", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     expect(wrapper.findAll(".tree-item")).toHaveLength(2);

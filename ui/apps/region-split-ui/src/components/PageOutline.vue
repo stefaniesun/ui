@@ -116,6 +116,7 @@ function toggleNode(id: string) {
 }
 const FIT_PADDING = 32;
 const ZOOM_STEP = 0.1;
+const DRAG_THRESHOLD = 4;
 const canvasViewport = ref<HTMLElement | null>(null);
 const canvasStage = ref<HTMLElement | null>(null);
 const pageStage = ref<HTMLElement | null>(null);
@@ -126,6 +127,10 @@ const userChangedView = ref(false);
 let hasValidInitialView = false;
 let imageLoadCorrectionPending = true;
 let resizeObserver: ResizeObserver | null = null;
+const spacePressed = ref(false);
+const isPanning = ref(false);
+let panFrom: { pointerId: number; button: number; x: number; y: number; viewX: number; viewY: number; moved: boolean } | null = null;
+let suppressClick = false;
 const zoomLabel = computed(() => `${Math.round(view.value.scale * 100)}%`);
 const canvasStageStyle = computed(() => ({
   transform: `translate3d(${view.value.x}px, ${view.value.y}px, 0) scale(${view.value.scale})`,
@@ -204,14 +209,82 @@ function onImageLoad() {
     hasValidInitialView = hasSize(viewportSize.value) && hasSize(stageSize.value);
   }
 }
+function isEditable(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest("input, textarea, select, button, [contenteditable='true']"));
+}
+function isDirectPanSurface(target: EventTarget | null) {
+  if (target === canvasViewport.value) return true;
+  return target instanceof Element && Boolean(target.closest(".page-scroll") && !target.closest(".element-box"));
+}
+function onKeyDown(event: KeyboardEvent) {
+  if (event.code !== "Space" || event.repeat || isEditable(document.activeElement)) return;
+  spacePressed.value = true;
+  event.preventDefault();
+}
+function onKeyUp(event: KeyboardEvent) {
+  if (event.code === "Space") spacePressed.value = false;
+}
+function onPanStart(event: PointerEvent) {
+  const viewport = canvasViewport.value;
+  if (!viewport || panFrom) return;
+  const leftAllowed = event.button === 0 && (!isEditable(document.activeElement) && spacePressed.value || isDirectPanSurface(event.target));
+  const middleAllowed = event.button === 1;
+  if (!leftAllowed && !middleAllowed) return;
+  event.preventDefault();
+  viewport.setPointerCapture?.(event.pointerId);
+  panFrom = { pointerId: event.pointerId, button: event.button, x: event.clientX, y: event.clientY, viewX: view.value.x, viewY: view.value.y, moved: false };
+}
+function onPanMove(event: PointerEvent) {
+  if (!panFrom || panFrom.pointerId !== event.pointerId) return;
+  const dx = event.clientX - panFrom.x;
+  const dy = event.clientY - panFrom.y;
+  if (!panFrom.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+  panFrom.moved = true;
+  isPanning.value = true;
+  userChangedView.value = true;
+  view.value = { ...view.value, x: panFrom.viewX + dx, y: panFrom.viewY + dy };
+}
+function endPan(event?: PointerEvent, suppressReleasedClick = true) {
+  if (!panFrom || event && panFrom.pointerId !== event.pointerId) return;
+  const pointerId = panFrom.pointerId;
+  suppressClick = suppressReleasedClick && panFrom.moved && panFrom.button === 0;
+  const viewport = canvasViewport.value;
+  if (viewport?.hasPointerCapture?.(pointerId)) viewport.releasePointerCapture(pointerId);
+  panFrom = null;
+  isPanning.value = false;
+}
+function cancelPan(event?: PointerEvent) {
+  if (!panFrom) return;
+  endPan(event, false);
+  suppressClick = false;
+}
+function onPanClick(event: MouseEvent) {
+  if (!suppressClick) return;
+  suppressClick = false;
+  event.preventDefault();
+  event.stopPropagation();
+}
+function onWindowBlur() {
+  spacePressed.value = false;
+  cancelPan();
+}
 onMounted(() => {
   measureCanvas();
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onWindowBlur);
   if (typeof ResizeObserver === "undefined") return;
   resizeObserver = new ResizeObserver(measureCanvas);
   if (canvasViewport.value) resizeObserver.observe(canvasViewport.value);
   if (canvasStage.value) resizeObserver.observe(canvasStage.value);
 });
-onBeforeUnmount(() => resizeObserver?.disconnect());
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect();
+  window.removeEventListener("keydown", onKeyDown);
+  window.removeEventListener("keyup", onKeyUp);
+  window.removeEventListener("blur", onWindowBlur);
+  cancelPan();
+});
 
 function expandAncestors(id: string) {
   const ancestors = new Set(ancestorsOf(id));
@@ -297,7 +370,12 @@ watch(selected, node => {
 
     <section
       ref="canvasViewport" class="canvas-viewport" data-test="canvas-viewport"
+      :class="{ 'is-panning': isPanning, 'space-pan-ready': spacePressed }"
       @wheel="onCanvasWheel" @dblclick="onCanvasDoubleClick"
+      tabindex="0" aria-label="无限画布工作区"
+      @pointerdown="onPanStart" @pointermove="onPanMove"
+      @pointerup="endPan" @pointercancel="cancelPan" @lostpointercapture="cancelPan"
+      @click.capture="onPanClick" @auxclick.prevent
     >
       <div
         ref="canvasStage" class="outline-workspace canvas-stage" data-test="canvas-stage"
@@ -382,7 +460,7 @@ watch(selected, node => {
 .migrated-tools { min-height: 42px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding: 5px 14px; border-bottom: 1px solid #2a3342; background: #141a24; }.font-stack-field { display: flex; align-items: center; gap: 7px; color: #93a4bb; font-size: 11px; }.font-stack-field select { height: 30px; max-width: 180px; border: 1px solid #354155; border-radius: 5px; color: #dce7f5; background: #101620; }.view-controls { display: flex; align-items: center; gap: 6px; }.view-controls output { min-width: 48px; color: #cfe3ff; text-align: center; font-variant-numeric: tabular-nums; }
 .analysis-stats { display: flex; gap: 14px; align-items: center; padding: 7px 14px; border-bottom: 1px solid #4c3818; color: #fbbf24; background: #2a2113; font-size: 11px; }.analysis-stats.passed { color: #86efac; background: #13271d; }.analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: #93a4bb; background: #151a23; font-size: 10px; }
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
-.canvas-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: #0c1017; background-image: radial-gradient(circle, #263244 1px, transparent 1px); background-size: 24px 24px; cursor: grab; touch-action: none; }
+.canvas-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: #0c1017; background-image: radial-gradient(circle, #263244 1px, transparent 1px); background-size: 24px 24px; cursor: grab; touch-action: none; }.canvas-viewport.is-panning { cursor: grabbing; }.canvas-viewport.space-pan-ready { cursor: grab; }
 .outline-workspace { position: absolute; top: 0; left: 0; width: 1200px; min-height: 760px; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; align-items: stretch; transform-origin: 0 0; will-change: transform; box-shadow: 0 12px 42px #000b; }
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }
 .page-scroll { min-width: 0; min-height: 0; overflow: hidden; background: #0c1017; }
