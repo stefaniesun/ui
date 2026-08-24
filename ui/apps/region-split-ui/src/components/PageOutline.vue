@@ -112,6 +112,7 @@ function toggleNode(id: string) {
 const DRAG_THRESHOLD = 4;
 const imagePanel = ref<HTMLElement | null>(null);
 let panFrom: { x: number; y: number; left: number; top: number; moved: boolean } | null = null;
+let suppressClick = false;
 
 function onPanStart(event: PointerEvent) {
   const panel = imagePanel.value;
@@ -130,11 +131,19 @@ function onPanMove(event: PointerEvent) {
   panel.scrollTop = panFrom.top - dy;
 }
 
-function onPanEnd() { panFrom = null; }
+function onPanEnd() {
+  suppressClick = panFrom?.moved === true;
+  // click 在 pointerup **之后**才触发，所以不能靠 panFrom 判断——那时它已经被清掉了。
+  // 把"这一下要吞掉"单独记下来，交给紧随其后的 click 消费。
+  panFrom = null;
+}
 
 /** 拖动过就把这一下的 click 吞掉，否则松手时会顺带选中身下的元素 */
 function onPanClick(event: MouseEvent) {
-  if (panFrom?.moved) { event.stopPropagation(); event.preventDefault(); }
+  if (!suppressClick) return;
+  suppressClick = false;
+  event.stopPropagation();
+  event.preventDefault();
 }
 
 function expandAncestors(id: string) {

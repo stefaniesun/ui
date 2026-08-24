@@ -40,6 +40,22 @@ describe("PageOutline", () => {
     expect(panel.element.scrollTop).toBe(70);
   });
 
+  // click 在 pointerup 之后才触发，所以判据不能挂在拖动状态上——那时它已经被清掉了。
+  // 实机验过：漏了这一条，每拖一次就误选一个元素。
+  it("does not select the element under the pointer after a drag", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    Object.assign(panel.element, { scrollLeft: 0, scrollTop: 0 });
+    const box = wrapper.findAll('[data-test="page-outline"] .element-box')[0]!;
+
+    await panel.trigger("pointerdown", { button: 0, clientX: 100, clientY: 100 });
+    await panel.trigger("pointermove", { clientX: 100, clientY: 20 });
+    await panel.trigger("pointerup");
+    await box.trigger("click");
+
+    expect(wrapper.emitted("select")).toBeFalsy();
+  });
+
   // 元素框铺满了图，起拖点几乎总在某个框上；没有阈值的话轻微抖动就会吞掉点选
   it("still selects an element when the pointer barely moved", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
