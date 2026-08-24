@@ -192,15 +192,21 @@ watch(selected, node => {
 <template>
   <main class="page-outline" data-test="page-outline">
     <header class="outline-toolbar">
-      <div>
-        <strong>整页轮廓图</strong>
-        <span>可疑项 {{ outline.suspiciousCount }} / {{ outline.elements.length }}</span>
+      <div class="toolbar-summary">
+        <strong>整页轮廓</strong>
+        <span class="toolbar-divider" aria-hidden="true"></span>
+        <span class="element-count">{{ outline.elements.length }} 个元素</span>
+        <span class="suspicious-count">{{ outline.suspiciousCount }} 个可疑项</span>
       </div>
-      <div class="progress" aria-live="polite">{{ busy ? (progressText || "正在解析全部区域…") : progressText }}</div>
-      <button
-        v-if="!busy && (failedRegions.length || missingRegions.length)"
-        type="button" data-test="retry-failed" @click="emit('retry')"
-      >{{ retryLabel }}</button>
+      <div class="toolbar-actions">
+        <div v-if="busy || progressText" class="analysis-status" :class="{ 'is-busy': busy }" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>{{ busy ? (progressText || "正在解析全部区域…") : progressText }}
+        </div>
+        <button
+          v-if="!busy && (failedRegions.length || missingRegions.length)"
+          type="button" class="toolbar-button" data-test="retry-failed" @click="emit('retry')"
+        >{{ retryLabel }}</button>
+      </div>
     </header>
     <p v-if="error" class="error">{{ error }}</p>
 
@@ -280,11 +286,14 @@ watch(selected, node => {
 </template>
 
 <style scoped>
-.page-outline { height: 100%; min-height: 0; display: flex; flex-direction: column; color: var(--text, #e5e7eb); background: #11151d; }
-.outline-toolbar { min-height: 52px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #2a3342; background: #171c25; }
-.outline-toolbar div:first-child { display: flex; align-items: baseline; gap: 10px; }
-.outline-toolbar span, .progress { color: #93a4bb; font-size: 12px; }
-.outline-toolbar button, .calibration button { border: 1px solid #3979d1; border-radius: 5px; padding: 6px 10px; color: #cfe3ff; background: #19365d; cursor: pointer; }
+.page-outline { --outline-bg: #0b0f16; --outline-panel: #121823; --outline-panel-raised: #171f2c; --outline-border: #293345; --outline-muted: #8d9bb0; --outline-text: #e6ecf5; --outline-blue: #3b82f6; --outline-orange: #f59e0b; height: 100%; min-height: 0; display: flex; flex-direction: column; color: var(--outline-text); background: var(--outline-bg); }
+.outline-toolbar { min-height: 48px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--outline-border); background: #101620; }
+.toolbar-summary, .toolbar-actions, .analysis-status { display: flex; align-items: center; }
+.toolbar-summary { min-width: 0; gap: 10px; }.toolbar-summary strong { font-size: 14px; white-space: nowrap; }.toolbar-divider { width: 1px; height: 16px; background: #344056; }
+.element-count, .suspicious-count, .analysis-status { color: var(--outline-muted); font-size: 12px; white-space: nowrap; }.suspicious-count { color: #f8b84e; }
+.toolbar-actions { justify-content: flex-end; gap: 10px; }.analysis-status { gap: 7px; }.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #64748b; }.analysis-status.is-busy .status-dot { background: var(--outline-blue); box-shadow: 0 0 0 3px #3b82f626; animation: status-pulse 1.4s ease-in-out infinite; }
+.toolbar-button, .calibration button { border: 1px solid #315f9f; border-radius: 5px; padding: 6px 10px; color: #d9e8ff; background: #18335a; cursor: pointer; }
+@keyframes status-pulse { 50% { opacity: .45; transform: scale(.78); } }
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
 .outline-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; }
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }
@@ -316,5 +325,5 @@ watch(selected, node => {
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
 @media (max-width: 900px) { .outline-workspace, .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) minmax(260px, 38vw); grid-template-rows: minmax(360px, 55vh) minmax(280px, auto); overflow: auto; }.page-scroll { grid-column: 1 / -1; min-height: 360px; }.tree-panel, .tree-panel-restore, .property-panel { min-height: 280px; border-top: 1px solid #2a3342; }.tree-panel, .tree-panel-restore { border-left: 0; }.tree-panel-restore { writing-mode: vertical-rl; } }
 @media (max-width: 640px) { .outline-workspace, .outline-workspace.tree-panel-collapsed { display: flex; flex-direction: column; overflow: auto; }.page-scroll { min-height: 55vh; }.tree-panel, .property-panel { min-height: 280px; }.tree-panel-restore { min-height: 34px; writing-mode: horizontal-tb; } }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; }.analysis-status.is-busy .status-dot { animation: none; } }
 </style>

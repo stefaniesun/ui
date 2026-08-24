@@ -110,6 +110,22 @@ describe("PageOutline", () => {
     expect(wrapper.find('[data-test="retry-failed"]').exists()).toBe(false);
   });
 
+  it("renders the compact toolbar with counts, status, and retry actions", () => {
+    const wrapper = mount(PageOutline, {
+      props: {
+        projectId: "p1", selectedId: null, busy: true, progressText: "正在解析 1/2",
+        outline: withRegions([region("0-100", "parsed"), region("100-200", "missing")]),
+      },
+    });
+
+    expect(wrapper.get(".outline-toolbar").text()).toContain("整页轮廓");
+    expect(wrapper.get(".element-count").text()).toBe("2 个元素");
+    expect(wrapper.get(".suspicious-count").text()).toBe("1 个可疑项");
+    expect(wrapper.get(".analysis-status").classes()).toContain("is-busy");
+    expect(wrapper.get(".analysis-status").text()).toContain("正在解析 1/2");
+    expect(wrapper.find('[data-test="retry-failed"]').exists()).toBe(false);
+  });
+
   it("renders image, tree, and independent property columns", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const workspace = wrapper.get(".outline-workspace");
