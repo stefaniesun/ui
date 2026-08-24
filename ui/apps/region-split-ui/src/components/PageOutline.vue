@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
-import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
+import { DEFAULT_VIEW, fitView, keepViewportCenter, revealRect, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
 import type { AnalysisStats } from "../api.js";
 
 const props = defineProps<{
@@ -184,6 +184,7 @@ function onCanvasDoubleClick(event: MouseEvent) {
 }
 function measureCanvas() {
   const previousViewport = viewportSize.value;
+  const previousStage = stageSize.value;
   viewportSize.value = measure(canvasViewport.value);
   stageSize.value = measure(canvasStage.value);
   if (!hasSize(viewportSize.value) || !hasSize(stageSize.value)) return;
@@ -192,8 +193,9 @@ function measureCanvas() {
     hasValidInitialView = true;
     return;
   }
-  if (hasSize(previousViewport)
-    && (previousViewport.width !== viewportSize.value.width || previousViewport.height !== viewportSize.value.height)) {
+  const viewportChanged = hasSize(previousViewport)
+    && (previousViewport.width !== viewportSize.value.width || previousViewport.height !== viewportSize.value.height);
+  if (viewportChanged) {
     view.value = keepViewportCenter(view.value, previousViewport, viewportSize.value);
   }
 }
@@ -291,12 +293,36 @@ function expandAncestors(id: string) {
   if (!ancestors.size) return;
   collapsedIds.value = new Set([...collapsedIds.value].filter(nodeId => !ancestors.has(nodeId)));
 }
+function revealBox(id: string) {
+  const viewport = canvasViewport.value;
+  const stage = canvasStage.value;
+  const target = boxRefs.get(id);
+  if (!viewport || !stage || !target || !Number.isFinite(view.value.scale) || view.value.scale <= 0) return;
+  const stageRect = stage.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const nextView = revealRect(
+    view.value,
+    measure(viewport),
+    {
+      x: (targetRect.left - stageRect.left) / view.value.scale,
+      y: (targetRect.top - stageRect.top) / view.value.scale,
+      width: targetRect.width / view.value.scale,
+      height: targetRect.height / view.value.scale,
+    },
+    24,
+  );
+  if (nextView.x !== view.value.x || nextView.y !== view.value.y) userChangedView.value = true;
+  view.value = nextView;
+}
 function select(id: string, source: "tree" | "box") {
   if (source === "box") expandAncestors(id);
   emit("select", id);
-  if (source === "box") nextTick(() => {
-    const target = treeRefs.get(id);
-    if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
+  nextTick(() => {
+    if (source === "tree") revealBox(id);
+    else {
+      const target = treeRefs.get(id);
+      if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
+    }
   });
 }
 function bindTree(id: string, element: unknown) {

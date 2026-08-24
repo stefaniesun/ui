@@ -430,6 +430,26 @@ describe("PageOutline", () => {
     expect(wrapper.findAll(".tree-item")).toHaveLength(4);
   });
 
+  it("keeps the visual center and scale when the stage size changes", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    setElementSize(viewport.element, 1024, 700);
+    setElementSize(stage.element, 1200, 760);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    const zoom = wrapper.get('[data-test="zoom-level"]').text();
+    const before = stage.attributes("style") ?? "";
+    setElementSize(stage.element, 934, 760);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+    const after = stage.attributes("style") ?? "";
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
+    expect(after).toBe(before);
+  });
+
   it("collapses and restores the tree panel without hiding properties or selection", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
     const properties = wrapper.get('[data-test="property-panel"]');
@@ -438,6 +458,8 @@ describe("PageOutline", () => {
     expect(properties.text()).toContain("页面");
     expect(properties.text()).toContain("可疑");
 
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    const zoom = wrapper.get('[data-test="zoom-level"]').text();
     await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
     expect(wrapper.get(".outline-workspace").classes()).toContain("tree-panel-collapsed");
     expect(wrapper.find('[data-test="outline-tree"]').exists()).toBe(false);
@@ -446,16 +468,38 @@ describe("PageOutline", () => {
     const scrollIntoView = spyOnScrollIntoView();
     await wrapper.get('[data-test="restore-tree-panel"]').trigger("click");
     expect(wrapper.get('[data-test="outline-tree"]')).toBeTruthy();
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
     expect(wrapper.get(".tree-item.selected").text()).toContain("可疑图标");
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
   });
 
-  it("shares selection between tree and image without independently scrolling the image panel", async () => {
+  it("reveals a tree-selected image box by panning the canvas without changing zoom", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    const box = wrapper.findAll(".element-box")[1]!;
+    setElementSize(viewport.element, 600, 400);
+    setElementSize(stage.element, 1200, 760);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-test="actual-size"]').trigger("click");
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    vi.spyOn(stage.element, "getBoundingClientRect").mockReturnValue({ left: -420, top: -256, width: 1440, height: 912, right: 1020, bottom: 656, x: -420, y: -256, toJSON: () => ({}) });
+    vi.spyOn(box.element, "getBoundingClientRect").mockReturnValue({ left: 540, top: 464, width: 72, height: 72, right: 612, bottom: 536, x: 540, y: 464, toJSON: () => ({}) });
     const scrollIntoView = spyOnScrollIntoView();
+    const zoom = wrapper.get('[data-test="zoom-level"]').text();
     await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
+    await wrapper.vm.$nextTick();
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
     expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
+    const transform = stage.attributes("style") ?? "";
+    const x = Number(transform.match(/translate3d\(([-\d.]+)px/)?.[1]);
+    const y = Number(transform.match(/translate3d\([^,]+, ([-\d.]+)px/)?.[1]);
+    expect(x).toBeCloseTo(-432);
+    expect(y).toBeCloseTo(-336);
     await wrapper.setProps({ selectedId: "0-1000::bad" });
     expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
     expect(wrapper.get('[data-test="calibration-text"]')).toBeTruthy();
