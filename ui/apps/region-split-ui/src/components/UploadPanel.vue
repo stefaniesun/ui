@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-const props = defineProps<{ busy: boolean }>();
-const emit = defineEmits<{ upload: [file: File] }>();
+const props = defineProps<{ busy: boolean; configured: boolean; configPath?: string }>();
+const emit = defineEmits<{ upload: [file: File]; refreshModelConfig: [] }>();
 const input = ref<HTMLInputElement | null>(null);
 
 function submit(file?: File) {
@@ -31,9 +31,16 @@ function onDrop(event: DragEvent) {
           <h1 id="upload-title">上传页面截图</h1>
           <strong>拖放 PNG、JPG 或 WebP</strong>
           <p>推荐 375px 宽的手机长截图，上传后将自动进行 AI 分析。</p>
-          <button type="button" class="upload-button" :disabled="busy" @click="input?.click()">
-            {{ busy ? "正在上传…" : "选择图片" }}
-          </button>
+          <template v-if="configured">
+            <button type="button" class="upload-button" :disabled="busy" @click="input?.click()">
+              {{ busy ? "正在上传…" : "选择图片" }}
+            </button>
+          </template>
+          <div v-else data-test="configuration-guidance" class="configuration-guidance">
+            <strong>请先配置 AI 模型</strong>
+            <span>{{ configPath || "请检查项目模型配置文件" }}</span>
+            <button type="button" data-test="refresh-model-config" @click="emit('refreshModelConfig')">刷新模型配置</button>
+          </div>
           <input
             ref="input" class="visually-hidden" type="file"
             accept="image/png,image/jpeg,image/webp" :disabled="busy" @change="onChange"
@@ -52,7 +59,7 @@ function onDrop(event: DragEvent) {
 .phone-screen { min-height: 0; display: grid; place-items: center; padding: clamp(14px, 3vh, 24px); }
 .upload-drop-zone { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; gap: 11px; padding: 22px 18px; border: 1px dashed #4c6584; border-radius: 22px; color: #91a3bb; text-align: center; background: linear-gradient(180deg, #182236d9, #111925d9); }.upload-drop-zone.disabled { opacity: .62; }.upload-drop-zone h1 { margin: 3px 0 0; color: #eff6ff; font-size: 19px; }.upload-drop-zone strong { color: #d8e4f2; font-size: 13px; }.upload-drop-zone p { max-width: 230px; margin: 0; font-size: 11px; line-height: 1.65; }
 .upload-icon { width: 50px; height: 50px; display: grid; place-items: center; margin-bottom: 6px; border: 1px solid #405a7a; border-radius: 50%; color: #66a9ff; background: #14253b; font-size: 29px; font-weight: 200; }
-.upload-button { margin-top: 8px; border: 1px solid #3979d1; border-radius: 8px; padding: 10px 21px; color: white; background: #2563a9; cursor: pointer; }.upload-button:disabled { cursor: wait; opacity: .65; }
+.upload-button { margin-top: 8px; border: 1px solid #3979d1; border-radius: 8px; padding: 10px 21px; color: white; background: #2563a9; cursor: pointer; }.upload-button:disabled { cursor: wait; opacity: .65; }.configuration-guidance { display: grid; justify-items: center; gap: 7px; padding: 10px; border: 1px solid #774232; border-radius: 9px; color: #ffc7ad; background: #351d18; font-size: 10px; }.configuration-guidance button { border: 0; color: #7db7ff; background: transparent; cursor: pointer; }
 .phone-home-indicator { width: 92px; height: 4px; align-self: center; justify-self: center; border-radius: 999px; background: #8792a4; opacity: .68; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 @media (max-height: 620px) { .upload-workspace { padding: 12px; }.phone-upload { height: calc(100vh - 24px); }.upload-drop-zone { gap: 7px; }.upload-icon { width: 40px; height: 40px; font-size: 23px; } }

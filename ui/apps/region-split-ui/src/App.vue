@@ -15,6 +15,7 @@ const pageOutline = createPageOutlineState(httpApi);
 const hoveredId = ref<string | null>(null);
 const outlineStats = ref<AnalysisStats | null>(null);
 const exportingPage = ref(false);
+const uploadingAndAnalyzing = ref(false);
 const regionsNode = ref<InstanceType<typeof RegionsNode> | null>(null);
 const pipelineCanvas = ref<{
   openPageCompare(): void;
@@ -55,6 +56,27 @@ function downloadArchive(projectId: string, archive: Blob) {
   anchor.download = `region-page-${projectId}.zip`;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+async function uploadAndAnalyze(file: File) {
+  if (store.busy.value || uploadingAndAnalyzing.value) return;
+  if (!store.modelConfig.value) await store.loadModelConfig();
+  if (!store.modelConfig.value?.configured) return;
+  uploadingAndAnalyzing.value = true;
+  try {
+    await store.uploadImage(file);
+    if (!store.projectId.value || !store.doc.value?.image || store.error.value) {
+      dialogError.value = { title: "图片上传失败", message: store.error.value || "图片上传或预处理失败，请重新选择图片。", retryable: false };
+      return;
+    }
+    await store.analyze();
+    if (store.error.value || !store.doc.value?.analyzedAt) {
+      dialogError.value = { title: "AI 区域分析失败", message: store.error.value || "AI 区域分析失败，请检查模型配置后重试。", configPath: store.modelConfig.value?.configPath, retryable: false };
+      return;
+    }
+    await refreshParsedRegions();
+    await pageOutline.analyzeAll(store.projectId.value);
+    await refreshOutlineStats();
+  } finally { uploadingAndAnalyzing.value = false; }
 }
 async function exportPage() {
   const projectId = store.projectId.value;
@@ -107,7 +129,14 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onKeydown));
 
 <template>
   <main class="app-shell">
-    <UploadPanel v-if="!store.projectId.value" :busy="store.busy.value" @upload="store.uploadImage" />
+    <UploadPanel
+      v-if="!store.projectId.value"
+      :busy="store.busy.value || uploadingAndAnalyzing"
+      :configured="Boolean(store.modelConfig.value?.configured)"
+      :config-path="store.modelConfig.value?.configPath"
+      @upload="uploadAndAnalyze"
+      @refresh-model-config="store.loadModelConfig"
+    />
     <template v-else>
       <div class="brand">
         <span class="brand-mark">RS</span>
