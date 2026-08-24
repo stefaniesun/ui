@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { ElementKind, ElementNode } from "@region-split/core/browser";
+import type { ElementNode } from "@region-split/core/browser";
 import { numberElementTree } from "../element-tree-numbering.js";
+import { KIND_LABEL } from "../element-kind-display.js";
 
 const props = defineProps<{
   nodes: ElementNode[];
@@ -17,11 +18,6 @@ const emit = defineEmits<{
   rename: [id: string];
   "start-refactor": [id: string];
 }>();
-
-const KIND_LABEL: Record<ElementKind, string> = {
-  component: "组件", grid: "网格", text: "文字",
-  icon: "图标", image: "图片", decoration: "装饰",
-};
 
 /** 按父子关系展平成深度优先序，并生成仅用于展示的层级编号 */
 const rows = computed(() => numberElementTree(props.nodes));

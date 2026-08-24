@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
+import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 
 const props = defineProps<{
   projectId: string;
@@ -93,7 +94,8 @@ function boxStyle(node: PageOutlineElement) {
   const { width, height } = props.outline.image;
   return {
     left: `${node.box.x / width * 100}%`, top: `${node.box.y / height * 100}%`,
-    width: `${node.box.w / width * 100}%`, height: `${node.box.h / height * 100}%`,
+    width: `${node.box.w / width * 100}%`,     height: `${node.box.h / height * 100}%`,
+    "--kind-color": KIND_COLOR[node.kind],
   };
 }
 function toggleNode(id: string) {
@@ -262,13 +264,13 @@ watch(selected, node => {
           </header>
           <label>分类
             <select v-model="editKind" data-test="calibration-kind">
-              <option v-for="kind in elementKinds" :key="kind" :value="kind">{{ kind }}</option>
+              <option v-for="kind in elementKinds" :key="kind" :value="kind">{{ KIND_LABEL[kind] }}</option>
             </select>
           </label>
           <label>文字<input v-model="editText" data-test="calibration-text" /></label>
           <div class="rect-fields">
-            <label v-for="key in (['x', 'y', 'w', 'h'] as const)" :key="key">{{ key }}
-              <input v-model.number="editBox[key]" type="number" :min="key === 'w' || key === 'h' ? 4 : 0" />
+            <label v-for="field in ([['x', '横坐标'], ['y', '纵坐标'], ['w', '宽'], ['h', '高']] as const)" :key="field[0]">{{ field[1] }}
+              <input v-model.number="editBox[field[0]]" type="number" :min="field[0] === 'w' || field[0] === 'h' ? 4 : 0" />
             </label>
           </div>
           <button type="submit" data-test="save-calibration">保存校准</button>
@@ -292,8 +294,8 @@ watch(selected, node => {
 .page-scroll:active { cursor: grabbing; }
 .page-stage { position: relative; width: min(100%, 900px); margin: 0 auto; line-height: 0; box-shadow: 0 6px 28px #000a; }
 .page-stage > img { width: 100%; height: auto; }
-.element-box { position: absolute; padding: 0; border: 1px solid #55a4ff55; background: #3b82f610; cursor: pointer; }
-.element-box:hover, .element-box.hovered { border-color: #77b7ff; background: #3b82f62b; }
+.element-box { position: absolute; padding: 0; border: 1px solid var(--kind-color); background: color-mix(in srgb, var(--kind-color) 10%, transparent); cursor: pointer; }
+.element-box:hover, .element-box.hovered { border-color: var(--kind-color); background: color-mix(in srgb, var(--kind-color) 22%, transparent); }
 .element-box.suspicious { z-index: 2; border: 2px solid #ffb020; background: #ff9d0029; }
 .element-box.selected { z-index: 3; border: 2px solid #30d5ff; background: #00bce83b; }
 .tree-panel, .property-panel { min-height: 0; border-left: 1px solid #2a3342; background: #151a23; }

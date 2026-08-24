@@ -110,6 +110,24 @@ describe("PageOutline", () => {
     expect(wrapper.find('[data-test="retry-failed"]').exists()).toBe(false);
   });
 
+  it("names the kinds in chinese in the property panel", () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const options = wrapper.get('[data-test="calibration-kind"]').findAll("option");
+    expect(options.map(option => option.text())).toContain("文字");
+    expect(options.map(option => option.text())).not.toContain("text");
+  });
+
+  it("labels the box fields in chinese", () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const text = wrapper.get('[data-test="calibration"]').text();
+    for (const label of ["横坐标", "纵坐标", "宽", "高"]) expect(text).toContain(label);
+  });
+
+  it("tints an element box by its kind", () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    expect(wrapper.get('[data-test="page-outline"] .element-box').attributes("style")).toContain("--kind-color: #ffd166");
+  });
+
   it("renders image, tree, and independent property columns", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const workspace = wrapper.get(".outline-workspace");
