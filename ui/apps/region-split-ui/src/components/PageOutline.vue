@@ -112,9 +112,34 @@ function toggleNode(id: string) {
  * 靠位移阈值把"拖动"和"点选元素"分开：没超过阈值就当点击，元素照常选中。
  */
 const DRAG_THRESHOLD = 4;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.1;
 const imagePanel = ref<HTMLElement | null>(null);
+const zoom = ref(1);
+const stageStyle = computed(() => ({ width: `${Math.round(zoom.value * 100)}%` }));
 let panFrom: { x: number; y: number; left: number; top: number; moved: boolean } | null = null;
 let suppressClick = false;
+
+function onZoom(event: WheelEvent) {
+  const panel = imagePanel.value;
+  if (!panel || event.deltaY === 0) return;
+  event.preventDefault();
+  const previous = zoom.value;
+  const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number((previous + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)).toFixed(2))));
+  if (next === previous) return;
+  const rect = panel.getBoundingClientRect();
+  const pointerX = event.clientX - rect.left;
+  const pointerY = event.clientY - rect.top;
+  const contentX = panel.scrollLeft + pointerX;
+  const contentY = panel.scrollTop + pointerY;
+  zoom.value = next;
+  const ratio = next / previous;
+  nextTick(() => {
+    panel.scrollLeft = contentX * ratio - pointerX;
+    panel.scrollTop = contentY * ratio - pointerY;
+  });
+}
 
 function onPanStart(event: PointerEvent) {
   const panel = imagePanel.value;
@@ -211,9 +236,9 @@ watch(selected, node => {
         ref="imagePanel" class="page-scroll" data-test="image-panel"
         @pointerdown="onPanStart" @pointermove="onPanMove"
         @pointerup="onPanEnd" @pointercancel="onPanEnd" @pointerleave="onPanEnd"
-        @click.capture="onPanClick"
+        @click.capture="onPanClick" @wheel="onZoom"
       >
-        <div class="page-stage">
+        <div class="page-stage" data-test="page-stage" :style="stageStyle">
           <img :src="imageSrc" alt="待校准整页截图" />
           <button
             v-for="node in outline.elements" :key="node.id" :ref="element => bindBox(node.id, element)"
@@ -292,7 +317,7 @@ watch(selected, node => {
 .outline-workspace.tree-panel-collapsed { grid-template-columns: minmax(0, 1fr) 34px 300px; }
 .page-scroll { min-width: 0; min-height: 0; overflow: auto; padding: 18px; background: #0c1017; cursor: grab; }
 .page-scroll:active { cursor: grabbing; }
-.page-stage { position: relative; width: min(100%, 900px); margin: 0 auto; line-height: 0; box-shadow: 0 6px 28px #000a; }
+.page-stage { position: relative; min-width: 0; margin: 0 auto; line-height: 0; box-shadow: 0 6px 28px #000a; transform-origin: 0 0; }
 .page-stage > img { width: 100%; height: auto; }
 .element-box { position: absolute; padding: 0; border: 1px solid var(--kind-color); background: color-mix(in srgb, var(--kind-color) 10%, transparent); cursor: pointer; }
 .element-box:hover, .element-box.hovered { border-color: var(--kind-color); background: color-mix(in srgb, var(--kind-color) 22%, transparent); }

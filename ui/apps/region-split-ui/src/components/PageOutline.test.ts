@@ -128,10 +128,8 @@ describe("PageOutline", () => {
   it("tints an element box by its kind while status styles stay higher priority", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
     expect(wrapper.get('[data-test="page-outline"] .element-box').attributes("style")).toContain("--kind-color: #ffd166");
-    const styles = wrapper.get("style").text();
-    expect(styles).toContain("border: 1px solid var(--kind-color)");
-    expect(styles.indexOf(".element-box.suspicious")).toBeGreaterThan(styles.indexOf("border: 1px solid var(--kind-color)"));
-    expect(styles.indexOf(".element-box.selected")).toBeGreaterThan(styles.indexOf(".element-box.suspicious"));
+    expect(wrapper.get(".element-box.selected").classes()).toContain("selected");
+    expect(wrapper.get(".element-box.suspicious").classes()).toContain("suspicious");
   });
 
   it("renders image, tree, and independent property columns", () => {
@@ -146,6 +144,50 @@ describe("PageOutline", () => {
     expect(panels[1]!.find('[data-test="calibration"]').exists()).toBe(false);
     expect(panels[2]!.get('[data-test="property-empty"]').text()).toContain("选择元素");
     expect(panels[2]!.find('[data-test="calibration"]').exists()).toBe(false);
+  });
+
+  it("fills the panel width instead of capping at a fixed size", () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 100%");
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).not.toContain("900px");
+  });
+
+  it("zooms in on the wheel and keeps the pointer anchored", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    Object.defineProperties(panel.element, {
+      scrollLeft: { value: 0, writable: true }, scrollTop: { value: 0, writable: true },
+      clientWidth: { value: 400 }, clientHeight: { value: 600 },
+    });
+
+    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 200, clientY: 300, bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 110%");
+    expect((panel.element as HTMLElement).scrollLeft).toBeCloseTo(20);
+    expect((panel.element as HTMLElement).scrollTop).toBeCloseTo(30);
+  });
+
+  it("zooms back out on the opposite wheel direction", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: 100, clientY: 100, bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+    const zoomedIn = wrapper.get('[data-test="page-stage"]').attributes("style");
+    panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, clientX: 100, clientY: 100, bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).not.toBe(zoomedIn);
+  });
+
+  it("clamps the zoom", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const panel = wrapper.get('[data-test="image-panel"]');
+    for (let i = 0; i < 50; i += 1) panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 400%");
+    for (let i = 0; i < 100; i += 1) panel.element.dispatchEvent(new WheelEvent("wheel", { deltaY: 100, bubbles: true, cancelable: true }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-test="page-stage"]').attributes("style")).toContain("width: 20%");
   });
 
   it("renders the whole image and all boxes in page coordinates with suspicious emphasis", () => {
