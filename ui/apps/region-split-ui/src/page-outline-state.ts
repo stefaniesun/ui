@@ -25,6 +25,7 @@ export function createPageOutlineState(api: StoreApi): PageOutlineState {
   let generation = 0;
   let activeRun: Promise<void> | null = null;
   let activeProjectId = "";
+  let patchQueue: Promise<void> = Promise.resolve();
   const progressText = computed(() => {
     if (!progress.value) return busy.value ? "正在准备全页解析…" : "";
     const done = progress.value.completed + progress.value.skipped;
@@ -96,22 +97,26 @@ export function createPageOutlineState(api: StoreApi): PageOutlineState {
     return activeRun;
   }
 
-  async function patch(projectId: string, elementId: string, nextPatch: PageElementPatch) {
-    error.value = "";
-    const previous = outline.value;
-    if (previous) {
-      outline.value = {
-        ...previous,
-        elements: previous.elements.map(element => element.id === elementId ? { ...element, ...nextPatch } : element),
-      };
-    }
-    try {
-      outline.value = await api.patchPageElement(projectId, elementId, nextPatch);
-    } catch (reason) {
-      outline.value = previous;
-      error.value = (reason as Error).message;
-      throw reason;
-    }
+  function patch(projectId: string, elementId: string, nextPatch: PageElementPatch) {
+    const operation = patchQueue.then(async () => {
+      error.value = "";
+      const previous = outline.value;
+      if (previous) {
+        outline.value = {
+          ...previous,
+          elements: previous.elements.map(element => element.id === elementId ? { ...element, ...nextPatch } : element),
+        };
+      }
+      try {
+        outline.value = await api.patchPageElement(projectId, elementId, nextPatch);
+      } catch (reason) {
+        outline.value = previous;
+        error.value = (reason as Error).message;
+        throw reason;
+      }
+    });
+    patchQueue = operation.catch(() => undefined);
+    return operation;
   }
 
   return { outline, selectedId, hoveredId, busy, error, progress, progressText, load, analyzeAll, patch };

@@ -66,6 +66,12 @@ describe("materializeTreeAssets", () => {
     rmSync(join(store.assetsDir(projectId), originalRef!));
     await materializeTreeAssets(store, projectId, region, first.tree);
     expect(existsSync(join(store.assetsDir(projectId), originalRef!))).toBe(true);
+
+    const moved = { ...first.tree, nodes: first.tree.nodes.map(node => ({ ...node, box: { ...node.box, x: node.box.x + 1 } })) };
+    const rematerialized = await materializeTreeAssets(store, projectId, region, moved);
+    expect(rematerialized.tree.nodes[0]!.iconDecision).toMatchObject({
+      kind: "library", sourceAssetRef: assetFileName(projectId, moved.nodes[0]!.box),
+    });
   });
 
   it("falls back to PNG when a persisted library icon no longer exists", async () => {

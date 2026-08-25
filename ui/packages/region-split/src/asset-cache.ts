@@ -68,7 +68,7 @@ export async function materializeTreeAssets(
     }
     let materializedNode = node;
     if (node.kind === "icon" && node.iconDecision?.kind === "library") {
-      const sourceAssetRef = node.iconDecision.sourceAssetRef ?? assetFileName(projectId, node.box);
+      const sourceAssetRef = assetFileName(projectId, node.box);
       const sourceAssetPath = join(assetsDir, sourceAssetRef);
       if (!existsSync(sourceAssetPath)) {
         const temporary = join(assetsDir, `.${sourceAssetRef}.${randomUUID()}.tmp`);

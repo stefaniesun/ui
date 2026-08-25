@@ -68,7 +68,7 @@ const selectedAssetUrl = computed(() => {
 const selectedIconLibraryUrl = computed(() => {
   const node = selected.value;
   const ref = node?.kind === "icon" && node.iconDecision?.kind === "library"
-    ? node.iconDecision.assetRef ?? node.asset?.ref
+    ? node.asset?.ref
     : null;
   return ref ? assetUrl(props.projectId, ref) : null;
 });

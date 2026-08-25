@@ -214,7 +214,7 @@ describe("PageOutline", () => {
     const iconOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::bad" ? {
       ...node,
       asset: { ref: "mdi-home-123456789abc.svg", cutFrom: node.box },
-      iconDecision: { kind: "library" as const, iconId: "mdi:home", query: "home", candidates: ["mdi:home"], sourceAssetRef: "original.png", assetRef: "mdi-home-123456789abc.svg" },
+      iconDecision: { kind: "library" as const, iconId: "mdi:home", query: "home", candidates: ["mdi:home"], sourceAssetRef: "original.png" },
     } : node) };
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: iconOutline, selectedId: "0-1000::bad" } });
     expect(wrapper.get('[data-test="asset-thumb"]').attributes("src")).toContain("original.png");

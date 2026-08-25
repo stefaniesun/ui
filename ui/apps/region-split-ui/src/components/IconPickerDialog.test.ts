@@ -29,6 +29,25 @@ describe("IconPickerDialog", () => {
     expect(wrapper.emitted("confirm")?.[0]?.[0]).toEqual({ iconDecision: { kind: "library", iconId: "mdi:gear", query: "gear", candidates: ["mdi:gear", "lucide:settings"], keywords: ["设置", "gear"], by: "human" } });
   });
 
+  it("ignores an older search response after a newer query finishes", async () => {
+    let finishOld!: (value: { candidates: typeof candidates }) => void;
+    const oldResult = new Promise<{ candidates: typeof candidates }>(resolve => { finishOld = resolve; });
+    const newer = [{ id: "mdi:home", name: "home", set: "mdi", svg: "<svg/>" }];
+    const searchIcons = vi.fn()
+      .mockReturnValueOnce(oldResult)
+      .mockResolvedValueOnce({ candidates: newer });
+    const wrapper = mount(IconPickerDialog, { props: { projectId: "p1", element: { ...element, iconDecision: { ...element.iconDecision!, keywords: [] } }, api: { searchIcons } } });
+    await wrapper.get('[data-test="icon-query"]').setValue("old");
+    await wrapper.get("form").trigger("submit");
+    await wrapper.get('[data-test="icon-query"]').setValue("home");
+    await wrapper.get("form").trigger("submit");
+    await vi.waitFor(() => expect(wrapper.findAll(".icon-grid button")).toHaveLength(1));
+    finishOld({ candidates });
+    await Promise.resolve();
+    expect(wrapper.findAll(".icon-grid button")).toHaveLength(1);
+    expect(wrapper.findAll(".icon-grid button")[0]!.text()).toContain("home");
+  });
+
   it("uses the original crop on explicit request", async () => {
     const wrapper = mount(IconPickerDialog, { props: { projectId: "p1", element, api: { searchIcons: vi.fn().mockResolvedValue({ candidates: [] }) } } });
     await wrapper.get("footer button").trigger("click");

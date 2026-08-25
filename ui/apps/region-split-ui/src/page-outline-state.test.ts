@@ -88,6 +88,27 @@ describe("page outline state", () => {
     expect(api.detectElements).toHaveBeenCalledTimes(1);
   });
 
+  it("serializes consecutive patches so an older response cannot overwrite a newer one", async () => {
+    const api = makeFakeApi();
+    const state = createPageOutlineState(api);
+    state.outline.value = outline;
+    let finishFirst!: (value: PageOutline) => void;
+    const first = new Promise<PageOutline>(resolve => { finishFirst = resolve; });
+    vi.mocked(api.patchPageElement)
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce({ ...outline, elements: outline.elements.map(element => ({ ...element, text: "最新" })) });
+
+    const older = state.patch("p1", "0-800::title", { text: "较早" });
+    const newer = state.patch("p1", "0-800::title", { text: "最新" });
+    await Promise.resolve();
+    expect(api.patchPageElement).toHaveBeenCalledTimes(1);
+    finishFirst({ ...outline, elements: outline.elements.map(element => ({ ...element, text: "较早" })) });
+    await older;
+    await newer;
+    expect(api.patchPageElement).toHaveBeenCalledTimes(2);
+    expect(state.outline.value?.elements[0]?.text).toBe("最新");
+  });
+
   it("rolls a rejected patch back", async () => {
     const api = makeFakeApi();
     vi.mocked(api.getPageOutline).mockResolvedValue(outline);

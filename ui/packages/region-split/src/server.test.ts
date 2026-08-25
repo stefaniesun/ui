@@ -185,8 +185,8 @@ describe("region split server", () => {
     const projectId = imported.json().projectId as string;
     const region = store.readDoc(projectId).regions[0]!;
     store.writeElementTree(projectId, {
-      version: 2, image: store.meta(projectId)!.source, regionKey: "0-400", region: region.bounds, rootIds: ["gear"], nodes: [{
-        id: "gear", parentHint: null, box: { x: 10, y: 10, w: 24, h: 24 }, displayName: "设置", kind: "icon", style: {}, uniformity: 1,
+      regionKey: "0-400", detectedAt: new Date().toISOString(), nodes: [{
+        id: "gear", parentId: null, box: { x: 10, y: 10, w: 24, h: 24 }, displayName: "设置", kind: "icon", style: {}, uniformity: 1,
         source: "auto", classification: "uncertain", scrollX: false, scrollY: false, positioning: "flow",
       }],
     }, region.bounds);
@@ -194,8 +194,8 @@ describe("region split server", () => {
       method: "PATCH", url: `/api/projects/${projectId}/page-outline/${encodeURIComponent("0-400::gear")}`,
       payload: { iconDecision: { kind: "library", iconId: "mdi:home", query: "home", candidates: ["mdi:home"], by: "human" } },
     });
-    expect(patched.statusCode).toBe(200);
-    expect(patched.json().elements[0].iconDecision).toMatchObject({ kind: "library", assetRef: expect.stringMatching(/\.svg$/), by: "human" });
+    expect(patched.statusCode, patched.body).toBe(200);
+    expect(patched.json().elements[0].iconDecision).toMatchObject({ kind: "library", sourceAssetRef: expect.stringMatching(/\.png$/), by: "human" });
     expect(patched.json().elements[0].asset.ref).toMatch(/\.svg$/);
   });
 

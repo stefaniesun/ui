@@ -10,6 +10,7 @@ const candidates = ref<IconCandidate[]>([]);
 const selectedId = ref<string | null>(null);
 const searching = ref(false);
 const error = ref("");
+let searchGeneration = 0;
 const sourceRef = computed(() => {
   const decision = props.element.iconDecision;
   if (decision?.kind === "library" && decision.sourceAssetRef) return decision.sourceAssetRef;
@@ -19,11 +20,20 @@ const sourceRef = computed(() => {
 const sourceUrl = computed(() => sourceRef.value ? assetUrl(props.projectId, sourceRef.value) : null);
 async function search() {
   const value = query.value.trim();
-  if (!value) { candidates.value = []; return; }
-  searching.value = true; error.value = "";
-  try { candidates.value = (await props.api.searchIcons(value, 30)).candidates; selectedId.value = null; }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : "搜索图标失败"; candidates.value = []; }
-  finally { searching.value = false; }
+  const currentGeneration = ++searchGeneration;
+  if (!value) { candidates.value = []; selectedId.value = null; return; }
+  searching.value = true; error.value = ""; selectedId.value = null;
+  try {
+    const result = await props.api.searchIcons(value, 30);
+    if (currentGeneration === searchGeneration && query.value.trim() === value) candidates.value = result.candidates;
+  } catch (cause) {
+    if (currentGeneration === searchGeneration) {
+      error.value = cause instanceof Error ? cause.message : "搜索图标失败";
+      candidates.value = [];
+    }
+  } finally {
+    if (currentGeneration === searchGeneration) searching.value = false;
+  }
 }
 function confirmLibrary() {
   if (!selectedId.value || !query.value.trim()) return;
