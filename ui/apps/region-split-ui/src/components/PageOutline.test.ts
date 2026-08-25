@@ -345,16 +345,26 @@ describe("PageOutline", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const splitter = wrapper.get('[data-test="splitter-image-tree"]');
     const capture = mockPointerCapture(splitter.element);
-    const beforeTransform = wrapper.get('[data-test="canvas-stage"]').attributes("style")?.match(/transform:[^;]+/)?.[0];
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    const beforeTransform = stage.attributes("style")?.match(/transform:[^;]+/)?.[0];
+
+    const middleDown = new MouseEvent("pointerdown", { button: 1, bubbles: true, cancelable: true });
+    Object.defineProperty(middleDown, "pointerId", { value: 20 });
+    splitter.element.dispatchEvent(middleDown);
+    expect(middleDown.defaultPrevented).toBe(true);
 
     await splitter.trigger("pointerdown", { button: 0, pointerId: 21, clientX: 600 });
     await splitter.trigger("pointermove", { pointerId: 21, clientX: -1000 });
-    await splitter.trigger("pointerup", { pointerId: 21, clientX: -1000 });
+    const pointerUp = new MouseEvent("pointerup", { clientX: -1000, bubbles: true, cancelable: true });
+    Object.defineProperty(pointerUp, "pointerId", { value: 21 });
+    splitter.element.dispatchEvent(pointerUp);
+    await wrapper.vm.$nextTick();
 
+    expect(pointerUp.defaultPrevented).toBe(true);
     expect(capture.setPointerCapture).toHaveBeenCalledWith(21);
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(21);
-    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("320px 6px 571px 6px 297px");
-    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")?.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
+    expect(stage.attributes("style")).toContain("320px 6px 571px 6px 297px");
+    expect(stage.attributes("style")?.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
   });
 
   it("cleans splitter drag on cancel and resets a boundary on double click", async () => {

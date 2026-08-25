@@ -291,9 +291,9 @@ function onPanClick(event: MouseEvent) {
   event.stopPropagation();
 }
 function onResizeStart(boundary: PanelBoundary, event: PointerEvent) {
-  if (event.button !== 0 || resizeFrom) return;
   event.preventDefault();
   event.stopPropagation();
+  if (event.button !== 0 || resizeFrom) return;
   const target = event.currentTarget;
   if (!(target instanceof HTMLElement)) return;
   target.setPointerCapture?.(event.pointerId);
@@ -307,11 +307,13 @@ function onResizeMove(event: PointerEvent) {
   panelWidths.value = resizePanelBoundary(resizeFrom.widths, resizeFrom.boundary, event.clientX - resizeFrom.x);
 }
 function endResize(event?: PointerEvent) {
+  event?.preventDefault();
+  event?.stopPropagation();
   if (!resizeFrom || event && resizeFrom.pointerId !== event.pointerId) return;
   const { pointerId, target } = resizeFrom;
-  if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
   resizeFrom = null;
   isResizingPanels.value = false;
+  if (event?.type !== "lostpointercapture" && target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
 }
 function resetBoundary(boundary: PanelBoundary, event: MouseEvent) {
   event.preventDefault();
