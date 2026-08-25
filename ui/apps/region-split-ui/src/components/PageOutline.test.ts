@@ -21,6 +21,17 @@ function setElementSize(element: Element, width: number, height: number) {
   });
 }
 
+function mockPointerCapture(element: Element) {
+  const setPointerCapture = vi.fn();
+  const releasePointerCapture = vi.fn();
+  Object.defineProperties(element, {
+    setPointerCapture: { configurable: true, value: setPointerCapture },
+    hasPointerCapture: { configurable: true, value: () => true },
+    releasePointerCapture: { configurable: true, value: releasePointerCapture },
+  });
+  return { setPointerCapture, releasePointerCapture };
+}
+
 const outline: PageOutlineDto = {
   image: { fileName: "page.png", width: 400, height: 1000 }, designWidth: 400, suspiciousCount: 1,
   regions: [{ regionKey: "0-1000", displayName: "页面", bounds: { x: 0, y: 0, w: 400, h: 1000 }, status: "parsed" }],
@@ -307,6 +318,60 @@ describe("PageOutline", () => {
     wrapper.unmount();
   });
 
+  it("resizes only adjacent panels while keeping the expanded stage width", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    expect(stage.attributes("style")).toContain("width: 1200px");
+    expect(stage.attributes("style")).toContain("594px 6px 297px 6px 297px");
+
+    const first = wrapper.get('[data-test="splitter-image-tree"]');
+    mockPointerCapture(first.element);
+    await first.trigger("pointerdown", { button: 0, pointerId: 11, clientX: 600 });
+    await first.trigger("pointermove", { pointerId: 11, clientX: 680 });
+    await first.trigger("pointerup", { pointerId: 11, clientX: 680 });
+    expect(stage.attributes("style")).toContain("671px 6px 220px 6px 297px");
+    expect(stage.attributes("style")).toContain("width: 1200px");
+
+    const second = wrapper.get('[data-test="splitter-tree-property"]');
+    mockPointerCapture(second.element);
+    await second.trigger("pointerdown", { button: 0, pointerId: 12, clientX: 900 });
+    await second.trigger("pointermove", { pointerId: 12, clientX: 940 });
+    await second.trigger("pointerup", { pointerId: 12, clientX: 940 });
+    expect(stage.attributes("style")).toContain("671px 6px 260px 6px 257px");
+    expect(stage.attributes("style")).toContain("width: 1200px");
+  });
+
+  it("captures splitter pointers without starting canvas panning", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const splitter = wrapper.get('[data-test="splitter-image-tree"]');
+    const capture = mockPointerCapture(splitter.element);
+    const beforeTransform = wrapper.get('[data-test="canvas-stage"]').attributes("style")?.match(/transform:[^;]+/)?.[0];
+
+    await splitter.trigger("pointerdown", { button: 0, pointerId: 21, clientX: 600 });
+    await splitter.trigger("pointermove", { pointerId: 21, clientX: -1000 });
+    await splitter.trigger("pointerup", { pointerId: 21, clientX: -1000 });
+
+    expect(capture.setPointerCapture).toHaveBeenCalledWith(21);
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(21);
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("320px 6px 571px 6px 297px");
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")?.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
+  });
+
+  it("cleans splitter drag on cancel and resets a boundary on double click", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const splitter = wrapper.get('[data-test="splitter-tree-property"]');
+    mockPointerCapture(splitter.element);
+    await splitter.trigger("pointerdown", { button: 0, pointerId: 31, clientX: 900 });
+    await splitter.trigger("pointermove", { pointerId: 31, clientX: 940 });
+    await splitter.trigger("pointercancel", { pointerId: 31 });
+    const afterCancel = wrapper.get('[data-test="canvas-stage"]').attributes("style");
+    await splitter.trigger("pointermove", { pointerId: 31, clientX: 980 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toBe(afterCancel);
+
+    await splitter.trigger("dblclick");
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("594px 6px 297px 6px 297px");
+  });
+
   it("does not left-pan from interactive content", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
     const viewport = wrapper.get('[data-test="canvas-viewport"]');
@@ -461,20 +526,21 @@ describe("PageOutline", () => {
     await wrapper.vm.$nextTick();
     await wrapper.get('[data-test="zoom-in"]').trigger("click");
     const zoom = wrapper.get('[data-test="zoom-level"]').text();
-    const before = stage.attributes("style") ?? "";
+    const beforeTransform = (stage.attributes("style") ?? "").match(/transform:[^;]+/)?.[0];
     const imagePanel = wrapper.get('[data-test="image-panel"]');
-    setElementSize(imagePanel.element, 600, 760);
+    setElementSize(imagePanel.element, 594, 760);
     await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
-    setElementSize(stage.element, 934, 760);
-    setElementSize(imagePanel.element, 600, 760);
+    setElementSize(stage.element, 925, 760);
+    setElementSize(imagePanel.element, 594, 760);
     resizeCallback?.();
     await wrapper.vm.$nextTick();
     const after = stage.attributes("style") ?? "";
     expect(stage.classes()).toContain("tree-panel-collapsed");
-    expect(stage.element.clientWidth).toBe(934);
-    expect(imagePanel.element.clientWidth).toBe(600);
+    expect(stage.element.clientWidth).toBe(925);
+    expect(imagePanel.element.clientWidth).toBe(594);
     expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
-    expect(after).toBe(before);
+    expect(after).toContain("width: 925px");
+    expect(after.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
   });
 
   it("collapses and restores the tree panel without hiding properties or selection", async () => {

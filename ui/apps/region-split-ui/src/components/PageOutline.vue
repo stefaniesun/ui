@@ -4,7 +4,18 @@ import { elementKinds, type ElementKind, type PageOutline, type PageOutlineEleme
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
 import { DEFAULT_VIEW, fitView, keepViewportCenter, revealRect, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
-import { DEFAULT_WORKSPACE_HEIGHT } from "../panel-layout.js";
+import {
+  DEFAULT_PANEL_WIDTHS,
+  DEFAULT_WORKSPACE_HEIGHT,
+  SPLITTER_SIZE,
+  TREE_RESTORE_WIDTH,
+  collapsedWorkspaceWidth,
+  expandedWorkspaceWidth,
+  resetPanelBoundary,
+  resizePanelBoundary,
+  type PanelBoundary,
+  type PanelWidths,
+} from "../panel-layout.js";
 import type { AnalysisStats } from "../api.js";
 
 const props = defineProps<{
@@ -130,12 +141,22 @@ let imageLoadCorrectionPending = true;
 let resizeObserver: ResizeObserver | null = null;
 const spacePressed = ref(false);
 const isPanning = ref(false);
+const isResizingPanels = ref(false);
+const panelWidths = ref<PanelWidths>({ ...DEFAULT_PANEL_WIDTHS });
 let panFrom: { pointerId: number; button: number; x: number; y: number; viewX: number; viewY: number; moved: boolean } | null = null;
+let resizeFrom: { pointerId: number; boundary: PanelBoundary; x: number; widths: PanelWidths; target: HTMLElement } | null = null;
 let suppressClick = false;
 const zoomLabel = computed(() => `${Math.round(view.value.scale * 100)}%`);
 const workspaceHeight = computed(() => hasSize(viewportSize.value) ? viewportSize.value.height : DEFAULT_WORKSPACE_HEIGHT);
+const workspaceWidth = computed(() => treePanelCollapsed.value
+  ? collapsedWorkspaceWidth(panelWidths.value)
+  : expandedWorkspaceWidth(panelWidths.value));
 const canvasStageStyle = computed(() => ({
+  width: `${workspaceWidth.value}px`,
   height: `${workspaceHeight.value}px`,
+  gridTemplateColumns: treePanelCollapsed.value
+    ? `${panelWidths.value.image}px ${TREE_RESTORE_WIDTH}px ${panelWidths.value.property}px`
+    : `${panelWidths.value.image}px ${SPLITTER_SIZE}px ${panelWidths.value.tree}px ${SPLITTER_SIZE}px ${panelWidths.value.property}px`,
   transform: `translate3d(${view.value.x}px, ${view.value.y}px, 0) scale(${view.value.scale})`,
 }));
 const pageStageStyle = computed(() => ({
@@ -231,7 +252,7 @@ function onKeyUp(event: KeyboardEvent) {
 }
 function onPanStart(event: PointerEvent) {
   const viewport = canvasViewport.value;
-  if (!viewport || panFrom) return;
+  if (!viewport || panFrom || isResizingPanels.value) return;
   const leftAllowed = event.button === 0 && (!isEditable(document.activeElement) && spacePressed.value || isDirectPanSurface(event.target));
   const middleAllowed = event.button === 1;
   if (!leftAllowed && !middleAllowed) return;
@@ -269,9 +290,38 @@ function onPanClick(event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
 }
+function onResizeStart(boundary: PanelBoundary, event: PointerEvent) {
+  if (event.button !== 0 || resizeFrom) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return;
+  target.setPointerCapture?.(event.pointerId);
+  resizeFrom = { pointerId: event.pointerId, boundary, x: event.clientX, widths: { ...panelWidths.value }, target };
+  isResizingPanels.value = true;
+}
+function onResizeMove(event: PointerEvent) {
+  if (!resizeFrom || resizeFrom.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  event.stopPropagation();
+  panelWidths.value = resizePanelBoundary(resizeFrom.widths, resizeFrom.boundary, event.clientX - resizeFrom.x);
+}
+function endResize(event?: PointerEvent) {
+  if (!resizeFrom || event && resizeFrom.pointerId !== event.pointerId) return;
+  const { pointerId, target } = resizeFrom;
+  if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
+  resizeFrom = null;
+  isResizingPanels.value = false;
+}
+function resetBoundary(boundary: PanelBoundary, event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  panelWidths.value = resetPanelBoundary(panelWidths.value, boundary);
+}
 function onWindowBlur() {
   spacePressed.value = false;
   cancelPan();
+  endResize();
 }
 onMounted(() => {
   measureCanvas();
@@ -289,6 +339,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("keyup", onKeyUp);
   window.removeEventListener("blur", onWindowBlur);
   cancelPan();
+  endResize();
 });
 
 function expandAncestors(id: string) {
@@ -399,7 +450,7 @@ watch(selected, node => {
 
     <section
       ref="canvasViewport" class="canvas-viewport" data-test="canvas-viewport"
-      :class="{ 'is-panning': isPanning, 'space-pan-ready': spacePressed }"
+      :class="{ 'is-panning': isPanning, 'space-pan-ready': spacePressed, 'is-resizing': isResizingPanels }"
       @wheel="onCanvasWheel" @dblclick="onCanvasDoubleClick"
       tabindex="0" aria-label="无限画布工作区"
       @pointerdown="onPanStart" @pointermove="onPanMove"
@@ -423,6 +474,13 @@ watch(selected, node => {
         </div>
       </div>
 
+      <div
+        v-if="!treePanelCollapsed" class="panel-splitter" data-test="splitter-image-tree"
+        role="separator" aria-label="调整原图与结构树宽度" aria-orientation="vertical"
+        @pointerdown="onResizeStart('image-tree', $event)" @pointermove="onResizeMove"
+        @pointerup="endResize" @pointercancel="endResize" @lostpointercapture="endResize"
+        @dblclick="resetBoundary('image-tree', $event)"
+      />
       <aside v-if="!treePanelCollapsed" class="tree-panel" data-test="tree-panel" data-scroll-panel="true" aria-label="页面结构树">
         <header class="panel-header">
           <strong>结构树</strong>
@@ -454,6 +512,13 @@ watch(selected, node => {
         aria-label="展开结构栏" @click="restoreTreePanel"
       ><span>›</span><span>结构</span></button>
 
+      <div
+        v-if="!treePanelCollapsed" class="panel-splitter" data-test="splitter-tree-property"
+        role="separator" aria-label="调整结构树与属性栏宽度" aria-orientation="vertical"
+        @pointerdown="onResizeStart('tree-property', $event)" @pointermove="onResizeMove"
+        @pointerup="endResize" @pointercancel="endResize" @lostpointercapture="endResize"
+        @dblclick="resetBoundary('tree-property', $event)"
+      />
       <aside class="property-panel" data-test="property-panel" data-scroll-panel="true" aria-label="元素属性编辑">
         <form v-if="selected" class="calibration" data-test="calibration" @submit.prevent="save">
           <header class="property-heading">
@@ -490,9 +555,12 @@ watch(selected, node => {
 .analysis-stats { display: flex; gap: 14px; align-items: center; padding: 7px 14px; border-bottom: 1px solid #4c3818; color: #fbbf24; background: #2a2113; font-size: 11px; }.analysis-stats.passed { color: #86efac; background: #13271d; }.analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: #93a4bb; background: #151a23; font-size: 10px; }
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
 .canvas-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: #0c1017; background-image: radial-gradient(circle, #263244 1px, transparent 1px); background-size: 24px 24px; cursor: grab; touch-action: none; }.canvas-viewport.is-panning { cursor: grabbing; }.canvas-viewport.space-pan-ready { cursor: grab; }
-.outline-workspace { position: absolute; top: 0; left: 0; width: 1200px; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; align-items: stretch; overflow: hidden; transform-origin: 0 0; will-change: transform; box-shadow: 0 12px 42px #000b; }
-.outline-workspace.tree-panel-collapsed { width: 934px; grid-template-columns: 600px 34px 300px; }
+.outline-workspace { position: absolute; top: 0; left: 0; display: grid; align-items: stretch; overflow: hidden; transform-origin: 0 0; will-change: transform; box-shadow: 0 12px 42px #000b; }
 .page-scroll { min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: #0c1017; }
+.panel-splitter { position: relative; min-width: 0; background: #111722; cursor: col-resize; touch-action: none; user-select: none; }
+.panel-splitter::after { content: ""; position: absolute; inset: 0 2px; background: #354155; }
+.panel-splitter:hover::after, .panel-splitter:focus-visible::after { background: #3b82f6; }
+.canvas-viewport.is-resizing, .canvas-viewport.is-resizing * { cursor: col-resize !important; user-select: none !important; }
 .page-stage { position: relative; width: 100%; min-width: 0; margin: 0; line-height: 0; }
 .page-stage > img { display: block; width: 100%; height: auto; }
 .element-box { position: absolute; padding: 0; border: 1px solid var(--kind-color); background: color-mix(in srgb, var(--kind-color) 10%, transparent); cursor: pointer; }
@@ -517,7 +585,6 @@ watch(selected, node => {
 .calibration label { display: grid; gap: 3px; color: #93a4bb; font-size: 11px; }.calibration input, .calibration select { min-width: 0; padding: 5px; border: 1px solid #354155; border-radius: 4px; color: #e7edf6; background: #10151d; }
 .rect-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
-@media (max-width: 900px) { .outline-workspace { width: 1080px; grid-template-columns: minmax(0, 1fr) 270px 270px; }.outline-workspace.tree-panel-collapsed { width: 844px; grid-template-columns: 540px 34px 270px; } }
-@media (max-width: 640px) { .outline-workspace { width: 960px; grid-template-columns: minmax(0, 1fr) 240px 240px; }.outline-workspace.tree-panel-collapsed { width: 754px; grid-template-columns: 480px 34px 240px; } }
+
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 </style>
