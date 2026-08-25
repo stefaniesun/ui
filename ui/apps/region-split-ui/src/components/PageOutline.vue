@@ -517,7 +517,7 @@ watch(selected, node => {
 .calibration label { display: grid; gap: 3px; color: #93a4bb; font-size: 11px; }.calibration input, .calibration select { min-width: 0; padding: 5px; border: 1px solid #354155; border-radius: 4px; color: #e7edf6; background: #10151d; }
 .rect-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
-@media (max-width: 900px) { .outline-workspace { width: 1080px; min-height: 680px; grid-template-columns: minmax(0, 1fr) 270px 270px; }.outline-workspace.tree-panel-collapsed { width: 844px; grid-template-columns: 540px 34px 270px; } }
-@media (max-width: 640px) { .outline-workspace { width: 960px; min-height: 620px; grid-template-columns: minmax(0, 1fr) 240px 240px; }.outline-workspace.tree-panel-collapsed { width: 754px; grid-template-columns: 480px 34px 240px; } }
+@media (max-width: 900px) { .outline-workspace { width: 1080px; grid-template-columns: minmax(0, 1fr) 270px 270px; }.outline-workspace.tree-panel-collapsed { width: 844px; grid-template-columns: 540px 34px 270px; } }
+@media (max-width: 640px) { .outline-workspace { width: 960px; grid-template-columns: minmax(0, 1fr) 240px 240px; }.outline-workspace.tree-panel-collapsed { width: 754px; grid-template-columns: 480px 34px 240px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 </style>
