@@ -59,6 +59,10 @@ describe("PageOutline", () => {
     return vi.spyOn(HTMLElement.prototype, "scrollIntoView");
   }
   const withRegions = (regions: PageOutlineDto["regions"]): PageOutlineDto => ({ ...outline, regions });
+  const withBox = (id: string, box: PageOutlineDto["elements"][number]["box"]): PageOutlineDto => ({
+    ...outline,
+    elements: outline.elements.map(element => element.id === id ? { ...element, box } : element),
+  });
   const region = (regionKey: string, status: "parsed" | "missing" | "failed") => ({
     regionKey, displayName: `区域 ${regionKey}`, status,
     bounds: { x: 0, y: 0, w: 400, h: 100 },
@@ -110,6 +114,48 @@ describe("PageOutline", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
     const text = wrapper.get('[data-test="calibration"]').text();
     for (const label of ["横坐标", "纵坐标", "宽", "高"]) expect(text).toContain(label);
+  });
+
+  it.each([
+    ["nudge-left", { x: 39, y: 100, w: 200, h: 50 }],
+    ["nudge-right", { x: 41, y: 100, w: 200, h: 50 }],
+    ["nudge-up", { x: 40, y: 99, w: 200, h: 50 }],
+    ["nudge-down", { x: 40, y: 101, w: 200, h: 50 }],
+    ["shrink-width", { x: 40, y: 100, w: 199, h: 50 }],
+    ["grow-width", { x: 40, y: 100, w: 201, h: 50 }],
+    ["shrink-height", { x: 40, y: 100, w: 200, h: 49 }],
+    ["grow-height", { x: 40, y: 100, w: 200, h: 51 }],
+  ])("applies %s by one pixel and emits immediately", async (control, expectedBox) => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    await wrapper.get(`[data-test="${control}"]`).trigger("click");
+    expect(wrapper.emitted("patch")).toEqual([["0-1000::ok", { box: expectedBox }]]);
+  });
+
+  it("accumulates consecutive nudges from the local draft", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    await wrapper.get('[data-test="nudge-left"]').trigger("click");
+    await wrapper.get('[data-test="nudge-left"]').trigger("click");
+    expect(wrapper.emitted("patch")).toEqual([
+      ["0-1000::ok", { box: { x: 39, y: 100, w: 200, h: 50 } }],
+      ["0-1000::ok", { box: { x: 38, y: 100, w: 200, h: 50 } }],
+    ]);
+  });
+
+  it("synchronizes the number fields when the parent outline updates", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    await wrapper.get('[data-test="nudge-down"]').trigger("click");
+    await wrapper.setProps({ outline: withBox("0-1000::ok", { x: 40, y: 101, w: 200, h: 50 }) });
+    const fields = wrapper.get('[data-test="calibration"]').findAll("input[type=number]");
+    expect((fields[1]!.element as HTMLInputElement).value).toBe("101");
+  });
+
+  it.each([
+    ["shrink-width", { x: 40, y: 100, w: 4, h: 50 }],
+    ["shrink-height", { x: 40, y: 100, w: 200, h: 4 }],
+  ])("does not emit %s below the four pixel minimum", async (control, box) => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: withBox("0-1000::ok", box), selectedId: "0-1000::ok" } });
+    await wrapper.get(`[data-test="${control}"]`).trigger("click");
+    expect(wrapper.emitted("patch")).toBeFalsy();
   });
 
   it("tints an element box by its kind while status styles stay higher priority", () => {

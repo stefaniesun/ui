@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
+import { elementKinds, type ElementKind, type PageElementPatch, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
 import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
@@ -41,7 +41,7 @@ const emit = defineEmits<{
   exportPage: [];
   openPageCompare: [];
   refreshModelConfig: [];
-  patch: [id: string, patch: { kind?: ElementKind; text?: string; box?: Rect }];
+  patch: [id: string, patch: PageElementPatch];
 }>();
 const treeRefs = new Map<string, HTMLElement>();
 const boxRefs = new Map<string, HTMLElement>();
@@ -408,6 +408,19 @@ function restoreTreePanel() {
     if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
   });
 }
+function adjustBox(delta: Partial<Record<keyof Rect, number>>) {
+  if (!selected.value) return;
+  const current = editBox.value;
+  const next: Rect = {
+    x: current.x + (delta.x ?? 0),
+    y: current.y + (delta.y ?? 0),
+    w: current.w + (delta.w ?? 0),
+    h: current.h + (delta.h ?? 0),
+  };
+  if (next.w < 4 || next.h < 4) return;
+  editBox.value = next;
+  emit("patch", selected.value.id, { box: { ...next } });
+}
 function save() {
   if (!selected.value) return;
   emit("patch", selected.value.id, { kind: editKind.value, text: editText.value, box: { ...editBox.value } });
@@ -556,6 +569,20 @@ watch(selected, node => {
               <input v-model.number="editBox[field[0]]" type="number" :min="field[0] === 'w' || field[0] === 'h' ? 4 : 0" />
             </label>
           </div>
+          <div class="pixel-controls" aria-label="位置尺寸微调">
+            <div class="pixel-control-row"><span>移动</span>
+              <button type="button" data-test="nudge-left" aria-label="向左移动一像素" @click="adjustBox({ x: -1 })">←</button>
+              <button type="button" data-test="nudge-up" aria-label="向上移动一像素" @click="adjustBox({ y: -1 })">↑</button>
+              <button type="button" data-test="nudge-down" aria-label="向下移动一像素" @click="adjustBox({ y: 1 })">↓</button>
+              <button type="button" data-test="nudge-right" aria-label="向右移动一像素" @click="adjustBox({ x: 1 })">→</button>
+            </div>
+            <div class="pixel-control-row"><span>缩放</span>
+              <button type="button" data-test="shrink-width" aria-label="宽度减少一像素" @click="adjustBox({ w: -1 })">宽−</button>
+              <button type="button" data-test="grow-width" aria-label="宽度增加一像素" @click="adjustBox({ w: 1 })">宽+</button>
+              <button type="button" data-test="shrink-height" aria-label="高度减少一像素" @click="adjustBox({ h: -1 })">高−</button>
+              <button type="button" data-test="grow-height" aria-label="高度增加一像素" @click="adjustBox({ h: 1 })">高+</button>
+            </div>
+          </div>
           <button type="submit" data-test="save-calibration">保存校准</button>
         </form>
         <div v-else class="property-empty" data-test="property-empty">选择元素后编辑属性</div>
@@ -609,6 +636,10 @@ watch(selected, node => {
 .tree-item-content strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.tree-item small { color: #8192aa; }.calibration { padding: 10px; display: grid; gap: 8px; }
 .calibration label { display: grid; gap: 3px; color: #93a4bb; font-size: 11px; }.calibration input, .calibration select { min-width: 0; padding: 5px; border: 1px solid #354155; border-radius: 4px; color: #e7edf6; background: #10151d; }
 .rect-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.pixel-controls { display: grid; gap: 6px; padding: 7px; border: 1px solid #2f3a4c; border-radius: 5px; background: #111722; }
+.pixel-control-row { display: grid; grid-template-columns: 36px repeat(4, minmax(0, 1fr)); gap: 5px; align-items: center; }
+.pixel-control-row > span { color: #93a4bb; font-size: 11px; }
+.calibration .pixel-control-row button { min-width: 0; padding: 5px 3px; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
