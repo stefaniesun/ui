@@ -7,6 +7,8 @@ import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, typ
 import {
   DEFAULT_PANEL_WIDTHS,
   DEFAULT_WORKSPACE_HEIGHT,
+  MAX_PROPERTY_WIDTH,
+  MIN_PANEL_WIDTHS,
   SPLITTER_SIZE,
   TREE_RESTORE_WIDTH,
   collapsedWorkspaceWidth,
@@ -15,6 +17,7 @@ import {
   resizePanelBoundary,
   type PanelBoundary,
   type PanelWidths,
+  type ResettablePanelBoundary,
 } from "../panel-layout.js";
 import type { AnalysisStats } from "../api.js";
 
@@ -317,10 +320,22 @@ function endResize(event?: PointerEvent) {
   isResizingPanels.value = false;
   if (event?.type !== "lostpointercapture" && target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
 }
-function resetBoundary(boundary: PanelBoundary, event: MouseEvent) {
+function resetBoundary(boundary: ResettablePanelBoundary, event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
   panelWidths.value = resetPanelBoundary(panelWidths.value, boundary);
+}
+function onPropertyEdgeKeydown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  event.stopPropagation();
+  const direction = event.key === "ArrowRight" ? 1 : -1;
+  const step = event.shiftKey ? 48 : 16;
+  panelWidths.value = resizePanelBoundary(panelWidths.value, "property-edge", direction * step);
+}
+function collapseTreePanel() {
+  endResize();
+  treePanelCollapsed.value = true;
 }
 function onWindowBlur() {
   spacePressed.value = false;
@@ -480,7 +495,7 @@ watch(selected, node => {
       <aside v-if="!treePanelCollapsed" class="tree-panel" data-test="tree-panel" data-scroll-panel="true" aria-label="页面结构树">
         <header class="panel-header">
           <strong>结构树</strong>
-          <button type="button" data-test="collapse-tree-panel" aria-label="收起结构栏" @click="treePanelCollapsed = true">«</button>
+          <button type="button" data-test="collapse-tree-panel" aria-label="收起结构栏" @click="collapseTreePanel">«</button>
         </header>
         <div class="outline-tree" data-test="outline-tree" role="tree" aria-label="页面元素结构">
           <div
@@ -516,6 +531,15 @@ watch(selected, node => {
         @dblclick="resetBoundary('tree-property', $event)"
       />
       <aside class="property-panel" data-test="property-panel" data-scroll-panel="true" aria-label="元素属性编辑">
+        <div
+          class="property-edge-resizer" data-test="property-edge-resizer"
+          role="separator" aria-label="调整属性栏宽度" aria-orientation="vertical"
+          tabindex="0" :aria-valuemin="MIN_PANEL_WIDTHS.property" :aria-valuemax="MAX_PROPERTY_WIDTH" :aria-valuenow="Math.round(panelWidths.property)"
+          @pointerdown="onResizeStart('property-edge', $event)" @pointermove="onResizeMove"
+          @pointerup="endResize" @pointercancel="endResize" @lostpointercapture="endResize"
+          @keydown="onPropertyEdgeKeydown"
+        />
+        <div class="property-content-scroll" data-test="property-content-scroll" data-scroll-panel="true">
         <form v-if="selected" class="calibration" data-test="calibration" @submit.prevent="save">
           <header class="property-heading">
             <div><small>{{ selected.outlineNumber }} · {{ selected.regionName }}</small><strong>{{ selected.displayName }}</strong></div>
@@ -535,6 +559,7 @@ watch(selected, node => {
           <button type="submit" data-test="save-calibration">保存校准</button>
         </form>
         <div v-else class="property-empty" data-test="property-empty">选择元素后编辑属性</div>
+        </div>
         </aside>
       </div>
     </section>
@@ -565,7 +590,11 @@ watch(selected, node => {
 .element-box.selected { z-index: 3; border: 2px solid #30d5ff; background: #00bce83b; }
 .tree-panel, .property-panel { min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid #2a3342; background: #151a23; }
 .tree-panel { display: flex; flex-direction: column; }
-.property-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.property-panel { position: relative; overflow: hidden; }
+.property-content-scroll { height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.property-edge-resizer { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; user-select: none; }
+.property-edge-resizer::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 2px; background: transparent; }
+.property-edge-resizer:hover::after, .property-edge-resizer:focus-visible::after { background: #3b82f6; }
 .panel-header, .property-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border-bottom: 1px solid #2a3342; }
 .panel-header button { border: 1px solid #354155; border-radius: 4px; color: #93a4bb; background: #202938; cursor: pointer; }
 .property-heading { margin: -10px -10px 2px; }.property-heading div { min-width: 0; display: grid; gap: 3px; }.property-heading small { color: #8192aa; }.property-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

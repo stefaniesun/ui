@@ -41,6 +41,31 @@ describe("panel layout", () => {
     });
   });
 
+  it("resizes only the property panel from its outer edge", () => {
+    const beforeExpanded = expandedWorkspaceWidth(DEFAULT_PANEL_WIDTHS);
+    const beforeCollapsed = collapsedWorkspaceWidth(DEFAULT_PANEL_WIDTHS);
+    const wider = resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", 80);
+    expect(wider).toEqual({ image: 594, tree: 297, property: 377 });
+    expect(expandedWorkspaceWidth(wider)).toBe(beforeExpanded + 80);
+    expect(collapsedWorkspaceWidth(wider)).toBe(beforeCollapsed + 80);
+    expect(resizePanelBoundary(wider, "property-edge", -40)).toEqual({ image: 594, tree: 297, property: 337 });
+  });
+
+  it("clamps the property outer edge and ignores non-finite deltas", () => {
+    expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", -999)).toEqual({
+      image: 594,
+      tree: 297,
+      property: MIN_PANEL_WIDTHS.property,
+    });
+    expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", Number.NaN)).toEqual(DEFAULT_PANEL_WIDTHS);
+    expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", Number.POSITIVE_INFINITY)).toEqual(DEFAULT_PANEL_WIDTHS);
+    expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", Number.MAX_SAFE_INTEGER)).toEqual({
+      image: 594,
+      tree: 297,
+      property: Number.MAX_SAFE_INTEGER,
+    });
+  });
+
   it("ignores non-finite deltas and does not mutate the input", () => {
     const widths = { ...DEFAULT_PANEL_WIDTHS };
     expect(resizePanelBoundary(widths, "image-tree", Number.NaN)).toEqual(widths);
