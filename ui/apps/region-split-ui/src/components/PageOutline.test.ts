@@ -444,6 +444,17 @@ describe("PageOutline", () => {
     expect(stage.attributes("style")).toBe(afterCancel);
   });
 
+  it("ends an active splitter drag before collapsing the tree", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const splitter = wrapper.get('[data-test="splitter-image-tree"]');
+    mockPointerCapture(splitter.element);
+    await splitter.trigger("pointerdown", { button: 0, pointerId: 75, clientX: 600 });
+    expect(wrapper.get('[data-test="canvas-viewport"]').classes()).toContain("is-resizing");
+    await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
+    expect(wrapper.get('[data-test="canvas-viewport"]').classes()).not.toContain("is-resizing");
+    expect(wrapper.find('[data-test="splitter-image-tree"]').exists()).toBe(false);
+  });
+
   it("stops property edge resizing when the window loses focus", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const edge = wrapper.get('[data-test="property-edge-resizer"]');

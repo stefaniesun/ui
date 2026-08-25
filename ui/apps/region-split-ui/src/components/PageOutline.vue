@@ -333,6 +333,10 @@ function onPropertyEdgeKeydown(event: KeyboardEvent) {
   const step = event.shiftKey ? 48 : 16;
   panelWidths.value = resizePanelBoundary(panelWidths.value, "property-edge", direction * step);
 }
+function collapseTreePanel() {
+  endResize();
+  treePanelCollapsed.value = true;
+}
 function onWindowBlur() {
   spacePressed.value = false;
   cancelPan();
@@ -491,7 +495,7 @@ watch(selected, node => {
       <aside v-if="!treePanelCollapsed" class="tree-panel" data-test="tree-panel" data-scroll-panel="true" aria-label="页面结构树">
         <header class="panel-header">
           <strong>结构树</strong>
-          <button type="button" data-test="collapse-tree-panel" aria-label="收起结构栏" @click="treePanelCollapsed = true">«</button>
+          <button type="button" data-test="collapse-tree-panel" aria-label="收起结构栏" @click="collapseTreePanel">«</button>
         </header>
         <div class="outline-tree" data-test="outline-tree" role="tree" aria-label="页面元素结构">
           <div
