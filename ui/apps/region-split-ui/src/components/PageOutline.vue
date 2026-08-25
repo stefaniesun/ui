@@ -305,7 +305,8 @@ function onResizeMove(event: PointerEvent) {
   if (!resizeFrom || resizeFrom.pointerId !== event.pointerId) return;
   event.preventDefault();
   event.stopPropagation();
-  panelWidths.value = resizePanelBoundary(resizeFrom.widths, resizeFrom.boundary, event.clientX - resizeFrom.x);
+  const scale = Number.isFinite(view.value.scale) && view.value.scale > 0 ? view.value.scale : 1;
+  panelWidths.value = resizePanelBoundary(resizeFrom.widths, resizeFrom.boundary, (event.clientX - resizeFrom.x) / scale);
 }
 function endResize(event?: PointerEvent) {
   event?.preventDefault();

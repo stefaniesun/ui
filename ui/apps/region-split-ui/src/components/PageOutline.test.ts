@@ -341,6 +341,19 @@ describe("PageOutline", () => {
     expect(stage.attributes("style")).toContain("width: 1200px");
   });
 
+  it("converts splitter movement from screen pixels at the current canvas scale", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    await wrapper.get('[data-test="actual-size"]').trigger("click");
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
+    const splitter = wrapper.get('[data-test="splitter-image-tree"]');
+    mockPointerCapture(splitter.element);
+    await splitter.trigger("pointerdown", { button: 0, pointerId: 15, clientX: 600 });
+    await splitter.trigger("pointermove", { pointerId: 15, clientX: 644 });
+    await splitter.trigger("pointerup", { pointerId: 15, clientX: 644 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("634px 6px 257px 6px 297px");
+  });
+
   it("captures splitter pointers without starting canvas panning", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     const splitter = wrapper.get('[data-test="splitter-image-tree"]');
