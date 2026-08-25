@@ -44,6 +44,10 @@ export interface DetectAllResult {
   failedRegionKeys: string[];
 }
 
+export function assetUrl(projectId: string, fileName: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(fileName)}`;
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const body = await res.json().catch(() => null);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { assetUrl } from "../api.js";
 import { elementKinds, type ElementKind, type PageElementPatch, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
@@ -53,6 +54,13 @@ const editBox = ref<Rect>({ x: 0, y: 0, w: 4, h: 4 });
 
 const selected = computed(() => props.outline.elements.find(element => element.id === props.selectedId) ?? null);
 const imageSrc = computed(() => `/api/projects/${encodeURIComponent(props.projectId)}/image`);
+const selectedAssetUrl = computed(() => selected.value?.asset ? assetUrl(props.projectId, selected.value.asset.ref) : null);
+const selectedIconLibraryUrl = computed(() => {
+  const node = selected.value;
+  return node?.kind === "icon" && node.iconDecision?.kind === "library" && node.asset
+    ? assetUrl(props.projectId, node.asset.ref)
+    : null;
+});
 const ordered = computed(() => props.outline.elements);
 const elementById = computed(() => new Map(props.outline.elements.map(node => [node.id, node])));
 const validParentById = computed(() => {
@@ -583,6 +591,22 @@ watch(selected, node => {
               <button type="button" data-test="grow-height" aria-label="高度增加一像素" @click="adjustBox({ h: 1 })">高+</button>
             </div>
           </div>
+          <section v-if="selected.kind === 'image' || selected.kind === 'icon'" class="asset-panel" data-test="asset-panel">
+            <strong>素材</strong>
+            <template v-if="selectedAssetUrl">
+              <img :src="selectedAssetUrl" class="asset-thumb" data-test="asset-thumb" alt="选中元素切图" />
+              <div class="asset-file"><span>{{ selected.asset?.ref }}</span><a :href="selectedAssetUrl" download>下载</a></div>
+            </template>
+            <p v-else class="asset-missing">暂无切图</p>
+            <div v-if="selected.kind === 'icon'" class="icon-result">
+              <span>图标</span>
+              <img v-if="selectedIconLibraryUrl" :src="selectedIconLibraryUrl" data-test="icon-preview" alt="已匹配图标" />
+              <strong v-else-if="selected.iconDecision?.kind === 'crop'" data-test="icon-status">用原图切片</strong>
+              <strong v-else-if="selected.iconDecision?.kind === 'ambiguous'" class="pending" data-test="icon-status">待确认</strong>
+              <strong v-else data-test="icon-status">未匹配</strong>
+              <button type="button" data-test="open-icon-picker">选择图标</button>
+            </div>
+          </section>
           <button type="submit" data-test="save-calibration">保存校准</button>
         </form>
         <div v-else class="property-empty" data-test="property-empty">选择元素后编辑属性</div>
@@ -640,6 +664,13 @@ watch(selected, node => {
 .pixel-control-row { display: grid; grid-template-columns: 36px repeat(4, minmax(0, 1fr)); gap: 5px; align-items: center; }
 .pixel-control-row > span { color: #93a4bb; font-size: 11px; }
 .calibration .pixel-control-row button { min-width: 0; padding: 5px 3px; }
+.asset-panel { display: grid; gap: 7px; padding: 8px; border: 1px solid #2f3a4c; border-radius: 5px; background: #111722; }
+.asset-thumb { display: block; width: 100%; max-height: 160px; object-fit: contain; border-radius: 4px; background: #0b1017; }
+.asset-file, .icon-result { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.asset-file span { flex: 1; overflow: hidden; color: #93a4bb; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.asset-file a { color: #70c8ff; }.asset-missing { margin: 0; color: #8192aa; }
+.icon-result > span { color: #93a4bb; }.icon-result img { width: 32px; height: 32px; object-fit: contain; }.icon-result .pending { color: #ffd38a; }
+.icon-result button { margin-left: auto; }
 .property-empty { display: grid; min-height: 180px; place-items: center; padding: 24px; color: #8192aa; text-align: center; }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }

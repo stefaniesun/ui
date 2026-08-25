@@ -158,6 +158,48 @@ describe("PageOutline", () => {
     expect(wrapper.emitted("patch")).toBeFalsy();
   });
 
+  it("shows an image crop without stretching it", () => {
+    const imageOutline: PageOutlineDto = {
+      ...outline,
+      elements: outline.elements.map(node => node.id === "0-1000::ok" ? {
+        ...node, kind: "image" as const, asset: { ref: "68bae9a9.png", cutFrom: node.box },
+      } : node),
+    };
+    const wrapper = mount(PageOutline, { props: { projectId: "p 1", outline: imageOutline, selectedId: "0-1000::ok" } });
+    expect(wrapper.get('[data-test="asset-thumb"]').attributes("src")).toContain("/api/projects/p%201/assets/68bae9a9.png");
+    expect(wrapper.get('[data-test="asset-thumb"]').classes()).toContain("asset-thumb");
+  });
+
+  it.each([
+    ["ambiguous", "待确认"],
+    ["crop", "用原图切片"],
+  ] as const)("labels the %s icon decision precisely", (decisionKind, label) => {
+    const decision = decisionKind === "ambiguous"
+      ? { kind: "ambiguous" as const, query: "gear", candidates: [] }
+      : { kind: "crop" as const, assetRef: "68bae9a9.png", reason: "human" };
+    const iconOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::bad" ? {
+      ...node, asset: { ref: "68bae9a9.png", cutFrom: node.box }, iconDecision: decision,
+    } : node) };
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: iconOutline, selectedId: "0-1000::bad" } });
+    expect(wrapper.get('[data-test="icon-status"]').text()).toContain(label);
+  });
+
+  it("previews the svg asset once an icon was picked", () => {
+    const iconOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::bad" ? {
+      ...node,
+      asset: { ref: "mdi-home-123456789abc.svg", cutFrom: node.box },
+      iconDecision: { kind: "library" as const, iconId: "mdi:home", query: "home", candidates: ["mdi:home"] },
+    } : node) };
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: iconOutline, selectedId: "0-1000::bad" } });
+    expect(wrapper.get('[data-test="icon-preview"]').attributes("src")).toContain("mdi-home-123456789abc.svg");
+  });
+
+  it("hides the asset block for a container", () => {
+    const componentOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::ok" ? { ...node, kind: "component" as const } : node) };
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: componentOutline, selectedId: "0-1000::ok" } });
+    expect(wrapper.find('[data-test="asset-panel"]').exists()).toBe(false);
+  });
+
   it("tints an element box by its kind while status styles stay higher priority", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
     expect(wrapper.get('[data-test="page-outline"] .element-box').attributes("style")).toContain("--kind-color: #ffd166");
