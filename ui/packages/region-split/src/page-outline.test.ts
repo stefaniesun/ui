@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ElementNode, ElementTree } from "./element-types.js";
-import { buildPageOutline, isSuspiciousElement, pageElementId, parsePageElementId, patchElementTree } from "./page-outline.js";
+import { buildPageOutline, isSuspiciousElement, pageElementId, pageElementPatchSchema, parsePageElementId, patchElementTree } from "./page-outline.js";
 import type { RegionSplitDoc } from "./types.js";
 
 const baseNode = (overrides: Partial<ElementNode> = {}): ElementNode => ({
@@ -51,5 +51,32 @@ describe("whole-page outline", () => {
     });
     expect(patched.nodes[0]).toMatchObject({ kind: "image", classification: "human", text: "新文字", box: { x: 12, y: 14, w: 50, h: 24 } });
     expect(patched.nodes[0]?.textBox).toBeUndefined();
+  });
+
+  describe("radius and icon decision calibration", () => {
+    it("keeps a radius on a component and drops it at zero", () => {
+      const original = tree("0-200", [baseNode({ id: "card", kind: "component" })]);
+      const withRadius = patchElementTree(original, doc.regions[0]!.bounds, "card", { borderRadius: 34 });
+      expect(withRadius.nodes[0]?.style.borderRadius).toBe(34);
+      const withoutRadius = patchElementTree(withRadius, doc.regions[0]!.bounds, "card", { borderRadius: 0 });
+      expect(withoutRadius.nodes[0]?.style.borderRadius).toBeUndefined();
+    });
+
+    it("refuses a radius on a kind that cannot show one", () => {
+      const original = tree("0-200", [baseNode({ id: "label", kind: "text" })]);
+      expect(() => patchElementTree(original, doc.regions[0]!.bounds, "label", { borderRadius: 8 })).toThrow();
+    });
+
+    it("keeps a human icon decision", () => {
+      const original = tree("0-200", [baseNode({ id: "gear", kind: "icon" })]);
+      const iconDecision = { kind: "library" as const, iconId: "mdi:gear", query: "gear", candidates: ["mdi:gear"], by: "human" as const };
+      const next = patchElementTree(original, doc.regions[0]!.bounds, "gear", { iconDecision });
+      expect(next.nodes[0]?.iconDecision).toMatchObject({ kind: "library", by: "human" });
+    });
+
+    it("accepts both fields in the patch schema", () => {
+      expect(pageElementPatchSchema.parse({ borderRadius: 12 })).toEqual({ borderRadius: 12 });
+      expect(pageElementPatchSchema.parse({ iconDecision: { kind: "crop", assetRef: "icon.png", reason: "human", by: "human" } })).toBeTruthy();
+    });
   });
 });

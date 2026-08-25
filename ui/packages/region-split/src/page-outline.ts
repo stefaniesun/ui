@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { applyBox } from "./element-layout.js";
-import { elementKinds, type ElementKind, type ElementNode, type ElementTree } from "./element-types.js";
+import { elementKinds, iconDecisionSchema, supportsBorderRadius, type ElementKind, type ElementNode, type ElementTree } from "./element-types.js";
 import type { Rect, RegionSplitDoc } from "./types.js";
 
 export const pageElementIdSeparator = "::";
@@ -36,7 +36,9 @@ export const pageElementPatchSchema = z.object({
   kind: z.enum(elementKinds).optional(),
   text: z.string().optional(),
   box: z.object({ x: z.number().int(), y: z.number().int(), w: z.number().int().positive(), h: z.number().int().positive() }).optional(),
-}).refine(value => value.kind !== undefined || value.text !== undefined || value.box !== undefined, "empty patch");
+  borderRadius: z.number().int().nonnegative().optional(),
+  iconDecision: iconDecisionSchema.optional(),
+}).refine(value => Object.values(value).some(field => field !== undefined), "empty patch");
 export type PageElementPatch = z.infer<typeof pageElementPatchSchema>;
 
 export function pageElementId(regionKey: string, localId: string): string {
@@ -122,6 +124,10 @@ export function patchElementTree(
 ): ElementTree {
   const current = tree.nodes.find(node => node.id === localId);
   if (!current) throw new Error("element not found");
+  const resultingKind = patch.kind ?? current.kind;
+  if (patch.borderRadius !== undefined && !supportsBorderRadius(resultingKind)) {
+    throw new Error(`border radius is not supported for ${resultingKind}`);
+  }
   let nodes = tree.nodes;
   if (patch.box) {
     const applied = applyBox(nodes, region, localId, patch.box);
@@ -134,6 +140,12 @@ export function patchElementTree(
       ...node,
       ...(patch.kind !== undefined ? { kind: patch.kind as ElementKind, classification: "human" as const } : {}),
       ...(patch.text !== undefined ? { text: patch.text } : {}),
+      ...(patch.iconDecision !== undefined ? { iconDecision: patch.iconDecision } : {}),
+      ...(patch.borderRadius !== undefined
+        ? { style: patch.borderRadius === 0
+          ? Object.fromEntries(Object.entries(node.style).filter(([key]) => key !== "borderRadius"))
+          : { ...node.style, borderRadius: patch.borderRadius } }
+        : {}),
     };
     if (patch.box && next.textBox !== undefined) {
       const { textBox: _drop, ...withoutTextBox } = next;

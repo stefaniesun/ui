@@ -14,6 +14,10 @@ export type ElementKind = (typeof elementKinds)[number];
 
 export const leafKinds: readonly ElementKind[] = ["text", "icon", "image", "decoration"];
 
+export function supportsBorderRadius(kind: ElementKind): boolean {
+  return kind === "component" || kind === "image";
+}
+
 export const iconDecisionSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("library"),
