@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PANEL_WIDTHS,
+  DEFAULT_WORKSPACE_HEIGHT,
   MIN_PANEL_WIDTHS,
   SPLITTER_SIZE,
   TREE_RESTORE_WIDTH,
@@ -48,13 +49,23 @@ describe("panel layout", () => {
   });
 
   it("resets only the selected pair using its default ratio", () => {
-    expect(resetPanelBoundary({ image: 500, tree: 391, property: 297 }, "image-tree")).toEqual(DEFAULT_PANEL_WIDTHS);
-    expect(resetPanelBoundary({ image: 594, tree: 250, property: 344 }, "tree-property")).toEqual(DEFAULT_PANEL_WIDTHS);
+    expect(resetPanelBoundary({ image: 500, tree: 400, property: 350 }, "image-tree")).toEqual({
+      image: 600,
+      tree: 300,
+      property: 350,
+    });
+    expect(resetPanelBoundary({ image: 650, tree: 250, property: 350 }, "tree-property")).toEqual({
+      image: 650,
+      tree: 300,
+      property: 300,
+    });
   });
 
   it("includes splitters only while expanded", () => {
     expect(expandedWorkspaceWidth(DEFAULT_PANEL_WIDTHS)).toBe(1200);
-    expect(collapsedWorkspaceWidth(DEFAULT_PANEL_WIDTHS)).toBe(594 + TREE_RESTORE_WIDTH + 297);
+    expect(collapsedWorkspaceWidth(DEFAULT_PANEL_WIDTHS)).toBe(925);
     expect(SPLITTER_SIZE).toBe(6);
+    expect(TREE_RESTORE_WIDTH).toBe(34);
+    expect(DEFAULT_WORKSPACE_HEIGHT).toBe(760);
   });
 });
