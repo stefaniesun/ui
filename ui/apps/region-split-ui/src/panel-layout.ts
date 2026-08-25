@@ -4,7 +4,8 @@ export type PanelWidths = {
   property: number;
 };
 
-export type PanelBoundary = "image-tree" | "tree-property";
+export type PanelBoundary = "image-tree" | "tree-property" | "property-edge";
+export type ResettablePanelBoundary = Exclude<PanelBoundary, "property-edge">;
 
 export const SPLITTER_SIZE = 6;
 export const TREE_RESTORE_WIDTH = 34;
@@ -24,6 +25,14 @@ function distributePair(total: number, preferredFirst: number, firstMinimum: num
 
 export function resizePanelBoundary(widths: PanelWidths, boundary: PanelBoundary, delta: number): PanelWidths {
   if (!hasFiniteWidths(widths) || !Number.isFinite(delta)) return { ...DEFAULT_PANEL_WIDTHS };
+
+  if (boundary === "property-edge") {
+    return {
+      image: widths.image,
+      tree: widths.tree,
+      property: Math.max(MIN_PANEL_WIDTHS.property, widths.property + delta),
+    };
+  }
 
   if (boundary === "image-tree") {
     const total = widths.image + widths.tree;
@@ -48,7 +57,7 @@ export function resizePanelBoundary(widths: PanelWidths, boundary: PanelBoundary
   return { image: widths.image, tree: pair[0], property: pair[1] };
 }
 
-export function resetPanelBoundary(widths: PanelWidths, boundary: PanelBoundary): PanelWidths {
+export function resetPanelBoundary(widths: PanelWidths, boundary: ResettablePanelBoundary): PanelWidths {
   if (!hasFiniteWidths(widths)) return { ...DEFAULT_PANEL_WIDTHS };
 
   if (boundary === "image-tree") {
