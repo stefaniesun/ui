@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { elementKinds, type ElementKind, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
-import { DEFAULT_VIEW, fitView, keepViewportCenter, revealRect, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
+import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
 import {
   DEFAULT_PANEL_WIDTHS,
   DEFAULT_WORKSPACE_HEIGHT,
@@ -131,6 +131,7 @@ const ZOOM_STEP = 0.1;
 const DRAG_THRESHOLD = 4;
 const canvasViewport = ref<HTMLElement | null>(null);
 const canvasStage = ref<HTMLElement | null>(null);
+const pageScroll = ref<HTMLElement | null>(null);
 const pageStage = ref<HTMLElement | null>(null);
 const view = ref<CanvasView>({ ...DEFAULT_VIEW });
 const viewportSize = ref<CanvasSize>({ width: 0, height: 0 });
@@ -350,25 +351,15 @@ function expandAncestors(id: string) {
   collapsedIds.value = new Set([...collapsedIds.value].filter(nodeId => !ancestors.has(nodeId)));
 }
 function revealBox(id: string) {
-  const viewport = canvasViewport.value;
-  const stage = canvasStage.value;
+  const panel = pageScroll.value;
   const target = boxRefs.get(id);
-  if (!viewport || !stage || !target || !Number.isFinite(view.value.scale) || view.value.scale <= 0) return;
-  const stageRect = stage.getBoundingClientRect();
-  const targetRect = target.getBoundingClientRect();
-  const nextView = revealRect(
-    view.value,
-    measure(viewport),
-    {
-      x: (targetRect.left - stageRect.left) / view.value.scale,
-      y: (targetRect.top - stageRect.top) / view.value.scale,
-      width: targetRect.width / view.value.scale,
-      height: targetRect.height / view.value.scale,
-    },
-    24,
-  );
-  if (nextView.x !== view.value.x || nextView.y !== view.value.y) userChangedView.value = true;
-  view.value = nextView;
+  if (!panel || !target) return;
+  const targetTop = target.offsetTop;
+  const targetHeight = target.offsetHeight;
+  const panelHeight = panel.clientHeight;
+  if (![targetTop, targetHeight, panelHeight].every(Number.isFinite) || panelHeight <= 0) return;
+  const top = Math.max(0, targetTop - (panelHeight - targetHeight) / 2);
+  panel.scrollTo?.({ top, behavior: "auto" });
 }
 function select(id: string, source: "tree" | "box") {
   if (source === "box") expandAncestors(id);
@@ -463,7 +454,7 @@ watch(selected, node => {
         ref="canvasStage" class="outline-workspace canvas-stage" data-test="canvas-stage"
         :class="{ 'tree-panel-collapsed': treePanelCollapsed }" :style="canvasStageStyle"
       >
-        <div class="page-scroll" data-test="image-panel" data-scroll-panel="true">
+        <div ref="pageScroll" class="page-scroll" data-test="image-panel" data-scroll-panel="true">
           <div ref="pageStage" class="page-stage" data-test="page-stage" :style="pageStageStyle">
           <img :src="imageSrc" alt="待校准整页截图" @load="onImageLoad" />
           <button

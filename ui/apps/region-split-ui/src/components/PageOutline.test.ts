@@ -553,56 +553,55 @@ describe("PageOutline", () => {
     expect(after.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
   });
 
-  it("collapses and restores the tree panel without hiding properties or selection", async () => {
+  it("collapses and restores the tree panel without losing adjusted widths or selection", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
-    const properties = wrapper.get('[data-test="property-panel"]');
-    expect(properties.text()).toContain("可疑图标");
-    expect(properties.text()).toContain("1.1.1");
-    expect(properties.text()).toContain("页面");
-    expect(properties.text()).toContain("可疑");
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    const first = wrapper.get('[data-test="splitter-image-tree"]');
+    mockPointerCapture(first.element);
+    await first.trigger("pointerdown", { button: 0, pointerId: 41, clientX: 600 });
+    await first.trigger("pointermove", { pointerId: 41, clientX: 640 });
+    await first.trigger("pointerup", { pointerId: 41, clientX: 640 });
+    const second = wrapper.get('[data-test="splitter-tree-property"]');
+    mockPointerCapture(second.element);
+    await second.trigger("pointerdown", { button: 0, pointerId: 42, clientX: 900 });
+    await second.trigger("pointermove", { pointerId: 42, clientX: 930 });
+    await second.trigger("pointerup", { pointerId: 42, clientX: 930 });
+    expect(stage.attributes("style")).toContain("634px 6px 287px 6px 267px");
 
     await wrapper.get('[data-test="zoom-in"]').trigger("click");
     const zoom = wrapper.get('[data-test="zoom-level"]').text();
     await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
-    expect(wrapper.get(".outline-workspace").classes()).toContain("tree-panel-collapsed");
-    expect(wrapper.find('[data-test="outline-tree"]').exists()).toBe(false);
-    expect(wrapper.get('[data-test="property-panel"]')).toBeTruthy();
+    expect(stage.attributes("style")).toContain("634px 34px 267px");
+    expect(wrapper.find('[data-test="splitter-image-tree"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="splitter-tree-property"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="property-panel"]').text()).toContain("可疑图标");
 
     const scrollIntoView = spyOnScrollIntoView();
     await wrapper.get('[data-test="restore-tree-panel"]').trigger("click");
-    expect(wrapper.get('[data-test="outline-tree"]')).toBeTruthy();
+    expect(stage.attributes("style")).toContain("634px 6px 287px 6px 267px");
     expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
     expect(wrapper.get(".tree-item.selected").text()).toContain("可疑图标");
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
   });
 
-  it("reveals a tree-selected image box by panning the canvas without changing zoom", async () => {
-    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  it("scrolls the image panel to a tree-selected box without moving the canvas", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
-    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    const imagePanel = wrapper.get('[data-test="image-panel"]');
     const stage = wrapper.get('[data-test="canvas-stage"]');
     const box = wrapper.findAll(".element-box")[1]!;
-    setElementSize(viewport.element, 600, 400);
-    setElementSize(stage.element, 1200, 760);
-    resizeCallback?.();
-    await wrapper.vm.$nextTick();
-    await wrapper.get('[data-test="actual-size"]').trigger("click");
-    await wrapper.get('[data-test="zoom-in"]').trigger("click");
-    await wrapper.get('[data-test="zoom-in"]').trigger("click");
-    vi.spyOn(stage.element, "getBoundingClientRect").mockReturnValue({ left: -420, top: -256, width: 1440, height: 912, right: 1020, bottom: 656, x: -420, y: -256, toJSON: () => ({}) });
-    vi.spyOn(box.element, "getBoundingClientRect").mockReturnValue({ left: 540, top: 464, width: 72, height: 72, right: 612, bottom: 536, x: 540, y: 464, toJSON: () => ({}) });
-    const scrollIntoView = spyOnScrollIntoView();
-    const zoom = wrapper.get('[data-test="zoom-level"]').text();
+    setElementSize(imagePanel.element, 594, 680);
+    Object.defineProperties(box.element, {
+      offsetTop: { configurable: true, value: 750 },
+      offsetHeight: { configurable: true, value: 40 },
+    });
+    const scrollTo = vi.fn();
+    Object.defineProperty(imagePanel.element, "scrollTo", { configurable: true, value: scrollTo });
+    const beforeTransform = stage.attributes("style")?.match(/transform:[^;]+/)?.[0];
     await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
-    expect(scrollIntoView).not.toHaveBeenCalled();
-    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe(zoom);
-    const transform = stage.attributes("style") ?? "";
-    const x = Number(transform.match(/translate3d\(([-\d.]+)px/)?.[1]);
-    const y = Number(transform.match(/translate3d\([^,]+, ([-\d.]+)px/)?.[1]);
-    expect(x).toBeCloseTo(-456);
-    expect(y).toBeCloseTo(-416);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 430, behavior: "auto" });
+    expect(stage.attributes("style")?.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
     await wrapper.setProps({ selectedId: "0-1000::bad" });
     expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
     expect(wrapper.get('[data-test="calibration-text"]')).toBeTruthy();
