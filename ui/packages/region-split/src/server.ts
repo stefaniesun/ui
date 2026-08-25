@@ -211,7 +211,9 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
       try {
         const next = patchElementTree(tree, region.bounds, identity.localId, patch.data);
         store.writeElementTree(projectId, next, region.bounds);
-        return buildPageOutline(doc, store.readElements(projectId).trees, pageOutlineFailures.get(projectId));
+        const materialized = await materializeTreeAssets(store, projectId, region.bounds, next);
+        const trees = store.readElements(projectId).trees.map(item => item.regionKey === materialized.tree.regionKey ? materialized.tree : item);
+        return buildPageOutline(doc, trees, pageOutlineFailures.get(projectId));
       } catch (err) {
         return reply.code(422).send({ error: (err as Error).message });
       }

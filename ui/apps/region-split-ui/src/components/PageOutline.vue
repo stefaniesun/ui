@@ -58,12 +58,19 @@ const iconPickerElementId = ref<string | null>(null);
 
 const selected = computed(() => props.outline.elements.find(element => element.id === props.selectedId) ?? null);
 const imageSrc = computed(() => `/api/projects/${encodeURIComponent(props.projectId)}/image`);
-const selectedAssetUrl = computed(() => selected.value?.asset ? assetUrl(props.projectId, selected.value.asset.ref) : null);
+const selectedAssetUrl = computed(() => {
+  const node = selected.value;
+  const ref = node?.kind === "icon" && node.iconDecision?.kind === "library"
+    ? node.iconDecision.sourceAssetRef
+    : node?.asset?.ref;
+  return ref ? assetUrl(props.projectId, ref) : null;
+});
 const selectedIconLibraryUrl = computed(() => {
   const node = selected.value;
-  return node?.kind === "icon" && node.iconDecision?.kind === "library" && node.asset
-    ? assetUrl(props.projectId, node.asset.ref)
+  const ref = node?.kind === "icon" && node.iconDecision?.kind === "library"
+    ? node.iconDecision.assetRef ?? node.asset?.ref
     : null;
+  return ref ? assetUrl(props.projectId, ref) : null;
 });
 const iconPickerElement = computed(() => {
   const node = props.outline.elements.find(element => element.id === iconPickerElementId.value);
