@@ -158,6 +158,32 @@ describe("PageOutline", () => {
     expect(wrapper.emitted("patch")).toBeFalsy();
   });
 
+  it("offers and immediately saves a radius only for a component or image", async () => {
+    const componentOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::ok" ? { ...node, kind: "component" as const, style: { borderRadius: 6 } } : node) };
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: componentOutline, selectedId: "0-1000::ok" } });
+    expect(wrapper.get('[data-test="radius"] input').element).toHaveProperty("value", "6");
+    await wrapper.get('[data-test="radius-plus"]').trigger("click");
+    expect(wrapper.emitted("patch")?.[0]).toEqual(["0-1000::ok", { borderRadius: 7 }]);
+    await wrapper.get('[data-test="radius-minus"]').trigger("click");
+    expect(wrapper.emitted("patch")?.[1]).toEqual(["0-1000::ok", { borderRadius: 6 }]);
+  });
+
+  it("hides radius controls for text and icon elements", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    expect(wrapper.find('[data-test="radius"]').exists()).toBe(false);
+    await wrapper.setProps({ selectedId: "0-1000::bad" });
+    expect(wrapper.find('[data-test="radius"]').exists()).toBe(false);
+  });
+
+  it("syncs a persisted radius from the parent outline", async () => {
+    const componentOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::ok" ? { ...node, kind: "image" as const, style: {} } : node) };
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: componentOutline, selectedId: "0-1000::ok" } });
+    await wrapper.get('[data-test="radius-plus"]').trigger("click");
+    const saved = { ...componentOutline, elements: componentOutline.elements.map(node => node.id === "0-1000::ok" ? { ...node, style: { borderRadius: 1 } } : node) };
+    await wrapper.setProps({ outline: saved });
+    expect(wrapper.get('[data-test="radius"] input').element).toHaveProperty("value", "1");
+  });
+
   it("shows an image crop without stretching it", () => {
     const imageOutline: PageOutlineDto = {
       ...outline,

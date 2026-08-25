@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { assetUrl, httpApi, type StoreApi } from "../api.js";
 import IconPickerDialog from "./IconPickerDialog.vue";
-import { elementKinds, type ElementKind, type PageElementPatch, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
+import { elementKinds, supportsBorderRadius, type ElementKind, type PageElementPatch, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
 import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
@@ -53,6 +53,7 @@ const treePanelCollapsed = ref(false);
 const editKind = ref<ElementKind>("text");
 const editText = ref("");
 const editBox = ref<Rect>({ x: 0, y: 0, w: 4, h: 4 });
+const editRadius = ref(0);
 const iconPickerElementId = ref<string | null>(null);
 
 const selected = computed(() => props.outline.elements.find(element => element.id === props.selectedId) ?? null);
@@ -446,6 +447,20 @@ function adjustBox(delta: Partial<Record<keyof Rect, number>>) {
   editBox.value = next;
   emit("patch", selected.value.id, { box: { ...next } });
 }
+function adjustRadius(delta: number) {
+  const node = selected.value;
+  if (!node || !supportsBorderRadius(node.kind)) return;
+  const next = Math.max(0, Math.round(editRadius.value + delta));
+  if (next === editRadius.value) return;
+  editRadius.value = next;
+  emit("patch", node.id, { borderRadius: next });
+}
+function saveRadius() {
+  const node = selected.value;
+  if (!node || !supportsBorderRadius(node.kind) || !Number.isFinite(editRadius.value)) return;
+  editRadius.value = Math.max(0, Math.round(editRadius.value));
+  emit("patch", node.id, { borderRadius: editRadius.value });
+}
 function save() {
   if (!selected.value) return;
   emit("patch", selected.value.id, { kind: editKind.value, text: editText.value, box: { ...editBox.value } });
@@ -455,6 +470,7 @@ watch(selected, node => {
   editKind.value = node.kind;
   editText.value = node.text ?? "";
   editBox.value = { ...node.box };
+  editRadius.value = node.style.borderRadius ?? 0;
 }, { immediate: true });
 </script>
 
@@ -608,6 +624,11 @@ watch(selected, node => {
               <button type="button" data-test="grow-height" aria-label="高度增加一像素" @click="adjustBox({ h: 1 })">高+</button>
             </div>
           </div>
+          <section v-if="supportsBorderRadius(selected.kind)" class="radius-control" data-test="radius">
+            <span>圆角</span><button type="button" data-test="radius-minus" aria-label="圆角减少一像素" @click="adjustRadius(-1)">−</button>
+            <input v-model.number="editRadius" type="number" min="0" step="1" aria-label="圆角" @change="saveRadius" />
+            <button type="button" data-test="radius-plus" aria-label="圆角增加一像素" @click="adjustRadius(1)">+</button>
+          </section>
           <section v-if="selected.kind === 'image' || selected.kind === 'icon'" class="asset-panel" data-test="asset-panel">
             <strong>素材</strong>
             <template v-if="selectedAssetUrl">
@@ -682,6 +703,7 @@ watch(selected, node => {
 .pixel-control-row { display: grid; grid-template-columns: 36px repeat(4, minmax(0, 1fr)); gap: 5px; align-items: center; }
 .pixel-control-row > span { color: #93a4bb; font-size: 11px; }
 .calibration .pixel-control-row button { min-width: 0; padding: 5px 3px; }
+.radius-control { display: grid; grid-template-columns: 1fr 34px 72px 34px; gap: 6px; align-items: center; padding: 7px; border: 1px solid #2f3a4c; border-radius: 5px; background: #111722; }.radius-control span { color: #93a4bb; }.calibration .radius-control button { padding: 5px; }
 .asset-panel { display: grid; gap: 7px; padding: 8px; border: 1px solid #2f3a4c; border-radius: 5px; background: #111722; }
 .asset-thumb { display: block; width: 100%; max-height: 160px; object-fit: contain; border-radius: 4px; background: #0b1017; }
 .asset-file, .icon-result { display: flex; align-items: center; gap: 8px; min-width: 0; }
