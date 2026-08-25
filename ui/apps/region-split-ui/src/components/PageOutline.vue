@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { assetUrl } from "../api.js";
+import { assetUrl, httpApi, type StoreApi } from "../api.js";
+import IconPickerDialog from "./IconPickerDialog.vue";
 import { elementKinds, type ElementKind, type PageElementPatch, type PageOutline, type PageOutlineElement, type Rect } from "@region-split/core/browser";
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
@@ -22,7 +23,7 @@ import {
 } from "../panel-layout.js";
 import type { AnalysisStats } from "../api.js";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   projectId: string;
   outline: PageOutline;
   selectedId: string | null;
@@ -33,7 +34,8 @@ const props = defineProps<{
   fontStack?: string;
   stats?: AnalysisStats | null;
   exporting?: boolean;
-}>();
+  api?: Pick<StoreApi, "searchIcons">;
+}>(), { api: () => httpApi });
 const emit = defineEmits<{
   select: [id: string];
   hover: [id: string | null];
@@ -51,6 +53,7 @@ const treePanelCollapsed = ref(false);
 const editKind = ref<ElementKind>("text");
 const editText = ref("");
 const editBox = ref<Rect>({ x: 0, y: 0, w: 4, h: 4 });
+const iconPickerElementId = ref<string | null>(null);
 
 const selected = computed(() => props.outline.elements.find(element => element.id === props.selectedId) ?? null);
 const imageSrc = computed(() => `/api/projects/${encodeURIComponent(props.projectId)}/image`);
@@ -60,6 +63,10 @@ const selectedIconLibraryUrl = computed(() => {
   return node?.kind === "icon" && node.iconDecision?.kind === "library" && node.asset
     ? assetUrl(props.projectId, node.asset.ref)
     : null;
+});
+const iconPickerElement = computed(() => {
+  const node = props.outline.elements.find(element => element.id === iconPickerElementId.value);
+  return node?.kind === "icon" ? node : null;
 });
 const ordered = computed(() => props.outline.elements);
 const elementById = computed(() => new Map(props.outline.elements.map(node => [node.id, node])));
@@ -416,6 +423,16 @@ function restoreTreePanel() {
     if (typeof target?.scrollIntoView === "function") target.scrollIntoView({ block: "center" });
   });
 }
+function openIconPicker() {
+  if (selected.value?.kind === "icon") iconPickerElementId.value = selected.value.id;
+}
+function closeIconPicker() { iconPickerElementId.value = null; }
+function confirmIconPatch(patch: PageElementPatch) {
+  const node = iconPickerElement.value;
+  if (!node) return;
+  emit("patch", node.id, patch);
+  closeIconPicker();
+}
 function adjustBox(delta: Partial<Record<keyof Rect, number>>) {
   if (!selected.value) return;
   const current = editBox.value;
@@ -604,7 +621,7 @@ watch(selected, node => {
               <strong v-else-if="selected.iconDecision?.kind === 'crop'" data-test="icon-status">用原图切片</strong>
               <strong v-else-if="selected.iconDecision?.kind === 'ambiguous'" class="pending" data-test="icon-status">待确认</strong>
               <strong v-else data-test="icon-status">未匹配</strong>
-              <button type="button" data-test="open-icon-picker">选择图标</button>
+              <button type="button" data-test="open-icon-picker" @click="openIconPicker">选择图标</button>
             </div>
           </section>
           <button type="submit" data-test="save-calibration">保存校准</button>
@@ -614,6 +631,7 @@ watch(selected, node => {
         </aside>
       </div>
     </section>
+    <IconPickerDialog v-if="iconPickerElement" :project-id="projectId" :element="iconPickerElement" :api="api" @confirm="confirmIconPatch" @cancel="closeIconPicker" />
   </main>
 </template>
 
