@@ -357,7 +357,9 @@ function revealBox(id: string) {
   const targetTop = target.offsetTop;
   const targetHeight = target.offsetHeight;
   const panelHeight = panel.clientHeight;
-  if (![targetTop, targetHeight, panelHeight].every(Number.isFinite) || panelHeight <= 0) return;
+  const scrollTop = panel.scrollTop;
+  if (![targetTop, targetHeight, panelHeight, scrollTop].every(Number.isFinite) || panelHeight <= 0) return;
+  if (targetTop >= scrollTop && targetTop + targetHeight <= scrollTop + panelHeight) return;
   const top = Math.max(0, targetTop - (panelHeight - targetHeight) / 2);
   panel.scrollTo?.({ top, behavior: "auto" });
 }

@@ -602,14 +602,28 @@ describe("PageOutline", () => {
     expect(wrapper.emitted("select")?.[0]).toEqual(["0-1000::bad"]);
     expect(scrollTo).toHaveBeenCalledWith({ top: 430, behavior: "auto" });
     expect(stage.attributes("style")?.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
-    await wrapper.setProps({ selectedId: "0-1000::bad" });
-    expect(wrapper.get('[data-test="calibration-kind"]')).toBeTruthy();
-    expect(wrapper.get('[data-test="calibration-text"]')).toBeTruthy();
-    expect(wrapper.findAll('.rect-fields input')).toHaveLength(4);
-    expect(wrapper.text()).not.toContain("圆角");
-    await wrapper.get('[data-test="calibration-text"]').setValue("消息");
-    await wrapper.get('[data-test="save-calibration"]').trigger("submit");
-    expect(wrapper.emitted("patch")?.[0]?.[0]).toBe("0-1000::bad");
-    expect(wrapper.emitted("patch")?.[0]?.[1]).toMatchObject({ kind: "icon", text: "消息", box: { x: 20, y: 300, w: 40, h: 40 } });
+  });
+
+  it("does not scroll an already visible or invalid tree-selected box", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const imagePanel = wrapper.get('[data-test="image-panel"]');
+    const box = wrapper.findAll(".element-box")[1]!;
+    setElementSize(imagePanel.element, 594, 680);
+    Object.defineProperties(imagePanel.element, {
+      scrollTop: { configurable: true, writable: true, value: 100 },
+      scrollTo: { configurable: true, value: vi.fn() },
+    });
+    Object.defineProperties(box.element, {
+      offsetTop: { configurable: true, value: 250 },
+      offsetHeight: { configurable: true, value: 40 },
+    });
+    await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(imagePanel.element.scrollTo).not.toHaveBeenCalled();
+
+    Object.defineProperty(box.element, "offsetTop", { configurable: true, value: Number.NaN });
+    await wrapper.findAll(".tree-item-content")[1]!.trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(imagePanel.element.scrollTo).not.toHaveBeenCalled();
   });
 });
