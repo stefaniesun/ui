@@ -88,6 +88,22 @@ describe("page outline state", () => {
     expect(api.detectElements).toHaveBeenCalledTimes(1);
   });
 
+  it("optimistically maps a radius patch into the element style", async () => {
+    const api = makeFakeApi();
+    const state = createPageOutlineState(api);
+    state.outline.value = outline;
+    let finish!: (value: PageOutline) => void;
+    vi.mocked(api.patchPageElement).mockReturnValue(new Promise<PageOutline>(resolve => { finish = resolve; }));
+
+    const operation = state.patch("p1", "0-800::title", { kind: "image", borderRadius: 7 });
+    await Promise.resolve();
+    expect(state.outline.value?.elements[0]?.kind).toBe("image");
+    expect(state.outline.value?.elements[0]?.style.borderRadius).toBe(7);
+    expect(state.outline.value?.elements[0]).not.toHaveProperty("borderRadius");
+    finish({ ...outline, elements: outline.elements.map(element => ({ ...element, kind: "image", style: { ...element.style, borderRadius: 7 } })) });
+    await operation;
+  });
+
   it("serializes consecutive patches so an older response cannot overwrite a newer one", async () => {
     const api = makeFakeApi();
     const state = createPageOutlineState(api);

@@ -158,6 +158,22 @@ describe("PageOutline", () => {
     expect(wrapper.emitted("patch")).toBeFalsy();
   });
 
+  it("shows image controls from the edited kind before calibration is saved", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
+    await wrapper.get('[data-test="calibration-kind"]').setValue("image");
+    expect(wrapper.find('[data-test="radius"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="asset-panel"]').exists()).toBe(true);
+    expect(wrapper.find('[data-test="icon-result"]').exists()).toBe(false);
+    await wrapper.get('[data-test="radius-plus"]').trigger("click");
+    expect(wrapper.emitted("patch")?.at(-1)).toEqual(["0-1000::bad", { kind: "image", borderRadius: 1 }]);
+  });
+
+  it("hides image and icon assets from the edited text kind", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::bad" } });
+    await wrapper.get('[data-test="calibration-kind"]').setValue("text");
+    expect(wrapper.find('[data-test="asset-panel"]').exists()).toBe(false);
+  });
+
   it("offers and immediately saves a radius only for a component or image", async () => {
     const componentOutline: PageOutlineDto = { ...outline, elements: outline.elements.map(node => node.id === "0-1000::ok" ? { ...node, kind: "component" as const, style: { borderRadius: 6 } } : node) };
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline: componentOutline, selectedId: "0-1000::ok" } });

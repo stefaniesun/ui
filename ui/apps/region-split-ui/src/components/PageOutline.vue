@@ -57,6 +57,7 @@ const editRadius = ref(0);
 const iconPickerElementId = ref<string | null>(null);
 
 const selected = computed(() => props.outline.elements.find(element => element.id === props.selectedId) ?? null);
+const nodeKindChanged = computed(() => selected.value !== null && editKind.value !== selected.value.kind);
 const imageSrc = computed(() => `/api/projects/${encodeURIComponent(props.projectId)}/image`);
 const selectedAssetUrl = computed(() => {
   const node = selected.value;
@@ -454,19 +455,22 @@ function adjustBox(delta: Partial<Record<keyof Rect, number>>) {
   editBox.value = next;
   emit("patch", selected.value.id, { box: { ...next } });
 }
+function radiusPatch(borderRadius: number): PageElementPatch {
+  return nodeKindChanged.value ? { kind: editKind.value, borderRadius } : { borderRadius };
+}
 function adjustRadius(delta: number) {
   const node = selected.value;
-  if (!node || !supportsBorderRadius(node.kind)) return;
+  if (!node || !supportsBorderRadius(editKind.value)) return;
   const next = Math.max(0, Math.round(editRadius.value + delta));
   if (next === editRadius.value) return;
   editRadius.value = next;
-  emit("patch", node.id, { borderRadius: next });
+  emit("patch", node.id, radiusPatch(next));
 }
 function saveRadius() {
   const node = selected.value;
-  if (!node || !supportsBorderRadius(node.kind) || !Number.isFinite(editRadius.value)) return;
+  if (!node || !supportsBorderRadius(editKind.value) || !Number.isFinite(editRadius.value)) return;
   editRadius.value = Math.max(0, Math.round(editRadius.value));
-  emit("patch", node.id, { borderRadius: editRadius.value });
+  emit("patch", node.id, radiusPatch(editRadius.value));
 }
 function save() {
   if (!selected.value) return;
@@ -631,19 +635,19 @@ watch(selected, node => {
               <button type="button" data-test="grow-height" aria-label="高度增加一像素" @click="adjustBox({ h: 1 })">高+</button>
             </div>
           </div>
-          <section v-if="supportsBorderRadius(selected.kind)" class="radius-control" data-test="radius">
+          <section v-if="supportsBorderRadius(editKind)" class="radius-control" data-test="radius">
             <span>圆角</span><button type="button" data-test="radius-minus" aria-label="圆角减少一像素" @click="adjustRadius(-1)">−</button>
             <input v-model.number="editRadius" type="number" min="0" step="1" aria-label="圆角" @change="saveRadius" />
             <button type="button" data-test="radius-plus" aria-label="圆角增加一像素" @click="adjustRadius(1)">+</button>
           </section>
-          <section v-if="selected.kind === 'image' || selected.kind === 'icon'" class="asset-panel" data-test="asset-panel">
+          <section v-if="editKind === 'image' || editKind === 'icon'" class="asset-panel" data-test="asset-panel">
             <strong>素材</strong>
             <template v-if="selectedAssetUrl">
               <img :src="selectedAssetUrl" class="asset-thumb" data-test="asset-thumb" alt="选中元素切图" />
               <div class="asset-file"><span>{{ selected.asset?.ref }}</span><a :href="selectedAssetUrl" download>下载</a></div>
             </template>
             <p v-else class="asset-missing">暂无切图</p>
-            <div v-if="selected.kind === 'icon'" class="icon-result">
+            <div v-if="editKind === 'icon'" class="icon-result">
               <span>图标</span>
               <img v-if="selectedIconLibraryUrl" :src="selectedIconLibraryUrl" data-test="icon-preview" alt="已匹配图标" />
               <strong v-else-if="selected.iconDecision?.kind === 'crop'" data-test="icon-status">用原图切片</strong>

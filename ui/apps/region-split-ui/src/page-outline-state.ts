@@ -104,7 +104,17 @@ export function createPageOutlineState(api: StoreApi): PageOutlineState {
       if (previous) {
         outline.value = {
           ...previous,
-          elements: previous.elements.map(element => element.id === elementId ? { ...element, ...nextPatch } : element),
+          elements: previous.elements.map(element => {
+            if (element.id !== elementId) return element;
+            const { borderRadius, ...elementPatch } = nextPatch;
+            return {
+              ...element,
+              ...elementPatch,
+              style: borderRadius === undefined
+                ? element.style
+                : { ...element.style, borderRadius },
+            };
+          }),
         };
       }
       try {
