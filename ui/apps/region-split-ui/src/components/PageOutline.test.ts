@@ -409,6 +409,7 @@ describe("PageOutline", () => {
     const edge = wrapper.get('[data-test="property-edge-resizer"]');
     expect(edge.attributes("tabindex")).toBe("0");
     expect(edge.attributes("aria-valuemin")).toBe("220");
+    expect(edge.attributes("aria-valuemax")).toBe(String(Number.MAX_SAFE_INTEGER));
     expect(edge.attributes("aria-valuenow")).toBe("297");
     await edge.trigger("keydown", { key: "ArrowRight" });
     expect(edge.attributes("aria-valuenow")).toBe("313");

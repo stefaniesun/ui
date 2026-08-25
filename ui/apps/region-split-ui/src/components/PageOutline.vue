@@ -7,6 +7,7 @@ import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, typ
 import {
   DEFAULT_PANEL_WIDTHS,
   DEFAULT_WORKSPACE_HEIGHT,
+  MAX_PROPERTY_WIDTH,
   MIN_PANEL_WIDTHS,
   SPLITTER_SIZE,
   TREE_RESTORE_WIDTH,
@@ -529,7 +530,7 @@ watch(selected, node => {
         <div
           class="property-edge-resizer" data-test="property-edge-resizer"
           role="separator" aria-label="调整属性栏宽度" aria-orientation="vertical"
-          tabindex="0" :aria-valuemin="MIN_PANEL_WIDTHS.property" :aria-valuenow="Math.round(panelWidths.property)"
+          tabindex="0" :aria-valuemin="MIN_PANEL_WIDTHS.property" :aria-valuemax="MAX_PROPERTY_WIDTH" :aria-valuenow="Math.round(panelWidths.property)"
           @pointerdown="onResizeStart('property-edge', $event)" @pointermove="onResizeMove"
           @pointerup="endResize" @pointercancel="endResize" @lostpointercapture="endResize"
           @keydown="onPropertyEdgeKeydown"

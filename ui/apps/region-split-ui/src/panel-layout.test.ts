@@ -59,6 +59,11 @@ describe("panel layout", () => {
     });
     expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", Number.NaN)).toEqual(DEFAULT_PANEL_WIDTHS);
     expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", Number.POSITIVE_INFINITY)).toEqual(DEFAULT_PANEL_WIDTHS);
+    expect(resizePanelBoundary(DEFAULT_PANEL_WIDTHS, "property-edge", Number.MAX_SAFE_INTEGER)).toEqual({
+      image: 594,
+      tree: 297,
+      property: Number.MAX_SAFE_INTEGER,
+    });
   });
 
   it("ignores non-finite deltas and does not mutate the input", () => {
