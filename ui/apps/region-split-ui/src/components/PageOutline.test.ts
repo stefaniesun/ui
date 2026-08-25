@@ -154,6 +154,20 @@ describe("PageOutline", () => {
     expect(wrapper.get('[data-test="image-panel"]').classes()).not.toContain("edge-to-edge");
   });
 
+  it("uses the viewport height for one equal-height three-panel workspace", async () => {
+    vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: "0-1000::ok" } });
+    const viewport = wrapper.get('[data-test="canvas-viewport"]');
+    setElementSize(viewport.element, 1024, 680);
+    resizeCallback?.();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("height: 680px");
+    for (const selector of ['[data-test="image-panel"]', '[data-test="tree-panel"]', '[data-test="property-panel"]']) {
+      expect(wrapper.get(selector).attributes("data-scroll-panel")).toBe("true");
+    }
+  });
+
   it("renders accessible fit and 100 percent controls", () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     expect(wrapper.get('[data-test="zoom-out"]').attributes("aria-label")).toBe("缩小画布");
@@ -188,7 +202,7 @@ describe("PageOutline", () => {
     expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
     expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("translate3d(-30");
 
-    for (const selector of ['[data-test="tree-panel"]', '[data-test="property-panel"]']) {
+    for (const selector of ['[data-test="image-panel"]', '[data-test="tree-panel"]', '[data-test="property-panel"]']) {
       const panelWheel = new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true });
       wrapper.get(selector).element.dispatchEvent(panelWheel);
       await wrapper.vm.$nextTick();
@@ -196,11 +210,17 @@ describe("PageOutline", () => {
       expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
     }
 
+    const ctrlWheel = new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true });
+    wrapper.get('[data-test="image-panel"]').element.dispatchEvent(ctrlWheel);
+    await wrapper.vm.$nextTick();
+    expect(ctrlWheel.defaultPrevented).toBe(true);
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("120%");
+
     const zeroWheel = new WheelEvent("wheel", { deltaY: 0, clientX: 50, clientY: 50, bubbles: true, cancelable: true });
     viewport.element.dispatchEvent(zeroWheel);
     await wrapper.vm.$nextTick();
     expect(zeroWheel.defaultPrevented).toBe(false);
-    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("110%");
+    expect(wrapper.get('[data-test="zoom-level"]').text()).toBe("120%");
   });
 
   it("zooms toolbar buttons around the viewport center and restores actual size", async () => {

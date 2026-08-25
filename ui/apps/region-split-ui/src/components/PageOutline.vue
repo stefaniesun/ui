@@ -4,6 +4,7 @@ import { elementKinds, type ElementKind, type PageOutline, type PageOutlineEleme
 import { KIND_COLOR, KIND_LABEL } from "../element-kind-display.js";
 import { DEFAULT_FONT_STACK, FONT_STACKS } from "../font-stacks.js";
 import { DEFAULT_VIEW, fitView, keepViewportCenter, revealRect, zoomAt, type CanvasSize, type CanvasView } from "../infinite-canvas-view.js";
+import { DEFAULT_WORKSPACE_HEIGHT } from "../panel-layout.js";
 import type { AnalysisStats } from "../api.js";
 
 const props = defineProps<{
@@ -132,7 +133,9 @@ const isPanning = ref(false);
 let panFrom: { pointerId: number; button: number; x: number; y: number; viewX: number; viewY: number; moved: boolean } | null = null;
 let suppressClick = false;
 const zoomLabel = computed(() => `${Math.round(view.value.scale * 100)}%`);
+const workspaceHeight = computed(() => hasSize(viewportSize.value) ? viewportSize.value.height : DEFAULT_WORKSPACE_HEIGHT);
 const canvasStageStyle = computed(() => ({
+  height: `${workspaceHeight.value}px`,
   transform: `translate3d(${view.value.x}px, ${view.value.y}px, 0) scale(${view.value.scale})`,
 }));
 const pageStageStyle = computed(() => ({
@@ -167,7 +170,7 @@ function pointInViewport(event: MouseEvent | WheelEvent) {
   return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
 }
 function isScrollablePanel(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest(".tree-panel, .tree-panel-restore, .property-panel"));
+  return target instanceof Element && Boolean(target.closest("[data-scroll-panel='true'], .tree-panel-restore"));
 }
 function onCanvasWheel(event: WheelEvent) {
   if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return;
@@ -407,7 +410,7 @@ watch(selected, node => {
         ref="canvasStage" class="outline-workspace canvas-stage" data-test="canvas-stage"
         :class="{ 'tree-panel-collapsed': treePanelCollapsed }" :style="canvasStageStyle"
       >
-        <div class="page-scroll" data-test="image-panel">
+        <div class="page-scroll" data-test="image-panel" data-scroll-panel="true">
           <div ref="pageStage" class="page-stage" data-test="page-stage" :style="pageStageStyle">
           <img :src="imageSrc" alt="待校准整页截图" @load="onImageLoad" />
           <button
@@ -420,7 +423,7 @@ watch(selected, node => {
         </div>
       </div>
 
-      <aside v-if="!treePanelCollapsed" class="tree-panel" data-test="tree-panel" aria-label="页面结构树">
+      <aside v-if="!treePanelCollapsed" class="tree-panel" data-test="tree-panel" data-scroll-panel="true" aria-label="页面结构树">
         <header class="panel-header">
           <strong>结构树</strong>
           <button type="button" data-test="collapse-tree-panel" aria-label="收起结构栏" @click="treePanelCollapsed = true">«</button>
@@ -451,7 +454,7 @@ watch(selected, node => {
         aria-label="展开结构栏" @click="restoreTreePanel"
       ><span>›</span><span>结构</span></button>
 
-      <aside class="property-panel" data-test="property-panel" aria-label="元素属性编辑">
+      <aside class="property-panel" data-test="property-panel" data-scroll-panel="true" aria-label="元素属性编辑">
         <form v-if="selected" class="calibration" data-test="calibration" @submit.prevent="save">
           <header class="property-heading">
             <div><small>{{ selected.outlineNumber }} · {{ selected.regionName }}</small><strong>{{ selected.displayName }}</strong></div>
@@ -487,24 +490,24 @@ watch(selected, node => {
 .analysis-stats { display: flex; gap: 14px; align-items: center; padding: 7px 14px; border-bottom: 1px solid #4c3818; color: #fbbf24; background: #2a2113; font-size: 11px; }.analysis-stats.passed { color: #86efac; background: #13271d; }.analysis-todos { display: flex; gap: 16px; margin: 0; padding: 5px 24px; overflow-x: auto; color: #93a4bb; background: #151a23; font-size: 10px; }
 .error { margin: 0; padding: 6px 14px; color: #ffb4b4; background: #501f28; }
 .canvas-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: #0c1017; background-image: radial-gradient(circle, #263244 1px, transparent 1px); background-size: 24px 24px; cursor: grab; touch-action: none; }.canvas-viewport.is-panning { cursor: grabbing; }.canvas-viewport.space-pan-ready { cursor: grab; }
-.outline-workspace { position: absolute; top: 0; left: 0; width: 1200px; min-height: 760px; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; align-items: stretch; transform-origin: 0 0; will-change: transform; box-shadow: 0 12px 42px #000b; }
+.outline-workspace { position: absolute; top: 0; left: 0; width: 1200px; display: grid; grid-template-columns: minmax(0, 1fr) 300px 300px; align-items: stretch; overflow: hidden; transform-origin: 0 0; will-change: transform; box-shadow: 0 12px 42px #000b; }
 .outline-workspace.tree-panel-collapsed { width: 934px; grid-template-columns: 600px 34px 300px; }
-.page-scroll { min-width: 0; min-height: 0; overflow: hidden; background: #0c1017; }
+.page-scroll { min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: #0c1017; }
 .page-stage { position: relative; width: 100%; min-width: 0; margin: 0; line-height: 0; }
 .page-stage > img { display: block; width: 100%; height: auto; }
 .element-box { position: absolute; padding: 0; border: 1px solid var(--kind-color); background: color-mix(in srgb, var(--kind-color) 10%, transparent); cursor: pointer; }
 .element-box:hover, .element-box.hovered { border-color: var(--kind-color); background: color-mix(in srgb, var(--kind-color) 22%, transparent); }
 .element-box.suspicious { z-index: 2; border: 2px solid #ffb020; background: #ff9d0029; }
 .element-box.selected { z-index: 3; border: 2px solid #30d5ff; background: #00bce83b; }
-.tree-panel, .property-panel { min-height: 0; border-left: 1px solid #2a3342; background: #151a23; }
+.tree-panel, .property-panel { min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid #2a3342; background: #151a23; }
 .tree-panel { display: flex; flex-direction: column; }
-.property-panel { overflow: auto; }
+.property-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .panel-header, .property-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border-bottom: 1px solid #2a3342; }
 .panel-header button { border: 1px solid #354155; border-radius: 4px; color: #93a4bb; background: #202938; cursor: pointer; }
 .property-heading { margin: -10px -10px 2px; }.property-heading div { min-width: 0; display: grid; gap: 3px; }.property-heading small { color: #8192aa; }.property-heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suspicious-badge { border: 1px solid #b66d13; border-radius: 999px; padding: 2px 7px; color: #ffd38a; background: #4a2e0d; font-size: 11px; }
 .tree-panel-restore { min-width: 0; border: 0; border-left: 1px solid #2a3342; color: #93a4bb; background: #151a23; cursor: pointer; writing-mode: vertical-rl; }
-.outline-tree { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
+.outline-tree { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; padding: 8px; }
 .tree-item { width: 100%; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; border: 1px solid transparent; border-radius: 5px; color: #cad5e3; background: transparent; }
 .tree-item:hover { background: #202938; }.tree-item.suspicious { color: #ffd38a; }.tree-item.selected { border-color: #30d5ff; background: #183b4a; }
 .tree-toggle, .tree-item-content { border: 0; color: inherit; background: transparent; cursor: pointer; }
