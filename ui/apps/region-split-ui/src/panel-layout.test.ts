@@ -48,6 +48,14 @@ describe("panel layout", () => {
     expect(widths).toEqual(DEFAULT_PANEL_WIDTHS);
   });
 
+  it("falls back safely for invalid panel widths", () => {
+    expect(resizePanelBoundary({ image: 1, tree: 1, property: 297 }, "image-tree", 0)).toEqual(DEFAULT_PANEL_WIDTHS);
+    expect(resizePanelBoundary({ image: Number.MAX_VALUE, tree: Number.MAX_VALUE, property: 297 }, "image-tree", 0))
+      .toEqual(DEFAULT_PANEL_WIDTHS);
+    expect(resetPanelBoundary({ image: Number.NaN, tree: 297, property: 297 }, "image-tree"))
+      .toEqual(DEFAULT_PANEL_WIDTHS);
+  });
+
   it("resets only the selected pair using its default ratio", () => {
     expect(resetPanelBoundary({ image: 500, tree: 400, property: 350 }, "image-tree")).toEqual({
       image: 600,

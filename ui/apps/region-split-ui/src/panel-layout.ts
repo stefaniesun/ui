@@ -17,32 +17,35 @@ function hasFiniteWidths(widths: PanelWidths) {
 }
 
 function distributePair(total: number, preferredFirst: number, firstMinimum: number, secondMinimum: number) {
+  if (!Number.isFinite(total) || total < firstMinimum + secondMinimum) return null;
   const first = Math.min(Math.max(preferredFirst, firstMinimum), total - secondMinimum);
   return [first, total - first] as const;
 }
 
 export function resizePanelBoundary(widths: PanelWidths, boundary: PanelBoundary, delta: number): PanelWidths {
-  if (!hasFiniteWidths(widths) || !Number.isFinite(delta)) return { ...widths };
+  if (!hasFiniteWidths(widths) || !Number.isFinite(delta)) return { ...DEFAULT_PANEL_WIDTHS };
 
   if (boundary === "image-tree") {
     const total = widths.image + widths.tree;
-    const [image, tree] = distributePair(
+    const pair = distributePair(
       total,
       widths.image + delta,
       MIN_PANEL_WIDTHS.image,
       MIN_PANEL_WIDTHS.tree,
     );
-    return { image, tree, property: widths.property };
+    if (!pair) return { ...DEFAULT_PANEL_WIDTHS };
+    return { image: pair[0], tree: pair[1], property: widths.property };
   }
 
   const total = widths.tree + widths.property;
-  const [tree, property] = distributePair(
+  const pair = distributePair(
     total,
     widths.tree + delta,
     MIN_PANEL_WIDTHS.tree,
     MIN_PANEL_WIDTHS.property,
   );
-  return { image: widths.image, tree, property };
+  if (!pair) return { ...DEFAULT_PANEL_WIDTHS };
+  return { image: widths.image, tree: pair[0], property: pair[1] };
 }
 
 export function resetPanelBoundary(widths: PanelWidths, boundary: PanelBoundary): PanelWidths {
@@ -52,25 +55,27 @@ export function resetPanelBoundary(widths: PanelWidths, boundary: PanelBoundary)
     const total = widths.image + widths.tree;
     const defaultTotal = DEFAULT_PANEL_WIDTHS.image + DEFAULT_PANEL_WIDTHS.tree;
     const preferredImage = total * DEFAULT_PANEL_WIDTHS.image / defaultTotal;
-    const [image, tree] = distributePair(
+    const pair = distributePair(
       total,
       preferredImage,
       MIN_PANEL_WIDTHS.image,
       MIN_PANEL_WIDTHS.tree,
     );
-    return { image, tree, property: widths.property };
+    if (!pair) return { ...DEFAULT_PANEL_WIDTHS };
+    return { image: pair[0], tree: pair[1], property: widths.property };
   }
 
   const total = widths.tree + widths.property;
   const defaultTotal = DEFAULT_PANEL_WIDTHS.tree + DEFAULT_PANEL_WIDTHS.property;
   const preferredTree = total * DEFAULT_PANEL_WIDTHS.tree / defaultTotal;
-  const [tree, property] = distributePair(
+  const pair = distributePair(
     total,
     preferredTree,
     MIN_PANEL_WIDTHS.tree,
     MIN_PANEL_WIDTHS.property,
   );
-  return { image: widths.image, tree, property };
+  if (!pair) return { ...DEFAULT_PANEL_WIDTHS };
+  return { image: widths.image, tree: pair[0], property: pair[1] };
 }
 
 export function expandedWorkspaceWidth(widths: PanelWidths) {
