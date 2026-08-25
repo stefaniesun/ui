@@ -341,6 +341,59 @@ describe("PageOutline", () => {
     expect(stage.attributes("style")).toContain("width: 1200px");
   });
 
+  it("resizes only the property panel from the workspace right edge", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const stage = wrapper.get('[data-test="canvas-stage"]');
+    const edge = wrapper.get('[data-test="property-edge-resizer"]');
+    const capture = mockPointerCapture(edge.element);
+    const beforeTransform = stage.attributes("style")?.match(/transform:[^;]+/)?.[0];
+    await edge.trigger("pointerdown", { button: 0, pointerId: 61, clientX: 1200 });
+    await edge.trigger("pointermove", { pointerId: 61, clientX: 1280 });
+    await edge.trigger("pointerup", { pointerId: 61, clientX: 1280 });
+    expect(capture.setPointerCapture).toHaveBeenCalledWith(61);
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(61);
+    expect(stage.attributes("style")).toContain("width: 1280px");
+    expect(stage.attributes("style")).toContain("594px 6px 297px 6px 377px");
+    expect(stage.attributes("style")?.match(/transform:[^;]+/)?.[0]).toBe(beforeTransform);
+  });
+
+  it("clamps the property edge at its minimum width", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    const edge = wrapper.get('[data-test="property-edge-resizer"]');
+    mockPointerCapture(edge.element);
+    await edge.trigger("pointerdown", { button: 0, pointerId: 62, clientX: 1200 });
+    await edge.trigger("pointermove", { pointerId: 62, clientX: 0 });
+    await edge.trigger("pointerup", { pointerId: 62, clientX: 0 });
+    const style = wrapper.get('[data-test="canvas-stage"]').attributes("style") ?? "";
+    expect(style).toContain("594px 6px 297px 6px 220px");
+    expect(style).toContain("width: 1123px");
+  });
+
+  it("converts property edge movement at the current canvas scale", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    await wrapper.get('[data-test="actual-size"]').trigger("click");
+    await wrapper.get('[data-test="zoom-in"]').trigger("click");
+    const edge = wrapper.get('[data-test="property-edge-resizer"]');
+    mockPointerCapture(edge.element);
+    await edge.trigger("pointerdown", { button: 0, pointerId: 63, clientX: 1200 });
+    await edge.trigger("pointermove", { pointerId: 63, clientX: 1288 });
+    await edge.trigger("pointerup", { pointerId: 63, clientX: 1288 });
+    expect(wrapper.get('[data-test="canvas-stage"]').attributes("style")).toContain("594px 6px 297px 6px 377px");
+  });
+
+  it("keeps the property edge resizer available while the tree is collapsed", async () => {
+    const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
+    await wrapper.get('[data-test="collapse-tree-panel"]').trigger("click");
+    const edge = wrapper.get('[data-test="property-edge-resizer"]');
+    mockPointerCapture(edge.element);
+    await edge.trigger("pointerdown", { button: 0, pointerId: 64, clientX: 925 });
+    await edge.trigger("pointermove", { pointerId: 64, clientX: 985 });
+    await edge.trigger("pointerup", { pointerId: 64, clientX: 985 });
+    const style = wrapper.get('[data-test="canvas-stage"]').attributes("style") ?? "";
+    expect(style).toContain("594px 34px 357px");
+    expect(style).toContain("width: 985px");
+  });
+
   it("converts splitter movement from screen pixels at the current canvas scale", async () => {
     const wrapper = mount(PageOutline, { props: { projectId: "p1", outline, selectedId: null } });
     await wrapper.get('[data-test="actual-size"]').trigger("click");
