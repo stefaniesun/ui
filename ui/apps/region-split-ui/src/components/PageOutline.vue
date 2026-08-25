@@ -7,6 +7,7 @@ import { DEFAULT_VIEW, fitView, keepViewportCenter, zoomAt, type CanvasSize, typ
 import {
   DEFAULT_PANEL_WIDTHS,
   DEFAULT_WORKSPACE_HEIGHT,
+  MIN_PANEL_WIDTHS,
   SPLITTER_SIZE,
   TREE_RESTORE_WIDTH,
   collapsedWorkspaceWidth,
@@ -323,6 +324,14 @@ function resetBoundary(boundary: ResettablePanelBoundary, event: MouseEvent) {
   event.stopPropagation();
   panelWidths.value = resetPanelBoundary(panelWidths.value, boundary);
 }
+function onPropertyEdgeKeydown(event: KeyboardEvent) {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  event.stopPropagation();
+  const direction = event.key === "ArrowRight" ? 1 : -1;
+  const step = event.shiftKey ? 48 : 16;
+  panelWidths.value = resizePanelBoundary(panelWidths.value, "property-edge", direction * step);
+}
 function onWindowBlur() {
   spacePressed.value = false;
   cancelPan();
@@ -520,9 +529,12 @@ watch(selected, node => {
         <div
           class="property-edge-resizer" data-test="property-edge-resizer"
           role="separator" aria-label="调整属性栏宽度" aria-orientation="vertical"
+          tabindex="0" :aria-valuemin="MIN_PANEL_WIDTHS.property" :aria-valuenow="Math.round(panelWidths.property)"
           @pointerdown="onResizeStart('property-edge', $event)" @pointermove="onResizeMove"
           @pointerup="endResize" @pointercancel="endResize" @lostpointercapture="endResize"
+          @keydown="onPropertyEdgeKeydown"
         />
+        <div class="property-content-scroll" data-test="property-content-scroll" data-scroll-panel="true">
         <form v-if="selected" class="calibration" data-test="calibration" @submit.prevent="save">
           <header class="property-heading">
             <div><small>{{ selected.outlineNumber }} · {{ selected.regionName }}</small><strong>{{ selected.displayName }}</strong></div>
@@ -542,6 +554,7 @@ watch(selected, node => {
           <button type="submit" data-test="save-calibration">保存校准</button>
         </form>
         <div v-else class="property-empty" data-test="property-empty">选择元素后编辑属性</div>
+        </div>
         </aside>
       </div>
     </section>
@@ -572,7 +585,8 @@ watch(selected, node => {
 .element-box.selected { z-index: 3; border: 2px solid #30d5ff; background: #00bce83b; }
 .tree-panel, .property-panel { min-width: 0; min-height: 0; overflow: hidden; border-left: 1px solid #2a3342; background: #151a23; }
 .tree-panel { display: flex; flex-direction: column; }
-.property-panel { position: relative; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.property-panel { position: relative; overflow: hidden; }
+.property-content-scroll { height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .property-edge-resizer { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; user-select: none; }
 .property-edge-resizer::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 2px; background: transparent; }
 .property-edge-resizer:hover::after, .property-edge-resizer:focus-visible::after { background: #3b82f6; }
